@@ -1,0 +1,101 @@
+
+export interface ScoringInputs {
+  identity_reliability: number;
+  financial_stability: number;
+  migration_resilience: number;
+  country_transferability: number;
+  behavioral_consistency: number;
+  fraud_risk: number;
+  contradiction_score: number;
+  overall_confidence: number;
+  evidence_strength: number;
+  overall_uncertainty: number;
+}
+
+export interface ScoreBreakdown {
+  base_score: number;
+  contradiction_penalty: number;
+  confidence_adjustment: number;
+  evidence_adjustment: number;
+  final_adjusted_score: number;
+}
+
+export interface ScoringResult {
+  finalScore: number;
+  normalizedScore: number;
+  level: string;
+  breakdown: ScoreBreakdown;
+}
+
+/**
+ * Maps a numeric score to a qualitative level.
+ */
+export function calculateLevel(score: number): string {
+  if (score >= 800) return 'Trusted Alpha';
+  if (score >= 720) return 'Trusted';
+  if (score >= 650) return 'Standard';
+  if (score >= 550) return 'Limited';
+  if (score >= 450) return 'Caution';
+  return 'Critical';
+}
+
+/**
+ * Deterministic Scoring Engine
+ * 
+ * This engine calculates the TransferScore (300-850 range) based on 
+ * structured inputs from the AI analysis agents. 
+ */
+export function calculateTransferScore(inputs: ScoringInputs): ScoringResult {
+  // Normalize inputs to ensure they are within expected ranges
+  const idRel = Math.max(0, Math.min(100, inputs.identity_reliability));
+  const finStab = Math.max(0, Math.min(100, inputs.financial_stability));
+  const migRes = Math.max(0, Math.min(100, inputs.migration_resilience));
+  const ctryTrns = Math.max(0, Math.min(100, inputs.country_transferability));
+  const behCons = Math.max(0, Math.min(100, inputs.behavioral_consistency));
+  const fraudRisk = Math.max(0, Math.min(100, inputs.fraud_risk));
+  const contraScore = Math.max(0, Math.min(100, inputs.contradiction_score));
+  const confidence = Math.max(0, Math.min(1, inputs.overall_confidence));
+  const evStrength = Math.max(0, Math.min(100, inputs.evidence_strength));
+  const uncertainty = Math.max(0, Math.min(100, inputs.overall_uncertainty));
+
+  // STEP 1: Base weighted score
+  const baseScore = 
+    (idRel * 0.22) + 
+    (finStab * 0.26) + 
+    (migRes * 0.14) + 
+    (ctryTrns * 0.16) + 
+    (behCons * 0.10) + 
+    ((100 - fraudRisk) * 0.12);
+
+  // STEP 2: Contradiction penalty
+  const contradictionPenalty = contraScore * 0.25;
+  let adjustedScore = baseScore - contradictionPenalty;
+
+  // STEP 3: Confidence adjustment (0.7 to 1.0 multiplier)
+  const confidenceMultiplier = 0.7 + (confidence * 0.3);
+  const confidenceAdjustment = Math.abs(adjustedScore * (1 - confidenceMultiplier));
+  adjustedScore = adjustedScore * confidenceMultiplier;
+
+  // STEP 4: Evidence adjustment
+  const evidenceAdjustment = (evStrength - uncertainty) * 0.05;
+  adjustedScore = adjustedScore + evidenceAdjustment;
+
+  // STEP 5: Clamp 0-100
+  const finalAdjustedScore = Math.max(0, Math.min(100, adjustedScore));
+
+  // STEP 6: Convert to 300-850 range
+  const finalScore = Math.round(300 + ((finalAdjustedScore / 100) * 550));
+
+  return {
+    finalScore,
+    normalizedScore: finalAdjustedScore,
+    level: calculateLevel(finalScore),
+    breakdown: {
+      base_score: Number(baseScore.toFixed(2)),
+      contradiction_penalty: Number(contradictionPenalty.toFixed(2)),
+      confidence_adjustment: Number(confidenceAdjustment.toFixed(2)),
+      evidence_adjustment: Number(evidenceAdjustment.toFixed(2)),
+      final_adjusted_score: Number(finalAdjustedScore.toFixed(2))
+    }
+  };
+}

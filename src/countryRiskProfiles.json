@@ -1,0 +1,711 @@
+[
+  {
+    "country": "United States",
+    "banking_stability": 98,
+    "inflation_risk": 18,
+    "currency_volatility": 5,
+    "employment_stability": 90,
+    "migration_pressure": 2,
+    "document_reliability": 99,
+    "financial_system_maturity": 99,
+    "remote_work_viability": 95,
+    "cross_border_transferability": 98,
+    "fraud_prevalence_risk": 12,
+    "economic_resilience": 97,
+    "currency_code": "USD",
+    "median_monthly_income_usd": 4800,
+    "income_deciles_usd": [
+      900,
+      1700,
+      2400,
+      3100,
+      3900,
+      4800,
+      6000,
+      7800,
+      11000
+    ],
+    "income_context": {
+      "low": "Below $2,000/mo is poverty-level in most US cities",
+      "mid": "$3,000\u20136,000/mo is middle class depending on city",
+      "high": "Above $8,000/mo is upper-middle to high earner"
+    },
+    "major_cities_cost_index": {
+      "New York": 100,
+      "San Francisco": 102,
+      "Chicago": 72,
+      "Austin": 68
+    },
+    "notes": [
+      "World reserve currency",
+      "Deep capital markets",
+      "Strong credit bureau system"
+    ]
+  },
+  {
+    "country": "Canada",
+    "banking_stability": 96,
+    "inflation_risk": 20,
+    "currency_volatility": 8,
+    "employment_stability": 88,
+    "migration_pressure": 5,
+    "document_reliability": 97,
+    "financial_system_maturity": 95,
+    "remote_work_viability": 92,
+    "cross_border_transferability": 95,
+    "fraud_prevalence_risk": 8,
+    "economic_resilience": 94,
+    "currency_code": "CAD",
+    "median_monthly_income_usd": 3800,
+    "income_deciles_usd": [
+      800,
+      1500,
+      2100,
+      2700,
+      3300,
+      3800,
+      4700,
+      6200,
+      8500
+    ],
+    "income_context": {
+      "low": "Below CAD 2,500/mo is below living wage in major cities",
+      "mid": "CAD 4,000\u20137,000/mo is solid middle class",
+      "high": "Above CAD 9,000/mo is high earner"
+    },
+    "major_cities_cost_index": {
+      "Toronto": 82,
+      "Vancouver": 88,
+      "Montreal": 65,
+      "Calgary": 70
+    },
+    "notes": [
+      "Highly stable banking sector",
+      "Strong immigration infrastructure",
+      "Strong regulatory oversight"
+    ]
+  },
+  {
+    "country": "Germany",
+    "banking_stability": 95,
+    "inflation_risk": 22,
+    "currency_volatility": 6,
+    "employment_stability": 90,
+    "migration_pressure": 15,
+    "document_reliability": 98,
+    "financial_system_maturity": 96,
+    "remote_work_viability": 85,
+    "cross_border_transferability": 94,
+    "fraud_prevalence_risk": 7,
+    "economic_resilience": 93,
+    "currency_code": "EUR",
+    "median_monthly_income_usd": 3500,
+    "income_deciles_usd": [
+      900,
+      1600,
+      2100,
+      2600,
+      3100,
+      3500,
+      4200,
+      5400,
+      7500
+    ],
+    "income_context": {
+      "low": "Below \u20ac2,000/mo net is entry-level or part-time",
+      "mid": "\u20ac2,500\u20134,000/mo net is solidly middle class",
+      "high": "Above \u20ac5,500/mo net is high earner"
+    },
+    "major_cities_cost_index": {
+      "Munich": 88,
+      "Berlin": 72,
+      "Frankfurt": 80,
+      "Hamburg": 75
+    },
+    "notes": [
+      "Strong industrial economy",
+      "Robust social safety net",
+      "Excellent document standards"
+    ]
+  },
+  {
+    "country": "United Kingdom",
+    "banking_stability": 93,
+    "inflation_risk": 28,
+    "currency_volatility": 12,
+    "employment_stability": 85,
+    "migration_pressure": 18,
+    "document_reliability": 96,
+    "financial_system_maturity": 95,
+    "remote_work_viability": 90,
+    "cross_border_transferability": 90,
+    "fraud_prevalence_risk": 14,
+    "economic_resilience": 88,
+    "currency_code": "GBP",
+    "median_monthly_income_usd": 3200,
+    "income_deciles_usd": [
+      900,
+      1500,
+      1900,
+      2400,
+      2900,
+      3200,
+      3900,
+      5100,
+      7200
+    ],
+    "income_context": {
+      "low": "Below \u00a31,800/mo net is low income in most UK cities",
+      "mid": "\u00a32,200\u20133,500/mo net is middle class",
+      "high": "Above \u00a35,000/mo net is high earner"
+    },
+    "major_cities_cost_index": {
+      "London": 95,
+      "Manchester": 62,
+      "Edinburgh": 68,
+      "Bristol": 65
+    },
+    "notes": [
+      "Post-Brexit complexity for EU nationals",
+      "Strong fintech ecosystem",
+      "High London cost of living"
+    ]
+  },
+  {
+    "country": "Ukraine",
+    "banking_stability": 42,
+    "inflation_risk": 72,
+    "currency_volatility": 65,
+    "employment_stability": 38,
+    "migration_pressure": 85,
+    "document_reliability": 72,
+    "financial_system_maturity": 55,
+    "remote_work_viability": 82,
+    "cross_border_transferability": 48,
+    "fraud_prevalence_risk": 38,
+    "economic_resilience": 30,
+    "currency_code": "UAH",
+    "currency_usd_rate_approx": 41.5,
+    "median_monthly_income_usd": 500,
+    "median_monthly_income_local": 20000,
+    "income_deciles_local_currency": [
+      5000,
+      9000,
+      12000,
+      15000,
+      18000,
+      22000,
+      28000,
+      38000,
+      60000
+    ],
+    "income_deciles_usd": [
+      120,
+      215,
+      290,
+      360,
+      435,
+      530,
+      675,
+      915,
+      1450
+    ],
+    "income_context": {
+      "low": "Below UAH 12,000/mo is below average \u2014 entry-level or rural",
+      "mid": "UAH 18,000\u201335,000/mo is solidly middle class in Ukraine",
+      "high": "Above UAH 50,000/mo (\u2248$1,200/mo) is top 15% \u2014 senior professional, IT sector, business owner",
+      "it_sector_note": "IT/tech workers often earn UAH 60,000\u2013200,000+/mo \u2014 significantly above national median and internationally competitive in remote work context"
+    },
+    "sector_income_benchmarks": {
+      "IT/Software": {
+        "median_uah": 80000,
+        "note": "Top-earning sector, globally competitive remote rates"
+      },
+      "Finance": {
+        "median_uah": 30000,
+        "note": "Well above national median"
+      },
+      "Medicine": {
+        "median_uah": 18000,
+        "note": "Near national median despite specialisation"
+      },
+      "Education": {
+        "median_uah": 10000,
+        "note": "Below national median"
+      },
+      "Construction": {
+        "median_uah": 22000,
+        "note": "Above median, often informal component"
+      }
+    },
+    "major_cities_cost_index": {
+      "Kyiv": 100,
+      "Lviv": 75,
+      "Odesa": 72,
+      "Kharkiv": 65
+    },
+    "transferability_note": "Due to active conflict, Ukrainian financial history should be interpreted with context. Documents from 2022+ may show irregular patterns reflecting wartime conditions, not financial instability. Pre-war history (2019\u20132021) is stronger evidence baseline.",
+    "notes": [
+      "Active conflict \u2014 economy severely disrupted since 2022",
+      "Strong IT/tech talent base with globally competitive income",
+      "High currency volatility \u2014 UAH figures should be contextualised against USD equivalent at time of statement"
+    ]
+  },
+  {
+    "country": "India",
+    "banking_stability": 72,
+    "inflation_risk": 35,
+    "currency_volatility": 20,
+    "employment_stability": 65,
+    "migration_pressure": 60,
+    "document_reliability": 75,
+    "financial_system_maturity": 70,
+    "remote_work_viability": 85,
+    "cross_border_transferability": 68,
+    "fraud_prevalence_risk": 32,
+    "economic_resilience": 72,
+    "currency_code": "INR",
+    "currency_usd_rate_approx": 83.5,
+    "median_monthly_income_usd": 300,
+    "median_monthly_income_local": 25000,
+    "income_deciles_local_currency": [
+      6000,
+      10000,
+      14000,
+      18000,
+      23000,
+      30000,
+      42000,
+      65000,
+      120000
+    ],
+    "income_deciles_usd": [
+      72,
+      120,
+      168,
+      215,
+      276,
+      360,
+      503,
+      779,
+      1437
+    ],
+    "income_context": {
+      "low": "Below INR 15,000/mo is below average",
+      "mid": "INR 25,000\u201360,000/mo is middle class in urban India",
+      "high": "Above INR 100,000/mo is top 10% \u2014 senior professional or manager",
+      "it_sector_note": "IT professionals in Bangalore/Hyderabad commonly earn INR 80,000\u2013300,000+/mo \u2014 highly transferable internationally"
+    },
+    "sector_income_benchmarks": {
+      "IT/Software": {
+        "median_inr": 120000,
+        "note": "Top tier, globally competitive, strong migration pattern to US/UK/CA"
+      },
+      "Finance/Banking": {
+        "median_inr": 60000,
+        "note": "Well above median in urban centres"
+      },
+      "Healthcare": {
+        "median_inr": 40000,
+        "note": "Above median, strong destination-country recognition"
+      },
+      "Manufacturing": {
+        "median_inr": 20000,
+        "note": "Near median"
+      }
+    },
+    "major_cities_cost_index": {
+      "Mumbai": 100,
+      "Bangalore": 85,
+      "Delhi": 82,
+      "Hyderabad": 75,
+      "Pune": 70
+    },
+    "notes": [
+      "Large remittance-sending country",
+      "UPI-based banking increasingly well documented",
+      "Strong IT/engineering diaspora globally"
+    ]
+  },
+  {
+    "country": "Nigeria",
+    "banking_stability": 38,
+    "inflation_risk": 85,
+    "currency_volatility": 78,
+    "employment_stability": 35,
+    "migration_pressure": 70,
+    "document_reliability": 42,
+    "financial_system_maturity": 40,
+    "remote_work_viability": 55,
+    "cross_border_transferability": 35,
+    "fraud_prevalence_risk": 62,
+    "economic_resilience": 32,
+    "currency_code": "NGN",
+    "currency_usd_rate_approx": 1580,
+    "median_monthly_income_usd": 150,
+    "income_context": {
+      "high": "Above NGN 500,000/mo (\u2248$315/mo) is top 10% \u2014 senior professional or business owner",
+      "it_sector_note": "Tech/fintech professionals in Lagos earn significantly above median, often in USD-denominated remote roles"
+    },
+    "notes": [
+      "High naira volatility \u2014 USD-denominated income is far stronger signal",
+      "Significant informal economy",
+      "Lenders should note currency risk; USD income stream is preferred"
+    ]
+  },
+  {
+    "country": "Brazil",
+    "banking_stability": 65,
+    "inflation_risk": 45,
+    "currency_volatility": 35,
+    "employment_stability": 58,
+    "migration_pressure": 35,
+    "document_reliability": 72,
+    "financial_system_maturity": 68,
+    "remote_work_viability": 72,
+    "cross_border_transferability": 60,
+    "fraud_prevalence_risk": 40,
+    "economic_resilience": 60,
+    "currency_code": "BRL",
+    "currency_usd_rate_approx": 5.0,
+    "median_monthly_income_usd": 500,
+    "median_monthly_income_local": 2500,
+    "income_deciles_local_currency": [
+      600,
+      1000,
+      1400,
+      1800,
+      2200,
+      2700,
+      3500,
+      5000,
+      9000
+    ],
+    "income_context": {
+      "low": "Below BRL 1,500/mo is below average",
+      "mid": "BRL 2,500\u20135,000/mo is middle class",
+      "high": "Above BRL 8,000/mo is top 15%"
+    },
+    "notes": [
+      "Strong Pix banking documentation",
+      "CPF is a reliable national tax identifier",
+      "IT sector growing strongly in S\u00e3o Paulo/Florian\u00f3polis"
+    ]
+  },
+  {
+    "country": "UAE",
+    "banking_stability": 88,
+    "inflation_risk": 15,
+    "currency_volatility": 4,
+    "employment_stability": 80,
+    "migration_pressure": 10,
+    "document_reliability": 88,
+    "financial_system_maturity": 88,
+    "remote_work_viability": 82,
+    "cross_border_transferability": 85,
+    "fraud_prevalence_risk": 15,
+    "economic_resilience": 85,
+    "currency_code": "AED",
+    "currency_usd_rate_approx": 3.67,
+    "median_monthly_income_usd": 2800,
+    "income_context": {
+      "mid": "AED 8,000\u201315,000/mo is solidly middle class for expats",
+      "high": "Above AED 25,000/mo is high earner",
+      "note": "UAE income is tax-free \u2014 net = gross. Strong signal for lenders as income is fully spendable."
+    },
+    "notes": [
+      "Pegged currency (AED/USD) = low volatility",
+      "Tax-free income = high real purchasing power",
+      "Expat-dominated workforce \u2014 banking well-documented"
+    ]
+  },
+  {
+    "country": "Philippines",
+    "banking_stability": 62,
+    "inflation_risk": 40,
+    "currency_volatility": 22,
+    "employment_stability": 55,
+    "migration_pressure": 65,
+    "document_reliability": 65,
+    "financial_system_maturity": 60,
+    "remote_work_viability": 75,
+    "cross_border_transferability": 58,
+    "fraud_prevalence_risk": 30,
+    "economic_resilience": 58,
+    "currency_code": "PHP",
+    "currency_usd_rate_approx": 57.0,
+    "median_monthly_income_usd": 320,
+    "income_context": {
+      "high": "Above PHP 50,000/mo (\u2248$880) is top 10%",
+      "note": "OFW (Overseas Filipino Worker) remittance history is a strong positive signal and widely understood by international lenders"
+    },
+    "notes": [
+      "Large diaspora \u2014 OFW documentation is internationally recognised",
+      "BPO/IT sector growing rapidly",
+      "Remittance history is strong credibility signal"
+    ]
+  },
+  {
+    "country": "Mexico",
+    "banking_stability": 68,
+    "inflation_risk": 38,
+    "currency_volatility": 25,
+    "employment_stability": 60,
+    "migration_pressure": 50,
+    "document_reliability": 68,
+    "financial_system_maturity": 65,
+    "remote_work_viability": 70,
+    "cross_border_transferability": 62,
+    "fraud_prevalence_risk": 35,
+    "economic_resilience": 62,
+    "currency_code": "MXN",
+    "currency_usd_rate_approx": 17.0,
+    "median_monthly_income_usd": 600,
+    "income_context": {
+      "mid": "MXN 15,000\u201330,000/mo is middle class",
+      "high": "Above MXN 40,000/mo is top 20%"
+    },
+    "notes": [
+      "CURP/RFC are reliable identifiers",
+      "Strong US border economy \u2014 many dual-income households",
+      "Nearshoring boom increasing formal tech sector income"
+    ]
+  },
+  {
+    "country": "Poland",
+    "banking_stability": 80,
+    "inflation_risk": 32,
+    "currency_volatility": 18,
+    "employment_stability": 78,
+    "migration_pressure": 25,
+    "document_reliability": 88,
+    "financial_system_maturity": 82,
+    "remote_work_viability": 85,
+    "cross_border_transferability": 80,
+    "fraud_prevalence_risk": 12,
+    "economic_resilience": 78,
+    "currency_code": "PLN",
+    "currency_usd_rate_approx": 4.0,
+    "median_monthly_income_usd": 1400,
+    "median_monthly_income_local": 5600,
+    "income_deciles_local_currency": [
+      2200,
+      3000,
+      3700,
+      4300,
+      5000,
+      5800,
+      7000,
+      9500,
+      15000
+    ],
+    "income_context": {
+      "low": "Below PLN 3,500/mo net is below average",
+      "mid": "PLN 5,000\u20139,000/mo net is solidly middle class",
+      "high": "Above PLN 12,000/mo net is top 15%",
+      "it_sector_note": "IT professionals in Warsaw/Krak\u00f3w earn PLN 10,000\u201325,000+/mo \u2014 among the highest in Eastern Europe"
+    },
+    "sector_income_benchmarks": {
+      "IT/Software": {
+        "median_pln": 14000,
+        "note": "Strong and growing sector, internationally competitive"
+      },
+      "Finance": {
+        "median_pln": 8000,
+        "note": "Well above median"
+      },
+      "Manufacturing": {
+        "median_pln": 5000,
+        "note": "Near median"
+      }
+    },
+    "notes": [
+      "EU member \u2014 documents accepted across Schengen",
+      "Strong IT hub in Warsaw/Krak\u00f3w/Wroc\u0142aw",
+      "PLN relatively stable vs EUR"
+    ]
+  },
+  {
+    "country": "France",
+    "banking_stability": 90,
+    "inflation_risk": 20,
+    "currency_volatility": 6,
+    "employment_stability": 82,
+    "migration_pressure": 20,
+    "document_reliability": 95,
+    "financial_system_maturity": 93,
+    "remote_work_viability": 82,
+    "cross_border_transferability": 90,
+    "fraud_prevalence_risk": 10,
+    "economic_resilience": 88,
+    "currency_code": "EUR",
+    "median_monthly_income_usd": 2800,
+    "income_context": {
+      "mid": "\u20ac2,000\u20133,500/mo net is solidly middle class",
+      "high": "Above \u20ac5,000/mo net is high earner"
+    },
+    "notes": [
+      "EU member",
+      "Strong social security documentation",
+      "Payslips (bulletins de salaire) are highly standardised and verifiable"
+    ]
+  },
+  {
+    "country": "Turkey",
+    "banking_stability": 50,
+    "inflation_risk": 88,
+    "currency_volatility": 80,
+    "employment_stability": 50,
+    "migration_pressure": 45,
+    "document_reliability": 60,
+    "financial_system_maturity": 58,
+    "remote_work_viability": 68,
+    "cross_border_transferability": 45,
+    "fraud_prevalence_risk": 35,
+    "economic_resilience": 48,
+    "currency_code": "TRY",
+    "currency_usd_rate_approx": 32.5,
+    "median_monthly_income_usd": 450,
+    "income_context": {
+      "note": "Due to high inflation, TRY-denominated figures from 2021\u20132023 require significant contextualisation. USD-indexed income or USD bank accounts are a much stronger signal.",
+      "high": "Above TRY 50,000/mo is top 20% \u2014 but USD equivalent should be calculated at time of statement"
+    },
+    "notes": [
+      "Very high inflation requires USD-equivalent normalisation",
+      "USD/EUR income stream is far stronger signal than TRY",
+      "Documents generally reliable but currency context critical"
+    ]
+  },
+  {
+    "country": "South Africa",
+    "banking_stability": 68,
+    "inflation_risk": 42,
+    "currency_volatility": 38,
+    "employment_stability": 45,
+    "migration_pressure": 40,
+    "document_reliability": 72,
+    "financial_system_maturity": 70,
+    "remote_work_viability": 65,
+    "cross_border_transferability": 55,
+    "fraud_prevalence_risk": 42,
+    "economic_resilience": 50,
+    "currency_code": "ZAR",
+    "currency_usd_rate_approx": 18.5,
+    "median_monthly_income_usd": 600,
+    "income_context": {
+      "high": "Above ZAR 30,000/mo is top 15% \u2014 senior professional",
+      "note": "High inequality \u2014 median is depressed by large informal sector. Formal sector earners are significantly above median."
+    },
+    "notes": [
+      "High unemployment overall but strong formal sector",
+      "FICA-compliant banking well-documented",
+      "ZAR volatility requires USD-equivalent context"
+    ]
+  },
+  {
+    "country": "Kazakhstan",
+    "banking_stability": 60,
+    "inflation_risk": 48,
+    "currency_volatility": 30,
+    "employment_stability": 62,
+    "migration_pressure": 30,
+    "document_reliability": 65,
+    "financial_system_maturity": 60,
+    "remote_work_viability": 72,
+    "cross_border_transferability": 55,
+    "fraud_prevalence_risk": 28,
+    "economic_resilience": 60,
+    "currency_code": "KZT",
+    "currency_usd_rate_approx": 450,
+    "median_monthly_income_usd": 600,
+    "median_monthly_income_local": 270000,
+    "income_context": {
+      "high": "Above KZT 500,000/mo is top 20% \u2014 senior professional in Almaty/Astana",
+      "it_sector_note": "IT sector growing rapidly, salaries competitive with Eastern Europe"
+    },
+    "notes": [
+      "Oil-based economy",
+      "Growing IT sector in Almaty",
+      "Tenge volatility moderate \u2014 USD context helpful"
+    ]
+  },
+  {
+    "country": "Georgia",
+    "banking_stability": 72,
+    "inflation_risk": 35,
+    "currency_volatility": 22,
+    "employment_stability": 60,
+    "migration_pressure": 35,
+    "document_reliability": 75,
+    "financial_system_maturity": 68,
+    "remote_work_viability": 80,
+    "cross_border_transferability": 65,
+    "fraud_prevalence_risk": 20,
+    "economic_resilience": 62,
+    "currency_code": "GEL",
+    "currency_usd_rate_approx": 2.7,
+    "median_monthly_income_usd": 550,
+    "income_context": {
+      "high": "Above GEL 3,000/mo is top 20% \u2014 professional in Tbilisi",
+      "note": "Georgia is a popular digital nomad destination \u2014 USD/EUR income common and well-documented"
+    },
+    "notes": [
+      "Low bureaucracy",
+      "Popular with remote workers and entrepreneurs",
+      "TBC Bank and Bank of Georgia have well-structured statements"
+    ]
+  },
+  {
+    "country": "Armenia",
+    "banking_stability": 65,
+    "inflation_risk": 38,
+    "currency_volatility": 20,
+    "employment_stability": 58,
+    "migration_pressure": 40,
+    "document_reliability": 68,
+    "financial_system_maturity": 62,
+    "remote_work_viability": 78,
+    "cross_border_transferability": 60,
+    "fraud_prevalence_risk": 22,
+    "economic_resilience": 58,
+    "currency_code": "AMD",
+    "currency_usd_rate_approx": 388,
+    "median_monthly_income_usd": 500,
+    "income_context": {
+      "high": "Above AMD 300,000/mo is top 20% in Yerevan",
+      "it_sector_note": "Strong IT sector \u2014 Yerevan is a growing tech hub with competitive salaries"
+    },
+    "notes": [
+      "Growing tech hub in Yerevan",
+      "USD income common in IT sector",
+      "AMD relatively stable"
+    ]
+  },
+  {
+    "country": "Romania",
+    "banking_stability": 72,
+    "inflation_risk": 35,
+    "currency_volatility": 15,
+    "employment_stability": 70,
+    "migration_pressure": 35,
+    "document_reliability": 80,
+    "financial_system_maturity": 74,
+    "remote_work_viability": 82,
+    "cross_border_transferability": 75,
+    "fraud_prevalence_risk": 18,
+    "economic_resilience": 68,
+    "currency_code": "RON",
+    "currency_usd_rate_approx": 4.6,
+    "median_monthly_income_usd": 950,
+    "income_context": {
+      "mid": "RON 4,000\u20137,000/mo net is solidly middle class",
+      "high": "Above RON 10,000/mo is top 20%",
+      "it_sector_note": "IT sector (Bucharest, Cluj-Napoca) salaries reach RON 15,000\u201335,000/mo \u2014 highly competitive"
+    },
+    "notes": [
+      "EU member",
+      "IT sector in Bucharest/Cluj is strong",
+      "RON relatively stable"
+    ]
+  }
+]

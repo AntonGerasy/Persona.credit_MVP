@@ -1,0 +1,15 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "functions": {
+    "api/validate-file.ts":    { "maxDuration": 30 },
+    "api/extract-document.ts": { "maxDuration": 60 },
+    "api/run-agent.ts":        { "maxDuration": 60 },
+    "api/synthesize.ts":       { "maxDuration": 60 },
+    "api/kv.ts":               { "maxDuration": 10 }
+  }
+}
