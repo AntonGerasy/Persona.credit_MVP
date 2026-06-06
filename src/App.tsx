@@ -8,7 +8,6 @@ import { formSchema, PROFESSIONAL_LOADING_MESSAGES, PROVIDER_LOADING_MESSAGES } 
 import { calculateTransferScore } from './scoreEngine';
 import { db } from './lib/storage';
 import { getInitialFormData } from './lib/formUtils';
-import { globalAntiHallucinationRules, sanitizeJsonResponse, validateAgentResponse, getSafeFallback } from './lib/aiUtils';
 import { ExtractedDocument } from './lib/agents/documentExtractor';
 // Agent schemas and prompts live server-side in api/run-agent.ts
 // synthesis prompt/schema no longer imported — logic moved to api/synthesize.ts and inline agent aggregation

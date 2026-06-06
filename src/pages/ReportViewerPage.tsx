@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Shield, FileCheck, Calendar, CheckCircle, AlertCircle, Clock, TrendingUp, MapPin, Briefcase, DollarSign, FileText } from 'lucide-react';
+import { Shield, Calendar, CheckCircle, AlertCircle, Clock, TrendingUp, MapPin, Briefcase, DollarSign, FileText } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { DashboardData } from '../types';
 

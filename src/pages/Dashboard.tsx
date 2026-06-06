@@ -448,7 +448,7 @@ const PaywallOverlay: React.FC<{ onUnlock: () => void }> = ({ onUnlock }) => (
     </div>
 );
 
-const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, referralCode, isPaid, plan, onReset, onLogout, onGoToPricing, onExitToLanding, isAdmin }) => {
+const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, referralCode, isPaid, plan, onLogout, onGoToPricing, onExitToLanding, isAdmin }) => {
   const data = useMemo(() => propData || profile?.scores || SOPHISTICATED_DEMO_DATA, [propData, profile]);
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [isDownloading, setIsDownloading] = useState(false);

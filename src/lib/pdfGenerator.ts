@@ -65,8 +65,6 @@ export const generateDossierPDF = async (data: DashboardData) => {
 
   let y = 0;
 
-  const nl = (doc as any).lastAutoTable?.finalY ?? y;
-
   // ── HEADER ────────────────────────────────────────────────────────────────
   doc.setFillColor(...C.dark);
   doc.rect(0, 0, pageWidth, 48, 'F');
