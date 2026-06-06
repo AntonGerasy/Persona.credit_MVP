@@ -1438,76 +1438,70 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
             );
         case 'share':
             return (
-                <div className="max-w-2xl mx-auto space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
                     <Breadcrumbs activeTab={activeTab} onNavigate={setActiveTab} onHome={onExitToLanding} />
-                    <button 
+                    <button
                         onClick={() => setActiveTab('overview')}
                         className="flex items-center gap-2 text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-4 hover:text-brand-dark transition-colors"
                     >
                         <ArrowLeft className="w-3 h-3" />
                         Back to Overview
                     </button>
-                    <div className="text-center space-y-4 pt-10">
-                        <div className="w-20 h-20 bg-brand-blue text-white rounded-3xl flex items-center justify-center mx-auto shadow-xl">
-                            <Building2 className="w-8 h-8" />
+
+                    <div className="text-center space-y-3 pt-6">
+                        <div className="w-16 h-16 bg-brand-blue text-white rounded-2xl flex items-center justify-center mx-auto shadow-lg">
+                            <Building2 className="w-7 h-7" />
                         </div>
-                        <h2 className="text-3xl font-bold text-brand-dark tracking-tight pt-4 leading-none">Partner Delivery</h2>
-                        <p className="text-sm text-brand-gray font-medium max-w-sm mx-auto leading-relaxed">Securely transmit your integrity dossier directly to verified partner banks or global lenders.</p>
+                        <h2 className="text-2xl font-bold text-brand-dark tracking-tight">Share Your Report</h2>
+                        <p className="text-sm text-brand-gray font-medium max-w-sm mx-auto leading-relaxed">
+                            Download your verification dossier as a PDF and send it directly to your landlord, bank, or lender.
+                        </p>
                     </div>
 
-                    <Card className="p-10 space-y-8 bg-white border border-brand-border shadow-2xl rounded-3xl relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-brand-blue/5 rounded-full blur-3xl -mr-16 -mt-16"></div>
-                        {!isPaid && (
-                            <div className="absolute inset-0 z-30 flex items-center justify-center bg-white/60 backdrop-blur-md rounded-3xl p-8 text-center">
-                                <div className="max-w-xs space-y-6 animate-in zoom-in-95 duration-500">
-                                    <div className="w-16 h-16 bg-slate-100 text-brand-blue rounded-2xl flex items-center justify-center mx-auto shadow-sm border border-brand-border">
-                                        <Lock className="w-6 h-6" />
-                                    </div>
-                                    <p className="text-xs text-brand-gray font-bold uppercase tracking-widest leading-relaxed px-4">Upgrade to facilitate secure distribution of your verification.</p>
-                                    <button onClick={onGoToPricing} className="w-full py-4 bg-brand-blue text-white text-[10px] font-bold uppercase tracking-widest rounded-xl shadow-lg hover:shadow-brand-blue/30 transition-all active:scale-95">View Pro Plans</button>
-                                </div>
+                    <Card className="p-8 space-y-6 bg-white border border-brand-border rounded-3xl shadow-sm">
+                        {/* Download PDF */}
+                        <div className="flex items-center gap-4 p-5 bg-brand-blue/5 border border-brand-blue/20 rounded-2xl">
+                            <div className="w-10 h-10 bg-brand-blue rounded-xl flex items-center justify-center shrink-0">
+                                <Shield className="w-5 h-5 text-white" />
                             </div>
-                        )}
-                        {deliveryStatus ? (
-                            <div className="space-y-8 animate-in zoom-in-95 duration-500">
-                                <div className="p-10 bg-emerald-50 border border-emerald-100 rounded-2xl text-center space-y-5">
-                                    <div className="w-16 h-16 bg-emerald-500 text-white rounded-full flex items-center justify-center mx-auto shadow-lg">
-                                        <ShieldCheck className="w-8 h-8" />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <h3 className="text-xl font-bold text-brand-dark tracking-tight">Verified & Dispatched</h3>
-                                        <p className="text-xs text-emerald-700 font-bold uppercase tracking-widest leading-relaxed max-w-xs mx-auto">
-                                            Payload issued to <span className="text-brand-blue underline">{deliveryStatus.email}</span>. One-way institutional channel established.
-                                        </p>
-                                    </div>
-                                    <div className="pt-4 flex items-center justify-center gap-2">
-                                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                                        <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Signed: DG Root Key Alpha</span>
-                                    </div>
+                            <div className="flex-1">
+                                <p className="text-[11px] font-bold text-brand-dark">Download PDF Report</p>
+                                <p className="text-[10px] text-brand-gray mt-0.5">A formatted dossier you can email, print, or attach to your application.</p>
+                            </div>
+                            <button
+                                onClick={handleDownloadPDF}
+                                className="px-5 py-2.5 bg-brand-blue text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-brand-blue/90 transition-all shrink-0"
+                            >
+                                Export PDF
+                            </button>
+                        </div>
+
+                        {/* Instructions */}
+                        <div className="space-y-3">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-brand-gray">How to share with a lender</p>
+                            {[
+                                'Export the PDF using the button above.',
+                                'Email it to your landlord, property manager, or bank officer.',
+                                'You can reference your Report ID: ' + (data.shareId || 'See your report header'),
+                            ].map((step, i) => (
+                                <div key={i} className="flex items-start gap-3">
+                                    <div className="w-5 h-5 rounded-full bg-brand-blue/10 text-brand-blue text-[9px] font-black flex items-center justify-center shrink-0 mt-0.5">{i + 1}</div>
+                                    <p className="text-[11px] text-brand-gray leading-relaxed">{step}</p>
                                 </div>
-                                
-                                <div className="grid grid-cols-2 gap-6">
-                                    <div className="p-5 bg-white rounded-2xl text-left border border-brand-border flex items-center gap-4 shadow-sm">
-                                        <Mail className="w-5 h-5 text-brand-blue" />
-                                        <div>
-                                            <p className="text-[9px] font-bold text-brand-gray uppercase tracking-widest mb-0.5">Recipient</p>
-                                            <p className="text-xs font-bold text-brand-dark truncate">{deliveryStatus.role}</p>
-                                        </div>
-                                    </div>
-                                    <div className="p-5 bg-white rounded-2xl text-left border border-brand-border flex items-center gap-4 shadow-sm">
-                                        <CheckCircle className="w-5 h-5 text-emerald-500" />
-                                        <div>
-                                            <p className="text-[9px] font-bold text-brand-gray uppercase tracking-widest mb-0.5">Integrity Check</p>
-                                            <p className="text-xs font-bold text-emerald-600">100% Cryptographic Match</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <button 
-                                    onClick={() => setDeliveryStatus(null)}
-                                    className="w-full py-4 text-[10px] font-bold text-brand-gray/60 hover:text-brand-blue uppercase tracking-widest transition-colors"
-                                >
-                                    Issue New Recipient Payload
-                                </button>
+                            ))}
+                        </div>
+
+                        {/* Honest disclaimer */}
+                        <div className="bg-slate-50 border border-brand-border rounded-xl p-4">
+                            <p className="text-[10px] text-brand-gray leading-relaxed">
+                                <span className="font-bold text-brand-dark">Note:</span> This report is generated by Persona.Credit AI analysis.
+                                It does not constitute an official credit bureau record. It is an explanatory document to help lenders
+                                understand your cross-border financial profile.
+                            </p>
+                        </div>
+                    </Card>
+                </div>
+            );
                             </div>
                         ) : (
                         <>
@@ -1520,68 +1514,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                             </p>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-                            <div className="space-y-3">
-                                <label className="text-[10px] font-bold text-brand-gray uppercase tracking-widest ml-2">Recipient Email Address</label>
-                                <input 
-                                    type="email" 
-                                    placeholder="e.g. manager@bank.com"
-                                    value={recipientEmail}
-                                    onChange={(e) => setRecipientEmail(e.target.value)}
-                                    className="w-full p-4 bg-slate-50 border border-brand-border rounded-xl text-[11px] font-bold text-brand-dark placeholder:text-brand-gray/30 focus:ring-4 focus:ring-brand-blue/5 transition-all outline-none"
-                                />
-                            </div>
-                            <div className="space-y-3">
-                                <label className="text-[10px] font-bold text-brand-gray uppercase tracking-widest ml-2">Recipient Designation</label>
-                                <select 
-                                    value={recipientRole}
-                                    onChange={(e) => setRecipientRole(e.target.value)}
-                                    className="w-full p-4 bg-slate-50 border border-brand-border rounded-xl text-[11px] font-bold text-brand-dark focus:ring-4 focus:ring-brand-blue/5 transition-all outline-none appearance-none cursor-pointer"
-                                >
-                                    <option value="">Select Recipient Role</option>
-                                    <option value="Bank Manager">Bank Manager</option>
-                                    <option value="Property Owner">Property Owner</option>
-                                    <option value="Auto Dealer">Auto Dealer</option>
-                                    <option value="Credit Provider">Credit Provider</option>
-                                    <option value="Other">Other</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <button 
-                            className="w-full py-5 bg-brand-blue text-white text-[12px] font-bold uppercase tracking-widest rounded-xl shadow-xl hover:shadow-brand-blue/30 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-4"
-                            onClick={handleIssueDossier}
-                            disabled={isIssuing}
-                        >
-                            {isIssuing ? (
-                                <>
-                                    <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
-                                    Encrypting & Dispatching Node...
-                                </>
-                            ) : (
-                                <>Authorize Secure Delivery</>
-                            )}
-                        </button>
-                        </>
-                        )}
-                    </Card>
-
-                    <div className="pt-10 border-t border-brand-border">
-                        <div className="flex items-center justify-between p-8 bg-red-50 border border-red-100 rounded-3xl group shadow-sm">
-                            <div className="text-left">
-                                <p className="text-sm font-bold text-brand-dark leading-none uppercase tracking-tight">Data Sovereignty Control</p>
-                                <p className="text-[10px] text-red-600 mt-2 font-bold uppercase tracking-widest italic">Instantly purge all verified research data across our audit nodes.</p>
-                            </div>
-                            <button 
-                                onClick={handlePurge}
-                                className="bg-white text-red-600 border border-red-200 text-[10px] font-bold px-6 py-3 rounded-xl transition-all shadow-sm hover:bg-red-600 hover:text-white hover:border-red-600 active:scale-95"
-                            >
-                                Purge Records
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            );
         case 'simulator':
             return (
                 <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">

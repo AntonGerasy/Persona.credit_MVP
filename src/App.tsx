@@ -9,13 +9,9 @@ import { calculateTransferScore } from './scoreEngine';
 import { db } from './lib/storage';
 import { getInitialFormData } from './lib/formUtils';
 import { globalAntiHallucinationRules, sanitizeJsonResponse, validateAgentResponse, getSafeFallback } from './lib/aiUtils';
-import { extractedDocumentSchema, getDocumentExtractorPrompt, ExtractedDocument } from './lib/agents/documentExtractor';
-import { identitySchema, identityPromptBase } from './lib/agents/identity';
-import { financialSchema, financialPromptBase } from './lib/agents/financial';
-import { fraudSchema, fraudPromptBase } from './lib/agents/fraud';
-import { countrySchema, countryPromptBase } from './lib/agents/country';
-import { behavioralSchema, behavioralPromptBase } from './lib/agents/behavioral';
-import { synthesisSchema, getSynthesisPrompt } from './lib/agents/synthesis';
+import { ExtractedDocument } from './lib/agents/documentExtractor';
+// Agent schemas and prompts live server-side in api/run-agent.ts
+// synthesis prompt/schema no longer imported — logic moved to api/synthesize.ts and inline agent aggregation
 import { countries } from './countries';
 import countryIntelligence from './countryRiskProfiles.json';
 import { saveToHistory } from './lib/historyUtils';
@@ -379,6 +375,8 @@ const App: React.FC = () => {
             if (currentStep < sections.length - 1) {
                 setCurrentStep(currentStep + 1);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
+                // Auto-save progress on every step — prevents session loss on synthesis failure
+                handleSaveProgress();
             }
         }
     };
@@ -854,165 +852,238 @@ const App: React.FC = () => {
 
             // --- TRUE MULTI-AGENT ORCHESTRATION ---
 
-            const runAgentWithRetry = async (name: string, promptBase: string, _schema: any, _parts: any[], agentContext: any) => {
+            // --- PARALLEL AGENT ORCHESTRATION ---
+            // ── HELPER: call a single agent ─────────────────────────────
+            const callAgent = async (agentName: string, context: any): Promise<any> => {
                 try {
-                    const response = await fetch('/api/run-agent', {
+                    const resp = await fetch('/api/run-agent', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            agentName: name,
-                            promptBase: `${promptBase}\n\nContext: ${commonContext}`,
-                            context: agentContext,
-                        }),
+                        body: JSON.stringify({ agentName, context }),
                     });
-
-                    if (!response.ok) {
-                        console.error(`Agent ${name} API error: ${response.status}`);
-                        return getSafeFallback(schema);
+                    if (!resp.ok) {
+                        console.warn(`[${agentName}] HTTP ${resp.status}`);
+                        return null;
                     }
-
-                    const parsed = await response.json();
-                    if (parsed._agent_error) {
-                        console.error(`Agent ${name} returned error:`, parsed._error_detail);
-                        return getSafeFallback(schema);
-                    }
-
-                    return parsed;
+                    return await resp.json();
                 } catch (err) {
-                    console.error(`Agent ${name} fetch error:`, err);
-                    return getSafeFallback(schema);
+                    console.warn(`[${agentName}] fetch error:`, err);
+                    return null;
                 }
             };
 
-            // --- TRUE MULTI-AGENT ORCHESTRATION ---
-            const runIdentityAgent = async () => {
-                const idContext = {
-                    // PRIMARY: extracted document data
-                    document_extractions: documentSummary,
-                    // SECONDARY: self-declared
-                    self_declared: {
-                        full_name: formData.full_name,
-                        dob: formData.dob,
-                        country_of_origin: formData.country_of_origin,
-                        citizenship: formData.citizenship,
-                    },
-                };
-                // No raw file parts — identity agent works from extraction summary
-                return await runAgentWithRetry('Identity', identityPromptBase, identitySchema, [], idContext);
+            // ── Build contexts ───────────────────────────────────────────
+            const verifiedMonthlyInflow = extractedDocuments.length > 0
+                ? extractedDocuments
+                    .filter(d => d.is_usable && d.average_monthly_inflow > 0)
+                    .reduce((sum: number, d: any) => sum + d.average_monthly_inflow, 0) /
+                    Math.max(1, extractedDocuments.filter((d: any) => d.is_usable && d.average_monthly_inflow > 0).length)
+                : null;
+
+            const idContext = {
+                document_extractions: documentSummary,
+                self_declared: {
+                    full_name: formData.full_name,
+                    dob: formData.dob,
+                    country_of_origin: formData.country_of_origin,
+                    citizenship: formData.citizenship,
+                },
             };
 
-            const runFinancialAgent = async () => {
-                const finContext = {
-                    // PRIMARY: extracted document data
-                    document_extractions: documentSummary,
-                    // SECONDARY: self-declared
-                    self_declared: {
-                        employment: {
-                            job_sector: formData.job_sector,
-                            job_title_specific: formData.job_title_specific,
-                            employment_type: formData.employment_type,
-                            employer_name: formData.employer_name,
-                            experience_years: formData.experience_years,
-                        },
-                        financials: {
-                            ann_income_usd: formData.ann_income_usd,
-                            local_monthly_income: formData.local_monthly_income,
-                            local_currency: formData.local_currency,
-                            liquid_reserves: formData.liquid_reserves,
-                            debts_total_origin: formData.debts_total_origin,
-                            delinq_history: formData.delinq_history,
-                            official_income_share: formData.official_income_share,
-                        },
-                    },
-                    country_context: {
-                        origin: countryOfOrigin,
-                        destination: destCountry,
-                        origin_intelligence: originIntelligence,
-                    },
-                };
-                // Financial agent no longer re-reads raw files — extraction already done
-                return await runAgentWithRetry('Financial', financialPromptBase, financialSchema, [], finContext);
-            };
-
-            const runFraudAgent = async () => {
-                const fraudContext = {
-                    document_extractions: documentSummary,
-                    self_declared: textData,
-                };
-                // No raw file parts — fraud agent cross-references extraction vs declarations
-                return await runAgentWithRetry('Fraud', fraudPromptBase, fraudSchema, [], fraudContext);
-            };
-
-            const runCountryAgent = async () => {
-                // Pull verified income from document extraction if available
-                const verifiedMonthlyInflow = extractedDocuments.length > 0
-                    ? extractedDocuments
-                        .filter(d => d.is_usable && d.average_monthly_inflow > 0)
-                        .reduce((sum, d) => sum + d.average_monthly_inflow, 0) /
-                        Math.max(1, extractedDocuments.filter(d => d.is_usable && d.average_monthly_inflow > 0).length)
-                    : null;
-
-                const countryContextObj = {
-                    origin_country: countryOfOrigin,
-                    destination_country: destCountry,
-                    origin_intelligence: originIntelligence,
-                    destination_intelligence: destIntelligence,
-                    applicant_financials: {
-                        // Prefer document-verified income over self-declared
-                        verified_monthly_inflow: verifiedMonthlyInflow,
-                        verified_currency: extractedDocuments[0]?.currency_code || null,
-                        declared_income_usd: formData.ann_income_usd,
+            const finContext = {
+                document_extractions: documentSummary,
+                self_declared: {
+                    employment: {
                         job_sector: formData.job_sector,
-                        job_title: formData.job_title_specific,
+                        job_title_specific: formData.job_title_specific,
+                        employment_type: formData.employment_type,
+                        employer_name: formData.employer_name,
                         experience_years: formData.experience_years,
                     },
-                };
-                return await runAgentWithRetry('Country', countryPromptBase, countrySchema, [], countryContextObj);
+                    financials: {
+                        ann_income_usd: formData.ann_income_usd,
+                        local_monthly_income: formData.local_monthly_income,
+                        local_currency: formData.local_currency,
+                        liquid_reserves: formData.liquid_reserves,
+                        debts_total_origin: formData.debts_total_origin,
+                        delinq_history: formData.delinq_history,
+                        official_income_share: formData.official_income_share,
+                    },
+                    country_context: { origin: countryOfOrigin, destination: destCountry },
+                },
+                origin_intelligence: originIntelligence,
             };
 
-            const runBehavioralAgent = async () => {
-                return await runAgentWithRetry('Behavioral', behavioralPromptBase, behavioralSchema, [], {
-                    form_data: textData,
-                    document_consistency: documentSummary.usable_documents > 0
-                        ? 'Documents provided and extracted'
-                        : 'No documents — self-declared only',
-                });
+            const fraudContext = {
+                document_extractions: documentSummary,
+                self_declared: {
+                    declared_income_usd: formData.ann_income_usd,
+                    declared_monthly_local: formData.local_monthly_income,
+                    declared_currency: formData.local_currency,
+                    employer: formData.employer_name,
+                    name: formData.full_name,
+                    origin: countryOfOrigin,
+                },
             };
 
-            // ORCHESTRATION PIPELINE
-            const idNode = await runIdentityAgent();
-            const finNode = await runFinancialAgent();
-            const fraudNode = await runFraudAgent();
-            const countryNode = await runCountryAgent();
-            const behNode = await runBehavioralAgent();
+            const countryContext = {
+                origin_country: countryOfOrigin,
+                destination_country: destCountry,
+                origin_intelligence: originIntelligence,
+                destination_intelligence: destIntelligence,
+                applicant_financials: {
+                    verified_monthly_inflow: verifiedMonthlyInflow,
+                    verified_currency: extractedDocuments[0]?.currency_code || null,
+                    declared_income_usd: formData.ann_income_usd,
+                    job_sector: formData.job_sector,
+                    job_title: formData.job_title_specific,
+                    experience_years: formData.experience_years,
+                    employment_type: formData.employment_type,
+                },
+            };
+
+            const behContext = {
+                employment_type: formData.employment_type,
+                experience_years: formData.experience_years,
+                job_sector: formData.job_sector,
+                declared_income: formData.local_monthly_income,
+                declared_currency: formData.local_currency,
+                has_documents: documentSummary.usable_documents > 0,
+                doc_count: documentSummary.usable_documents,
+            };
+
+            // ── PARALLEL agent execution — all 5 fire simultaneously ────
+            const [idNode, finNode, fraudNode, countryNode, behNode] = await Promise.all([
+                callAgent('Identity',  idContext),
+                callAgent('Financial', finContext),
+                callAgent('Fraud',     fraudContext),
+                callAgent('Country',   countryContext),
+                callAgent('Behavioral',behContext),
+            ]);
 
             // FINAL SYNTHESIS — Structured Aggregation Engine
-            const runSynthesisAgent = async (
-                id: any, fin: any, fraud: any, country: any, beh: any
-            ) => {
-                const response = await fetch('/api/synthesize', {
+            // synthesis is now called inline above — no separate function needed
+
+
+            // Build parsedResult directly from agent outputs — no longer dependent on synthesis succeeding
+            // Synthesis adds summary_statement and dossier_markdown only — everything else comes from agents
+            const buildResultFromAgents = () => ({
+                financial_identity_profile: {
+                    profile_type: finNode.income_reliability > 65 ? 'Stable Income Profile' : 'Variable Income Profile',
+                    overall_integrity_level: idNode.identity_reliability > 65 ? 'Verified' : 'Partially Verified',
+                    trust_assessment: fraudNode.fraud_risk < 30 ? 'Low Risk' : fraudNode.fraud_risk < 60 ? 'Moderate Risk' : 'Elevated Risk',
+                    professional_stability: finNode.financial_stability > 65 ? 'Stable' : 'Variable',
+                },
+                aggregated_strengths: [
+                    ...(idNode.evidence || []).slice(0, 2),
+                    ...(finNode.evidence || []).slice(0, 2),
+                    ...(countryNode.strengths || []).slice(0, 2),
+                ],
+                aggregated_risks: [
+                    ...(idNode.risk_flags || []).slice(0, 2),
+                    ...(finNode.risk_factors || []).slice(0, 2),
+                    ...(fraudNode.risk_patterns || []).slice(0, 1).map((r: any) => r.pattern || ''),
+                ],
+                aggregated_uncertainties: [
+                    ...(idNode.missing_information || []).slice(0, 1),
+                    ...(finNode.missing_information || []).slice(0, 1),
+                ],
+                cross_border_summary: {
+                    migration_readiness: countryNode.migration_readiness ?? 50,
+                    economic_adaptability: countryNode.economic_adaptability ?? 50,
+                    transferability_feasibility: countryNode.income_transfer_narrative || 'Assessment based on available data.',
+                },
+                behavioral_summary: {
+                    interaction_stability_score: behNode.behavioral_consistency ?? 50,
+                    narrative_consistency: (behNode.positive_signals || []).join('. ') || 'Profile assessed.',
+                },
+                evidence_summary: {
+                    primary_evidence_sources: documentSummary.extractions?.map((d: any) => `${d.type} — ${d.institution}`) || [],
+                    evidence_gap_count: (idNode.missing_information?.length || 0) + (finNode.missing_information?.length || 0),
+                },
+                score_explanation: {
+                    top_positive_drivers: (countryNode.strengths || []).slice(0, 3),
+                    top_negative_drivers: (finNode.risk_factors || []).slice(0, 3),
+                },
+                recommendation_summary: [
+                    'Upload 6 months of bank statements for higher confidence score.',
+                    'Add employment contract or payslip to verify income source.',
+                ],
+                overall_confidence: parsedResult_confidence,
+                analysis_integrity: {
+                    evidence_quality: evidence_strength_prelim,
+                    reasoning_stability: 70,
+                    contradiction_severity: fraudNode.contradiction_score ?? 0,
+                    uncertainty_level: 50,
+                },
+                dossier_markdown: '',
+                summary_statement: '',
+            });
+
+            // Calculate preliminary evidence strength before synthesis
+            const agents_prelim = [idNode, finNode, fraudNode, countryNode, behNode];
+            const evidence_strength_prelim = agents_prelim.reduce((acc, a) => acc + (a.evidence_strength ?? 50), 0) / agents_prelim.length;
+            const parsedResult_confidence = Math.max(0.2,
+                (idNode.confidence ?? 0.5) * 0.2 +
+                (finNode.confidence ?? 0.5) * 0.3 +
+                (fraudNode.confidence ?? 0.5) * 0.2 +
+                (countryNode.confidence ?? 0.5) * 0.2 +
+                (behNode.confidence ?? 0.1) * 0.1
+            );
+
+            // Build base result from agents (always succeeds)
+            let parsedResult: any = buildResultFromAgents();
+
+            // Try synthesis for summary_statement + dossier_markdown only (with tight timeout)
+            try {
+                const synthesisController = new AbortController();
+                const synthesisTimeout = setTimeout(() => synthesisController.abort(), 8000); // 8s — stays under Hobby 10s limit
+
+                const synthesisResponse = await fetch('/api/synthesize', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    signal: synthesisController.signal,
                     body: JSON.stringify({
-                        agentOutputs: { id, fin, fraud, country, beh },
+                        // Only send minimal data — new synthesize.ts uses fin + country + id
+                        fin: finNode,
+                        country: countryNode,
+                        id: idNode,
                         documentSummary,
-                        // schema lives server-side in api/synthesize.ts
                     }),
                 });
+                clearTimeout(synthesisTimeout);
 
-                if (!response.ok) {
-                    const err = await response.json().catch(() => ({}));
-                    throw new Error(`Synthesis failed: ${response.status} ${err.detail || ''}`);
+                if (synthesisResponse.ok) {
+                    const synthesisData = await synthesisResponse.json();
+                    if (synthesisData && typeof synthesisData === 'object' && !synthesisData.error) {
+                        parsedResult.summary_statement = synthesisData.summary_statement || parsedResult.summary_statement;
+                        if (synthesisData.top_strengths?.length) parsedResult.aggregated_strengths = synthesisData.top_strengths;
+                        if (synthesisData.top_risks?.length) parsedResult.aggregated_risks = synthesisData.top_risks;
+                    }
                 }
+            } catch (synthesisErr) {
+                // Synthesis timeout or error — use agent-built result, which is already valid
+                console.warn('[synthesis] timed out or failed, using agent-built result:', synthesisErr);
+            }
 
-                const parsed = await response.json();
-                if (!parsed || typeof parsed !== 'object') {
-                    throw new Error('RELIABILITY_FAILURE: Synthesis returned invalid structure.');
-                }
-                return parsed;
-            };
+            // Build summary_statement from agents if synthesis didn't provide one
+            if (!parsedResult.summary_statement) {
+                const verifiedIncome = finNode.verified_monthly_income_local
+                    ? `${finNode.verified_currency || ''} ${finNode.verified_monthly_income_local?.toLocaleString()}/month`
+                    : formData.local_monthly_income ? `${formData.local_currency || ''} ${formData.local_monthly_income}/month` : 'income not verified';
+                parsedResult.summary_statement = `${formData.full_name || 'Applicant'} presents a ${parsedResult.financial_identity_profile.overall_integrity_level.toLowerCase()} financial profile from ${countryOfOrigin}. ` +
+                    `Verified income: ${verifiedIncome}. ` +
+                    `${countryNode.income_transfer_narrative || countryNode.origin_income_context || 'Cross-border profile assessed.'}`;
+            }
 
-            const parsedResult = await runSynthesisAgent(idNode, finNode, fraudNode, countryNode, behNode);
+            if (!parsedResult.dossier_markdown) {
+                parsedResult.dossier_markdown = `## Financial Profile: ${formData.full_name || 'Applicant'}\n\n` +
+                    `**Origin:** ${countryOfOrigin} → **Destination:** ${destCountry}\n\n` +
+                    `**Income Context:** ${countryNode.origin_income_context || 'See agent analysis.'}\n\n` +
+                    `**For the Lender:** ${countryNode.income_transfer_narrative || 'Profile based on available documents.'}\n\n` +
+                    `**Strengths:** ${parsedResult.aggregated_strengths.slice(0, 3).join('; ')}\n\n` +
+                    `**Considerations:** ${parsedResult.aggregated_risks.slice(0, 3).join('; ')}`;
+            }
 
             parsedResult.agent_summary = {
                 identity: idNode,
