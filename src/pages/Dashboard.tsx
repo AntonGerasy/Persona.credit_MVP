@@ -1502,17 +1502,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                     </Card>
                 </div>
             );
-                            </div>
-                        ) : (
-                        <>
-                        <div className="p-6 bg-slate-50 border border-brand-border rounded-xl flex items-start gap-4 shadow-inner">
-                            <div className="w-10 h-10 bg-brand-blue rounded-xl flex items-center justify-center shrink-0 shadow-sm">
-                                <Shield className="w-5 h-5 text-white" />
-                            </div>
-                            <p className="text-[10px] text-brand-gray font-bold leading-relaxed uppercase tracking-widest">
-                                <span className="text-brand-blue">Security Protocol:</span> This report is dispatched directly from Persona.Credit to the recipient to ensure zero-point manipulation. Recipient will receive an unalterable, system-signed manifest.
-                            </p>
-                        </div>
 
         case 'simulator':
             return (
