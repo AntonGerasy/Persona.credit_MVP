@@ -113,10 +113,10 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
   // Score breakdown
   const bd = data.breakdown;
 
-  // Strengths and risks
-  const strengths: string[] = data.strengths || data.analysis?.strengths || [];
-  const risks: string[] = data.risks || data.analysis?.risks || [];
-  const uncertainties: string[] = data.uncertaintyAnalysis?.high_uncertainty_areas || [];
+ // Strengths and risks
+const strengths: string[] = data.strengths || data.analysis?.strengths || [];
+// @ts-ignore
+const risks: string[] = data.risks || data.analysis?.risks || [];
 
   // Purpose
   const purpose = purposeLabel[data.verification_purpose || ''] || 'Financial Verification';
