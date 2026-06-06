@@ -84,6 +84,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Use the upload method from Gemini Files API
       const uploadResponse = await ai.files.upload({
+        // @ts-ignore
         file: new Blob([fileBuffer], { type: 'application/pdf' }),
         config: { mimeType: 'application/pdf' },
       });
