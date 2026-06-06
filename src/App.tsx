@@ -750,17 +750,6 @@ const App: React.FC = () => {
                 ? (countryIntelligence as any[]).find(c => c.country === destCountry) || {}
                 : {};
 
-            const commonContext = `
-                Subject: ${formData.full_name || 'Verified Subject'}
-                Origin: ${countryOfOrigin}
-                Destination: ${destCountry}
-                Industry: ${formData.job_sector}
-                Title: ${formData.job_title_specific}
-                Employment Type: ${formData.employment_type || 'Not specified'}
-                Verification Purpose: ${formData.verification_purpose || 'Not specified'}
-                Years in Destination: ${formData.years_in_destination || 0}
-            `;
-
             // --- PHASE 0: DOCUMENT EXTRACTION ---
             // Run before any scoring agents. Each uploaded file is read independently.
             // Results become the primary evidence source for Financial, Identity, and Fraud agents.

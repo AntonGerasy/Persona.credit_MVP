@@ -4,7 +4,7 @@ import {
     FileText, 
     Download,
     Mail,
-    CheckCircle,
+    
     ShieldCheck,
     Lock,
     ArrowLeft,
@@ -463,52 +463,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
   
   const historyList = useMemo(() => getHistory(), [activeTab, propData]);
   
-  // Delivery State
-  const [recipientEmail, setRecipientEmail] = useState('');
-  const [recipientRole, setRecipientRole] = useState('');
-  const [isIssuing, setIsIssuing] = useState(false);
-  const [deliveryStatus, setDeliveryStatus] = useState<{ email: string; role: string; timestamp: number } | null>(null);
 
-  const handleIssueDossier = () => {
-      if (!recipientEmail || !recipientRole) {
-          alert('Please provide recipient email and role.');
-          return;
-      }
-      setIsIssuing(true);
-      
-      // Simulation of institutional email template preparation
-      const subject = `[URGENT/OFFICIAL] Financial Integrity Dossier Issued: Ref #DOSSIER-2026-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
-      
-      setTimeout(() => {
-          setDeliveryStatus({
-              email: recipientEmail,
-              role: recipientRole,
-              timestamp: Date.now()
-          });
-          setIsIssuing(false);
-          
-          const verificationToken = Math.random().toString(36).substr(2, 12).toUpperCase();
-          const reportUrl = `${window.location.origin}/report/${data.shareId || 'demo_secure_dossier_001'}`;
-          
-          console.log(`
-            ${subject}
-            Header: Persona.Credit.
-            
-            Dear Recipient,
-            You have been designated as a verified recipient of an Institutional Trust Dossier regarding the economic integrity of ${data.fullName || 'Verified Client'}.
-
-            Security Notice: This report is issued directly by the Persona.Credit to ensure data integrity and prevent unauthorized alteration. It includes a comprehensive TransferScore™ analysis based on live macro-economic context (PPP, Inflation Resilience, and Payment Sequence Integrity).
-
-            Access Link: ${reportUrl}
-            Verification Code: ${verificationToken}
-
-            This dossier is valid for 30 days from the date of issuance.
-
-            Regards,
-            Persona.Credit Verification System
-          `);
-      }, 3000);
-  };
   
   const handleRunSimulation = async () => {
       if (simField && simValue !== '') {
@@ -567,12 +522,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
   };
 
   const renderTabContent = () => {
-    const handlePurge = () => {
-        if (window.confirm("CRITICAL ACTION: This will permanently purge your verification dossier from the global registry node. This action CANNOT be undone. Proceed?")) {
-            onReset();
-        }
-    };
-
     switch (activeTab) {
         case 'breakdown':
             return (

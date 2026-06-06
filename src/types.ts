@@ -254,6 +254,7 @@ export interface DashboardData {
     breakdown?: ScoreBreakdownExtended;
     useCases?: UseCases;
     strengths?: string[];
+    risks?: string[];
     weaknesses?: string[];
     improvements?: string[];
     reportSummary?: string;
