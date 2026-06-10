@@ -13,6 +13,8 @@
  * All keys are namespaced per user via the key itself (caller's responsibility).
  * TTL is in seconds. Default TTL for user data: 90 days.
  */
+export const maxDuration = 60; // Vercel Hobby supports up to 60s via module export
+
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { kv } from '@vercel/kv';

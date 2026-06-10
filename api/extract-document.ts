@@ -1,6 +1,6 @@
 /**
  * POST /api/extract-document
- * Vercel Hobby: 10s hard limit.
+ * Vercel Hobby — 60s limit via export const maxDuration.
  *
  * PDF parsing fix:
  * - For PDFs: uses Gemini Files API (upload → URI reference)
@@ -8,6 +8,8 @@
  * - For images: uses inlineData directly (faster, < 1MB usually)
  * - thinkingBudget: 0, maxOutputTokens: 500
  */
+export const maxDuration = 60; // Vercel Hobby supports up to 60s via module export
+
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI, Type } from '@google/genai';
 
@@ -84,7 +86,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Use the upload method from Gemini Files API
       const uploadResponse = await ai.files.upload({
-        // @ts-ignore
         file: new Blob([fileBuffer], { type: 'application/pdf' }),
         config: { mimeType: 'application/pdf' },
       });
@@ -125,7 +126,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         responseMimeType: 'application/json',
         responseSchema: extractSchema,
         thinkingConfig: { thinkingBudget: 0 },
-        maxOutputTokens: 500,
+        maxOutputTokens: 800,
       },
     });
 

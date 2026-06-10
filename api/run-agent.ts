@@ -1,12 +1,13 @@
 /**
  * POST /api/run-agent
  *
- * Designed for Vercel Hobby (10s hard limit).
- * - thinkingBudget: 0  (no reasoning chain)
- * - maxOutputTokens: 400 (strict cap)
- * - No retries — fail fast, client handles fallback
- * - Schemas and ultra-short prompts live here
+ * Vercel Hobby — 60s limit via export const maxDuration.
+ * - thinkingBudget: 0 (no reasoning chain — still fast)
+ * - maxOutputTokens: 800 (enough for structured JSON)
+ * - Schemas and prompts live here server-side
  */
+export const maxDuration = 60; // Vercel Hobby supports up to 60s via module export
+
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI, Type } from '@google/genai';
 
@@ -180,7 +181,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         responseMimeType: 'application/json',
         responseSchema: schema,
         thinkingConfig: { thinkingBudget: 0 },
-        maxOutputTokens: 400,
+        maxOutputTokens: 800,
       },
     });
 

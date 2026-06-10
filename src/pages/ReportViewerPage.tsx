@@ -89,42 +89,42 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
     };
   }, []);
 
-  const score = data?.score || 0;
+  const score = data.score || 0;
   const sc = scoreColor(score);
-  const conf = confidenceLabel(data?.confidence || 0);
+  const conf = confidenceLabel(data.confidence || 0);
 
-  const formattedDate = data?.generatedAt
+  const formattedDate = data.generatedAt
     ? new Date(data.generatedAt).toLocaleDateString('en-US', { dateStyle: 'long' })
     : new Date().toLocaleDateString('en-US', { dateStyle: 'long' });
 
-  const expiryDate = data?.generatedAt
+  const expiryDate = data.generatedAt
     ? new Date(data.generatedAt + 90 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { dateStyle: 'long' })
     : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { dateStyle: 'long' });
 
   // Document evidence
-  const extractions: any[] = data?.document_extractions || [];
+  const extractions: any[] = data.document_extractions || [];
   const usableDocs = extractions.filter((d: any) => d.is_usable);
   const hasDocuments = usableDocs.length > 0;
 
   // Country analysis
-  const ca = data?.country_analysis || {};
-  const fv = data?.financial_verified || {};
+  const ca = data.country_analysis || {};
+  const fv = data.financial_verified || {};
 
   // Score breakdown
-  const bd = data?.breakdown;
+  const bd = data.breakdown;
 
   // Strengths and risks
-  const strengths: string[] = data?.strengths || data?.analysis?.strengths || [];
-  const risks: string[] = data?.risks || data?.analysis?.risks || [];
-  const uncertainties: string[] = data?.uncertaintyAnalysis?.high_uncertainty_areas || [];
+  const strengths: string[] = data.strengths || data.analysis?.strengths || [];
+  const risks: string[] = data.risks || data.analysis?.risks || [];
+  const uncertainties: string[] = data.uncertaintyAnalysis?.high_uncertainty_areas || [];
 
-  // Safe Purpose & Employment Parsing
-  const purposeKey = data && data.verification_purpose ? String(data.verification_purpose).toLowerCase() : '';
-  const purpose = purposeLabel[purposeKey] || (data ? data.verification_purpose : null) || 'General Financial Verification';
-  const empType = employmentLabel[data?.employment_type || ''] || data?.employment_type || '—';
+  // Purpose
+  const purpose = purposeLabel[data.verification_purpose || ''] || 'Financial Verification';
+  const empType = employmentLabel[data.employment_type || ''] || data.employment_type || '—';
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-20">
+
       {/* Watermark */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden -z-0 opacity-[0.025] rotate-[-20deg] scale-150 flex flex-wrap gap-16 items-center justify-center">
         {Array.from({ length: 40 }).map((_, i) => (
@@ -146,30 +146,33 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
           </div>
           <div className="text-right">
             <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Report ID</p>
-            <p className="text-[11px] font-black text-slate-600">{token ? token.slice(0, 14).toUpperCase() : '—'}</p>
+            <p className="text-[11px] font-black text-slate-600">{(token || '').slice(0, 14).toUpperCase()}</p>
           </div>
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-6 mt-10 space-y-6 relative z-10">
-        {/* HERO: Score + Summary */}
+
+        {/* ── HERO: Score + Summary ── */}
         <motion.section
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
           className="bg-white rounded-2xl border border-slate-100 p-8 shadow-sm"
         >
+          {/* Purpose badge */}
           <div className="flex items-center gap-2 mb-6">
             <Pill label={purpose} variant="blue" />
-            {data?.analysis_status === 'limited_confidence' && (
+            {data.analysis_status === 'limited_confidence' && (
               <Pill label="Limited Evidence — Review Recommended" variant="amber" />
             )}
-            {data?.analysis_status === 'success' && hasDocuments && (
+            {data.analysis_status === 'success' && hasDocuments && (
               <Pill label="Document-Verified" variant="green" />
             )}
           </div>
 
           <div className="flex flex-col md:flex-row gap-8 items-center">
+            {/* Score circle */}
             <div className="relative w-40 h-40 shrink-0 flex items-center justify-center">
               <svg className="w-full h-full -rotate-90">
                 <circle cx="80" cy="80" r="72" stroke="#F1F5F9" strokeWidth="10" fill="none" />
@@ -192,33 +195,37 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
             <div className="flex-1 space-y-3">
               <div className="flex flex-wrap gap-2">
                 <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${sc.bg} ${sc.text} ${sc.border}`}>
-                  {data?.level || 'Assessed'}
+                  {data.level || 'Assessed'}
                 </span>
                 <span className={`text-[10px] font-bold ${conf.color}`}>
-                  Analysis Confidence: {conf.label} ({((data?.confidence || 0) * 100).toFixed(0)}%)
+                  Analysis Confidence: {conf.label} ({((data.confidence || 0) * 100).toFixed(0)}%)
                 </span>
               </div>
-              <h1 className="text-xl font-bold text-slate-900">{data?.fullName || 'Verified Applicant'}</h1>
+              <h1 className="text-xl font-bold text-slate-900">{data?.fullName || data?.full_name || 'Verified Applicant'}</h1>
               <p className="text-[13px] text-slate-600 leading-relaxed border-l-4 border-slate-200 pl-4 italic">
-                {data?.summaryStatement || 'Financial profile generated from cross-border documentation.'}
+                {data.summaryStatement || data.summary_statement || 'Financial profile generated from cross-border documentation.'}
               </p>
             </div>
           </div>
         </motion.section>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* LEFT COLUMN */}
+
+          {/* ── LEFT COLUMN ── */}
           <div className="md:col-span-2 space-y-6">
+
+            {/* ── APPLICANT PROFILE ── */}
             <Section title="Applicant Profile" icon={<Briefcase size={12} />}>
-              <Row label="Full Name" value={data?.fullName || '—'} />
-              <Row label="Origin Country" value={data?.origin_country || '—'} />
-              <Row label="Destination Country" value={data?.destination_country || '—'} />
+              <Row label="Full Name" value={data.fullName || '—'} />
+              <Row label="Origin Country" value={data.origin_country || '—'} />
+              <Row label="Destination Country" value={data.destination_country || '—'} />
               <Row label="Purpose of Application" value={purpose} />
               <Row label="Employment Type" value={empType} />
               <Row label="Report Generated" value={formattedDate} />
               <Row label="Valid Until" value={expiryDate} />
             </Section>
 
+            {/* ── INCOME & FINANCIAL SUMMARY ── */}
             <Section title="Income & Financial Summary" icon={<DollarSign size={12} />} dark>
               {hasDocuments ? (
                 <>
@@ -237,7 +244,7 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
                       <p className="text-2xl font-black text-white">
                         {ca.origin_income_percentile ? `Top ${100 - ca.origin_income_percentile}%` : '—'}
                       </p>
-                      <p className="text-[10px] text-white/50 mt-1">in {data?.origin_country || 'Origin Country'}</p>
+                      <p className="text-[10px] text-white/50 mt-1">in {data.origin_country}</p>
                     </div>
                     <div>
                       <p className="text-[9px] font-bold uppercase text-white/40 tracking-widest mb-1">Documents Analysed</p>
@@ -247,11 +254,12 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
                       </p>
                     </div>
                     <div>
-                      <p className="text-[9px] font-bold uppercase text-white/40 tracking-widest mb-1">Sector Demand in {data?.destination_country || 'Destination'}</p>
+                      <p className="text-[9px] font-bold uppercase text-white/40 tracking-widest mb-1">Sector Demand in {data.destination_country}</p>
                       <p className="text-lg font-black text-white leading-tight">{ca.sector_demand_in_destination || '—'}</p>
                     </div>
                   </div>
 
+                  {/* Income context paragraph */}
                   {ca.origin_income_context && (
                     <div className="bg-white/5 rounded-xl p-4 mb-4">
                       <p className="text-[10px] font-black uppercase text-white/40 tracking-widest mb-2">Income in Origin Country Context</p>
@@ -259,9 +267,12 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
                     </div>
                   )}
 
+                  {/* Income transfer narrative — the key paragraph for lenders */}
                   {ca.income_transfer_narrative && (
                     <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                      <p className="text-[10px] font-black uppercase text-white/40 tracking-widest mb-2">What This Means for You as a Lender</p>
+                      <p className="text-[10px] font-black uppercase text-white/40 tracking-widest mb-2">
+                        What This Means for You as a Lender
+                      </p>
                       <p className="text-[13px] text-white leading-relaxed font-medium">{ca.income_transfer_narrative}</p>
                     </div>
                   )}
@@ -271,12 +282,15 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
                   <AlertCircle size={16} className="text-amber-400 shrink-0 mt-0.5" />
                   <div>
                     <p className="text-[11px] font-bold text-amber-300">No documents uploaded</p>
-                    <p className="text-[10px] text-white/50 mt-1">Income figures below are self-declared by the applicant and have not been verified against documents.</p>
+                    <p className="text-[10px] text-white/50 mt-1">
+                      Income figures below are self-declared by the applicant and have not been verified against documents.
+                    </p>
                   </div>
                 </div>
               )}
             </Section>
 
+            {/* ── DOCUMENT EVIDENCE ── */}
             <Section title="Document Evidence" icon={<FileText size={12} />}>
               {hasDocuments ? (
                 <div className="space-y-4">
@@ -348,10 +362,10 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
                         </p>
                       )}
 
-                      {doc.authenticity_concerns && doc.authenticity_concerns.length > 0 && (
+                      {doc.authenticity_concerns?.length > 0 && (
                         <div className="mt-3 bg-amber-50 rounded-lg p-3">
                           <p className="text-[10px] font-bold text-amber-700 mb-1">Document Notes</p>
-                          {doc.authenticity_concerns.map((c: string, i: number) => (
+                          {(doc.authenticity_concerns || []).map((c: string, i: number) => (
                             <p key={i} className="text-[10px] text-amber-600">{c}</p>
                           ))}
                         </div>
@@ -359,6 +373,7 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
                     </div>
                   ))}
 
+                  {/* Unusable docs notice */}
                   {extractions.filter((d: any) => !d.is_usable).map((doc: any, idx: number) => (
                     <div key={`unusable-${idx}`} className="border border-red-100 rounded-xl p-4 bg-red-50 flex items-start gap-3">
                       <AlertCircle size={14} className="text-red-400 shrink-0 mt-0.5" />
@@ -378,6 +393,7 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
               )}
             </Section>
 
+            {/* ── SCORE BREAKDOWN ── */}
             {bd && (
               <Section title="Score Breakdown" icon={<TrendingUp size={12} />}>
                 {[
@@ -408,6 +424,7 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
               </Section>
             )}
 
+            {/* ── STRENGTHS & RISK FACTORS ── */}
             {(strengths.length > 0 || risks.length > 0) && (
               <Section title="Strengths & Risk Factors" icon={<CheckCircle size={12} />}>
                 {strengths.length > 0 && (
@@ -451,10 +468,13 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
                 )}
               </Section>
             )}
+
           </div>
 
-          {/* RIGHT SIDEBAR */}
+          {/* ── RIGHT SIDEBAR ── */}
           <div className="space-y-6">
+
+            {/* Verification status */}
             <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm">
               <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400 mb-5">Verification Status</p>
               <div className="space-y-3">
@@ -472,16 +492,21 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
                   {
                     label: 'Name Consistency',
                     ok: usableDocs.some((d: any) => d.account_holder_name_match === 'Match'),
-                    note: usableDocs.some((d: any) => d.account_holder_name_match === 'Match') ? 'Name matches document(s)' : usableDocs.length > 0 ? 'Partial or no match' : 'No documents to check',
+                    note: usableDocs.some((d: any) => d.account_holder_name_match === 'Match')
+                      ? 'Name matches document(s)'
+                      : usableDocs.length > 0 ? 'Partial or no match' : 'No documents to check',
                   },
                   {
                     label: 'Anti-Fraud Check',
-                    ok: (data?.analysis?.fraud_risk ?? 50) < 40,
-                    note: (data?.analysis?.fraud_risk ?? 50) < 40 ? 'No significant flags' : 'Review recommended',
+                    ok: (data.analysis?.fraud_risk ?? 50) < 40,
+                    note: (data.analysis?.fraud_risk ?? 50) < 40 ? 'No significant flags' : 'Review recommended',
                   },
                 ].map(({ label, ok, note }) => (
                   <div key={label} className="flex items-start gap-2.5">
-                    {ok ? <CheckCircle size={14} className="text-emerald-500 shrink-0 mt-0.5" /> : <AlertCircle size={14} className="text-amber-400 shrink-0 mt-0.5" />}
+                    {ok
+                      ? <CheckCircle size={14} className="text-emerald-500 shrink-0 mt-0.5" />
+                      : <AlertCircle size={14} className="text-amber-400 shrink-0 mt-0.5" />
+                    }
                     <div>
                       <p className="text-[11px] font-bold text-slate-700">{label}</p>
                       <p className="text-[10px] text-slate-400">{note}</p>
@@ -491,6 +516,7 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
               </div>
             </div>
 
+            {/* Validity */}
             <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm">
               <div className="flex items-center gap-2 mb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">
                 <Calendar size={12} />
@@ -498,9 +524,13 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
               </div>
               <p className="text-[11px] font-semibold text-slate-600">Generated: <span className="text-slate-800">{formattedDate}</span></p>
               <p className="text-[11px] font-semibold text-slate-600 mt-2">Expires: <span className="text-slate-800">{expiryDate}</span></p>
-              <p className="text-[10px] text-slate-400 mt-4 leading-relaxed">This report reflects the applicant's financial standing at the time of generation.</p>
+              <p className="text-[10px] text-slate-400 mt-4 leading-relaxed">
+                This report reflects the applicant's financial standing at the time of generation.
+                Significant life events after this date are not reflected.
+              </p>
             </div>
 
+            {/* Origin country flag */}
             {ca.currency_risk !== null && ca.currency_risk !== undefined && (
               <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm">
                 <div className="flex items-center gap-2 mb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">
@@ -510,30 +540,57 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
                 <div className="flex items-center gap-2">
                   <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
                     <div
-                      className={`h-full rounded-full ${ca.currency_risk < 30 ? 'bg-emerald-500' : ca.currency_risk < 60 ? 'bg-amber-500' : 'bg-red-500'}`}
+                      className={`h-full rounded-full ${
+                        ca.currency_risk < 30 ? 'bg-emerald-500' :
+                        ca.currency_risk < 60 ? 'bg-amber-500' : 'bg-red-500'
+                      }`}
                       style={{ width: `${ca.currency_risk}%` }}
                     />
                   </div>
                   <span className="text-[11px] font-black text-slate-600">{ca.currency_risk}/100</span>
                 </div>
                 <p className="text-[10px] text-slate-400 mt-3 leading-relaxed">
-                  {ca.currency_risk < 30 ? 'Low currency volatility.' : ca.currency_risk < 60 ? 'Moderate volatility.' : 'High volatility.'}
+                  {ca.currency_risk < 30
+                    ? 'Low currency volatility. Income figures are reliable without significant adjustment.'
+                    : ca.currency_risk < 60
+                    ? 'Moderate volatility. USD equivalent figures provided are approximate.'
+                    : 'High volatility. USD equivalents should be verified at current exchange rates.'}
                 </p>
               </div>
             )}
 
+            {/* For the lender notice */}
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5">
               <p className="text-[9px] font-black uppercase tracking-[0.25em] text-slate-400 mb-2">For the Lender</p>
-              <p className="text-[10px] text-slate-500 leading-relaxed">This report was generated by Persona.Credit, an AI-powered cross-border financial verification service...</p>
-              <a href="https://persona.credit" className="text-[10px] font-bold text-blue-500 mt-3 block hover:underline" target="_blank" rel="noopener noreferrer">persona.credit</a>
+              <p className="text-[10px] text-slate-500 leading-relaxed">
+                This report was generated by Persona.Credit, an AI-powered cross-border
+                financial verification service. It is intended to help lenders understand
+                applicants whose financial history exists in a different country and currency.
+                Income figures are extracted from uploaded documents and contextualised
+                against origin-country economic data. This report does not constitute a
+                credit bureau record.
+              </p>
+              <a
+                href="https://persona.credit"
+                className="text-[10px] font-bold text-blue-500 mt-3 block hover:underline"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                persona.credit
+              </a>
             </div>
+
           </div>
         </div>
       </main>
 
       <footer className="max-w-4xl mx-auto px-6 py-16 text-center border-t border-slate-100 mt-16">
-        <p className="text-[10px] font-bold text-slate-300 uppercase tracking-[0.4em]">&copy; {new Date().getFullYear()} Persona.Credit &bull; Cross-Border Financial Verification</p>
-        <p className="text-[9px] text-slate-300 mt-2">Report ID: {token ? token.slice(0, 20).toUpperCase() : '—'} &bull; Confidential</p>
+        <p className="text-[10px] font-bold text-slate-300 uppercase tracking-[0.4em]">
+          &copy; {new Date().getFullYear()} Persona.Credit &bull; Cross-Border Financial Verification
+        </p>
+        <p className="text-[9px] text-slate-300 mt-2">
+          Report ID: {(token || '').slice(0, 20).toUpperCase()} &bull; Confidential — for intended recipient only
+        </p>
       </footer>
     </div>
   );
