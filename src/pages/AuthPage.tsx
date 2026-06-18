@@ -25,7 +25,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ title, onLogin, onSignUp, onBack })
 
     setIsLoading(true);
     try {
-      const result = isSignUp ? onSignUp(email, password) : onLogin(email, password);
+      const result = await (isSignUp ? onSignUp(email, password) : onLogin(email, password));
       if (!result.success) {
         setError(result.message);
       }

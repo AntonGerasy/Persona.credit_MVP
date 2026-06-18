@@ -812,7 +812,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                             <div className="flex flex-col items-end gap-4">
                                 <div className="text-right">
                                     <p className="text-[10px] font-bold text-brand-gray/50 uppercase tracking-widest mb-1">Integrity Status</p>
-                                    <Badge variant="positive" className="text-lg py-1 px-4">{data.dossier_analysis?.financial_identity_profile?.overall_integrity_level || "Active Analysis"}</Badge>
+                                    <Badge variant="positive" className="text-lg py-1 px-4">{data.dossier_analysis?.financial_identity_profile.overall_integrity_level || "Active Analysis"}</Badge>
                                 </div>
                                 <button 
                                     onClick={handleDownloadPDF}
@@ -835,7 +835,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                             <div className="space-y-4">
                                                 <div className="flex justify-between items-center border-b border-brand-border pb-3">
                                                     <span className="text-[10px] text-brand-gray/60 uppercase font-black">Profile Type</span>
-                                                    <span className="text-xs font-bold text-brand-dark text-right">{data.dossier_analysis?.financial_identity_profile?.profile_type}</span>
+                                                    <span className="text-xs font-bold text-brand-dark text-right">{data.dossier_analysis.financial_identity_profile.profile_type}</span>
                                                 </div>
                                                 <div className="flex justify-between items-center border-b border-brand-border pb-3">
                                                     <span className="text-[10px] text-brand-gray/60 uppercase font-black">Cross-Border Readiness</span>
@@ -1323,7 +1323,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                         </div>
                         <div className="grid grid-cols-1 gap-6">
                             {data.documentAnalysis.map((doc, i) => {
-                                 const isIrrelevant = (doc.documentType || '').toLowerCase().includes('irrelevant') || (doc.status || '').toLowerCase().includes('failed');
+                                 const isIrrelevant = doc.documentType.toLowerCase().includes('irrelevant') || doc.status.toLowerCase().includes('failed');
                                  return (
                                      <Card key={i} className={`group transition-all hover:shadow-lg hover:border-brand-blue ${isIrrelevant ? 'opacity-40 grayscale pointer-events-none' : ''} border-brand-border shadow-sm`}>
                                         <div className="p-8">
@@ -2039,7 +2039,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
 
           {/* Dynamic Content */}
           <div className="lg:col-span-9">
-            {(data.status || '').toLowerCase().includes('action') && (
+            {data.status.toLowerCase().includes('action') && (
                 <div className="mb-8 p-6 bg-amber-50/50 border border-amber-100 rounded-3xl flex items-center gap-6">
                      <div className="p-3 bg-white rounded-2xl shadow-sm text-amber-500">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>

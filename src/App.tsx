@@ -64,7 +64,9 @@ const App: React.FC = () => {
     }, [formData, currentStep]);
 
     useEffect(() => {
-        const currentDB = db.load();
+        const initApp = async () => {
+        // Load from KV first (cross-device), falls back to localStorage automatically
+        const currentDB = await db.loadAsync();
 
         // Check for report route
         const path = window.location.pathname;
@@ -119,17 +121,19 @@ const App: React.FC = () => {
         }
 
         if (currentDB.currentUser) {
-            loginUser(currentDB.currentUser);
+            await loginUser(currentDB.currentUser);
             const userData = currentDB.users[currentDB.currentUser];
             setIsPaid(true); // MVP: all features open
             setPlan(userData?.plan || null);
         } else if (currentDB.currentProvider) {
             loginProvider(currentDB.currentProvider);
         }
+        };
+        initApp();
     }, []);
 
-    const loginUser = (email: string) => {
-        const currentDB = db.load();
+    const loginUser = async (email: string) => {
+        const currentDB = await db.loadAsync();
         const userData = currentDB.users[email];
         setUserSession(email);
         setIsPaid(true); // MVP: all features open
@@ -499,38 +503,38 @@ const App: React.FC = () => {
     };
     
     // --- Auth Handlers ---
-    const handleSignUp = (email: string, pass: string): { success: boolean, message: string } => {
-        const currentDB = db.load();
+    const handleSignUp = async (email: string, pass: string): Promise<{ success: boolean, message: string }> => {
+        const currentDB = await db.loadAsync();
         if (currentDB.users[email]) {
             return { success: false, message: "An account with this email already exists." };
         }
         const hashedPassword = bcrypt.hashSync(pass, 10);
         currentDB.users[email] = { password: hashedPassword }; 
         currentDB.currentUser = email;
-        db.save(currentDB);
-        loginUser(email);
+        await db.saveAsync(currentDB);
+        await loginUser(email);
         return { success: true, message: "" };
     };
 
-    const handleLogin = (email: string, pass: string): { success: boolean, message: string } => {
+    const handleLogin = async (email: string, pass: string): Promise<{ success: boolean, message: string }> => {
         // --- Admin Authentication Flow (MVP) ---
         if (email === 'kapucinov@gmail.com' && pass === 'FuckFico666##') {
-            const currentDB = db.load();
+            const currentDB = await db.loadAsync();
             currentDB.currentUser = email;
-            db.save(currentDB);
+            await db.saveAsync(currentDB);
             setIsAdmin(true);
-            loginUser(email);
+            await loginUser(email);
             return { success: true, message: "" };
         }
 
-        const currentDB = db.load();
+        const currentDB = await db.loadAsync();
         const user = currentDB.users[email];
         if (!user || !bcrypt.compareSync(pass, user.password)) {
             return { success: false, message: "Invalid email or password." };
         }
         currentDB.currentUser = email;
-        db.save(currentDB);
-        loginUser(email);
+        await db.saveAsync(currentDB);
+        await loginUser(email);
         return { success: true, message: "" };
     };
 
@@ -1366,9 +1370,10 @@ const App: React.FC = () => {
             }
 
             currentDB.users[userSession!].dashboardResult = finalResult;
-            delete currentDB.users[userSession!].formData;
+            // Keep formData so user can re-run or edit without re-entering everything
+            // (only clear currentStep — they've completed the flow)
             delete currentDB.users[userSession!].currentStep;
-            db.save(currentDB);
+            await db.saveAsync(currentDB);   // AWAIT — guarantees KV write completes before UI proceeds
             saveToHistory(finalResult);
 
             setResult(finalResult);
@@ -1394,6 +1399,21 @@ const App: React.FC = () => {
                 partnerOffers: [],
                 dossier: `### Verification Note\nAnalysis quality for this subject became limited during processing.\n\n**Reason:** ${error instanceof Error ? error.message : 'Unknown technical error'}\n\n**Recommendation:** Please review your uploads for legibility and chronological coherence.`
             };
+
+            // CRITICAL: persist the fallback too — so the user's session isn't lost
+            // and they don't get bounced back to an empty form on reload.
+            try {
+                if (userSession) {
+                    const failDB = db.load();
+                    if (failDB.users[userSession]) {
+                        failDB.users[userSession].dashboardResult = fallback as DashboardData;
+                        // Keep formData intact so they can retry without re-entering
+                        await db.saveAsync(failDB);
+                    }
+                }
+            } catch (saveErr) {
+                console.error("Failed to persist fallback result:", saveErr);
+            }
 
             setResult(fallback as DashboardData);
         } finally {

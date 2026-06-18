@@ -1,13 +1,12 @@
 /**
  * POST /api/run-agent
  *
- * Vercel Hobby — 60s limit via export const maxDuration.
- * - thinkingBudget: 0 (no reasoning chain — still fast)
- * - maxOutputTokens: 800 (enough for structured JSON)
- * - Schemas and prompts live here server-side
+ * Designed for Vercel Hobby (10s hard limit).
+ * - thinkingBudget: 0  (no reasoning chain)
+ * - maxOutputTokens: 400 (strict cap)
+ * - No retries — fail fast, client handles fallback
+ * - Schemas and ultra-short prompts live here
  */
-export const maxDuration = 60; // Vercel Hobby supports up to 60s via module export
-
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI, Type } from '@google/genai';
 
@@ -85,16 +84,37 @@ const SCHEMAS: Record<string, any> = {
       destination_income_equivalent_usd: { type: Type.NUMBER },
       income_transfer_narrative:         { type: Type.STRING },
       sector_demand_in_destination:      { type: Type.STRING },
-      risk_factors:                      { type: Type.ARRAY, items: { type: Type.STRING } },
-      strengths:                         { type: Type.ARRAY, items: { type: Type.STRING } },
-      confidence:                        { type: Type.NUMBER },
-      missing_information:               { type: Type.ARRAY, items: { type: Type.STRING } },
-      evidence_strength:                 { type: Type.NUMBER },
+      raw_data_table: {
+        type: Type.OBJECT,
+        properties: {
+          monthly_income_original:   { type: Type.STRING },
+          monthly_income_usd:        { type: Type.STRING },
+          income_vs_national_median: { type: Type.STRING },
+          income_vs_sector_median:   { type: Type.STRING },
+          income_percentile_label:   { type: Type.STRING },
+          ppp_equivalent_usd:        { type: Type.STRING },
+          sector_benchmark_note:     { type: Type.STRING },
+          document_institution:      { type: Type.STRING },
+          document_period:           { type: Type.STRING },
+          income_pattern:            { type: Type.STRING },
+        },
+        required: ['monthly_income_original','monthly_income_usd',
+          'income_vs_national_median','income_vs_sector_median',
+          'income_percentile_label','ppp_equivalent_usd',
+          'sector_benchmark_note','document_institution',
+          'document_period','income_pattern'],
+      },
+      risk_factors:        { type: Type.ARRAY, items: { type: Type.STRING } },
+      strengths:           { type: Type.ARRAY, items: { type: Type.STRING } },
+      confidence:          { type: Type.NUMBER },
+      missing_information: { type: Type.ARRAY, items: { type: Type.STRING } },
+      evidence_strength:   { type: Type.NUMBER },
     },
     required: ['country_transferability','destination_alignment','migration_readiness',
       'economic_adaptability','currency_risk','origin_income_percentile',
       'origin_income_context','destination_income_equivalent_usd',
       'income_transfer_narrative','sector_demand_in_destination',
+      'raw_data_table',
       'risk_factors','strengths','confidence','missing_information','evidence_strength'],
   },
 
@@ -133,11 +153,27 @@ Flag contradictions only if supported by data. Missing docs ≠ fraud.
 Data: ${JSON.stringify(ctx)}
 Rules: fraud_risk and contradiction_score are 0-100. Return JSON only.`,
 
-  Country: (ctx) => `Country transferability analyst. Use country intelligence + applicant profile.
-origin_income_context: 1 sentence on what income means in origin country percentile terms.
-income_transfer_narrative: 1 sentence for lender explaining earning potential in destination.
-Data: ${JSON.stringify(ctx)}
-Rules: all scores 0-100. Return JSON only.`,
+  Country: (ctx) => `Country Intelligence & Lender Translation Analyst.
+You are a financial interpreter for US/UK/CA lenders reading foreign financial documents.
+
+FILL raw_data_table FIRST with specific numbers:
+- monthly_income_original: exact amount + currency (e.g. "UAH 42,000/month")
+- monthly_income_usd: use currency_usd_rate_approx (e.g. "≈ $1,012 USD/month")  
+- income_vs_national_median: % above/below median (e.g. "110% above Ukraine median of UAH 20,000/mo")
+- income_vs_sector_median: % vs sector benchmark (e.g. "47% below IT sector median of UAH 80,000/mo")
+- income_percentile_label: (e.g. "Top 22% of earners in Ukraine")
+- ppp_equivalent_usd: purchasing power equivalent (e.g. "≈ $5,600 USD/month US purchasing power")
+- sector_benchmark_note: US salary range for this profession (e.g. "IT engineers from Ukraine earn $65k-130k/yr in US")
+- document_institution: bank name from documents
+- document_period: statement period
+- income_pattern: regularity (e.g. "Regular — 3 monthly salary deposits confirmed")
+
+THEN write:
+- origin_income_context: 2-3 sentences. What does this income mean IN the origin country? Reference sector.
+- income_transfer_narrative: 2-3 sentences FOR THE LENDER. Can this person pay rent/loan in destination?
+
+Data: \${JSON.stringify(ctx)}
+Rules: all scores 0-100. Use actual numbers from country intelligence. Return JSON only.`,
 
   Behavioral: (ctx) => `Behavioral analyst. Assess consistency of profile data.
 Data: ${JSON.stringify(ctx)}
@@ -181,7 +217,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         responseMimeType: 'application/json',
         responseSchema: schema,
         thinkingConfig: { thinkingBudget: 0 },
-        maxOutputTokens: 800,
+        maxOutputTokens: 400,
       },
     });
 

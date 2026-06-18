@@ -280,6 +280,18 @@ export interface DashboardData {
         sector_demand_in_destination?: string | null;
         currency_risk?: number | null;
         country_transferability?: number | null;
+        raw_data_table?: {
+            monthly_income_original?: string;
+            monthly_income_usd?: string;
+            income_vs_national_median?: string;
+            income_vs_sector_median?: string;
+            income_percentile_label?: string;
+            ppp_equivalent_usd?: string;
+            sector_benchmark_note?: string;
+            document_institution?: string;
+            document_period?: string;
+            income_pattern?: string;
+        } | null;
     };
     financial_verified?: {
         verified_monthly_income_local?: number | null;
@@ -425,8 +437,8 @@ export interface ProviderDashboardPageProps {
 export interface AuthPageProps {
   mode: 'user' | 'provider';
   title: string;
-  onLogin: (email: string, pass: string) => { success: boolean, message: string };
-  onSignUp: (email: string, pass: string) => { success: boolean, message: string };
+  onLogin: (email: string, pass: string) => { success: boolean, message: string } | Promise<{ success: boolean, message: string }>;
+  onSignUp: (email: string, pass: string) => { success: boolean, message: string } | Promise<{ success: boolean, message: string }>;
   onBack?: () => void;
 }
 

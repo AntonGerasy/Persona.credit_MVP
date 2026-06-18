@@ -4,5 +4,12 @@
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
-  ]
+  ],
+  "functions": {
+    "api/validate-file.ts":    { "maxDuration": 10 },
+    "api/extract-document.ts": { "maxDuration": 10 },
+    "api/run-agent.ts":        { "maxDuration": 10 },
+    "api/synthesize.ts":       { "maxDuration": 10 },
+    "api/kv.ts":               { "maxDuration": 10 }
+  }
 }

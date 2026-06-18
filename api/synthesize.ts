@@ -1,10 +1,9 @@
 /**
  * POST /api/synthesize
- * Vercel Hobby — 60s limit via export const maxDuration.
- * Returns summary_statement + top_strengths + top_risks.
+ * Vercel Hobby: 10s hard limit.
+ * Returns ONLY summary_statement — 2-3 sentences for the lender.
+ * Everything else is built client-side from agent outputs.
  */
-export const maxDuration = 60; // Vercel Hobby supports up to 60s via module export
-
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI, Type } from '@google/genai';
 
@@ -61,7 +60,7 @@ Rules:
         responseMimeType: 'application/json',
         responseSchema: schema,
         thinkingConfig: { thinkingBudget: 0 },
-        maxOutputTokens: 600,
+        maxOutputTokens: 300,
       },
     });
 

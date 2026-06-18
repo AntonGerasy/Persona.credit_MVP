@@ -146,7 +146,7 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
           </div>
           <div className="text-right">
             <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Report ID</p>
-            <p className="text-[11px] font-black text-slate-600">{(token || '').slice(0, 14).toUpperCase()}</p>
+            <p className="text-[11px] font-black text-slate-600">{token.slice(0, 14).toUpperCase()}</p>
           </div>
         </div>
       </header>
@@ -201,9 +201,9 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
                   Analysis Confidence: {conf.label} ({((data.confidence || 0) * 100).toFixed(0)}%)
                 </span>
               </div>
-              <h1 className="text-xl font-bold text-slate-900">{data?.fullName || data?.full_name || 'Verified Applicant'}</h1>
+              <h1 className="text-xl font-bold text-slate-900">{data.fullName || 'Verified Applicant'}</h1>
               <p className="text-[13px] text-slate-600 leading-relaxed border-l-4 border-slate-200 pl-4 italic">
-                {data.summaryStatement || data.summary_statement || 'Financial profile generated from cross-border documentation.'}
+                {data.summaryStatement || 'Financial profile generated from cross-border documentation.'}
               </p>
             </div>
           </div>
@@ -362,10 +362,10 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
                         </p>
                       )}
 
-                      {doc.authenticity_concerns?.length > 0 && (
+                      {doc.authenticity_concerns && doc.authenticity_concerns.length > 0 && (
                         <div className="mt-3 bg-amber-50 rounded-lg p-3">
                           <p className="text-[10px] font-bold text-amber-700 mb-1">Document Notes</p>
-                          {(doc.authenticity_concerns || []).map((c: string, i: number) => (
+                          {doc.authenticity_concerns.map((c: string, i: number) => (
                             <p key={i} className="text-[10px] text-amber-600">{c}</p>
                           ))}
                         </div>
@@ -589,7 +589,7 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
           &copy; {new Date().getFullYear()} Persona.Credit &bull; Cross-Border Financial Verification
         </p>
         <p className="text-[9px] text-slate-300 mt-2">
-          Report ID: {(token || '').slice(0, 20).toUpperCase()} &bull; Confidential — for intended recipient only
+          Report ID: {token.slice(0, 20).toUpperCase()} &bull; Confidential — for intended recipient only
         </p>
       </footer>
     </div>

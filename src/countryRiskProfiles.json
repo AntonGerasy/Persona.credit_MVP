@@ -27,7 +27,7 @@
     ],
     "income_context": {
       "low": "Below $2,000/mo is poverty-level in most US cities",
-      "mid": "$3,000\u20136,000/mo is middle class depending on city",
+      "mid": "$3,000–6,000/mo is middle class depending on city",
       "high": "Above $8,000/mo is upper-middle to high earner"
     },
     "major_cities_cost_index": {
@@ -70,7 +70,7 @@
     ],
     "income_context": {
       "low": "Below CAD 2,500/mo is below living wage in major cities",
-      "mid": "CAD 4,000\u20137,000/mo is solid middle class",
+      "mid": "CAD 4,000–7,000/mo is solid middle class",
       "high": "Above CAD 9,000/mo is high earner"
     },
     "major_cities_cost_index": {
@@ -83,7 +83,47 @@
       "Highly stable banking sector",
       "Strong immigration infrastructure",
       "Strong regulatory oversight"
-    ]
+    ],
+    "sector_income_benchmarks": {
+      "IT/Software/Engineering": {
+        "median_cad": 8500,
+        "median_usd": 6300,
+        "note": "Strong demand in Toronto, Vancouver, Montreal. Many US-adjacent roles.",
+        "us_equivalent_role_salary_usd": "90000-150000/year"
+      },
+      "Finance": {
+        "median_cad": 7500,
+        "median_usd": 5550,
+        "note": "Toronto financial hub. Strong sector.",
+        "us_equivalent_role_salary_usd": "70000-130000/year"
+      }
+    },
+    "national_income_percentiles": {
+      "p10": 1500,
+      "p20": 2200,
+      "p30": 2800,
+      "p40": 3300,
+      "p50": 4000,
+      "p60": 4800,
+      "p70": 5800,
+      "p80": 7500,
+      "p90": 11000,
+      "p95": 16000,
+      "p99": 35000,
+      "unit": "CAD/month",
+      "source": "Statistics Canada 2023"
+    },
+    "cost_of_living_index": {
+      "vs_us_average": 85,
+      "note": "Canada cost of living is approximately 85% of US average. Toronto and Vancouver are highest.",
+      "monthly_comfortable_living_cad": 6000,
+      "monthly_comfortable_living_usd_ppp": 19000
+    },
+    "lender_context": {
+      "banking_note": "RBC, TD, Scotiabank, BMO, CIBC are major institutions. Canadian bank statements are highly standardised.",
+      "income_stability_note": "Regular bi-weekly or monthly payroll deposits are strongest signal.",
+      "verification_note": "SIN is primary identifier. Equifax/TransUnion operate in Canada."
+    }
   },
   {
     "country": "Germany",
@@ -112,9 +152,9 @@
       7500
     ],
     "income_context": {
-      "low": "Below \u20ac2,000/mo net is entry-level or part-time",
-      "mid": "\u20ac2,500\u20134,000/mo net is solidly middle class",
-      "high": "Above \u20ac5,500/mo net is high earner"
+      "low": "Below €2,000/mo net is entry-level or part-time",
+      "mid": "€2,500–4,000/mo net is solidly middle class",
+      "high": "Above €5,500/mo net is high earner"
     },
     "major_cities_cost_index": {
       "Munich": 88,
@@ -126,7 +166,53 @@
       "Strong industrial economy",
       "Robust social safety net",
       "Excellent document standards"
-    ]
+    ],
+    "sector_income_benchmarks": {
+      "IT/Software/Engineering": {
+        "median_eur": 5500,
+        "median_usd": 6050,
+        "note": "Strong demand, especially in Berlin, Munich, Frankfurt.",
+        "us_equivalent_role_salary_usd": "90000-150000/year"
+      },
+      "Finance": {
+        "median_eur": 5000,
+        "median_usd": 5500,
+        "note": "Frankfurt financial hub, well above median.",
+        "us_equivalent_role_salary_usd": "75000-130000/year"
+      },
+      "Healthcare": {
+        "median_eur": 4500,
+        "median_usd": 4950,
+        "note": "Physician shortages — strong demand. EU credentials transferable.",
+        "us_equivalent_role_salary_usd": "varies — licensing process required"
+      }
+    },
+    "national_income_percentiles": {
+      "p10": 1500,
+      "p20": 2000,
+      "p30": 2500,
+      "p40": 3000,
+      "p50": 3500,
+      "p60": 4200,
+      "p70": 5000,
+      "p80": 6500,
+      "p90": 9000,
+      "p95": 13000,
+      "p99": 25000,
+      "unit": "EUR/month gross",
+      "source": "Destatis 2023"
+    },
+    "cost_of_living_index": {
+      "vs_us_average": 82,
+      "note": "Germany cost of living is approximately 82% of US average. Strong purchasing power, especially outside Munich.",
+      "monthly_comfortable_living_eur": 3500,
+      "monthly_comfortable_living_usd_ppp": 19000
+    },
+    "lender_context": {
+      "banking_note": "Deutsche Bank, Commerzbank, Sparkasse, N26 are major institutions. German bank statements are highly standardised.",
+      "income_stability_note": "Gehalt (salary) appears monthly like clockwork. Bonus structures common in finance/tech.",
+      "verification_note": "Steuer-ID is primary tax identifier. SCHUFA credit system. Documents are among the most reliable globally."
+    }
   },
   {
     "country": "United Kingdom",
@@ -155,9 +241,9 @@
       7200
     ],
     "income_context": {
-      "low": "Below \u00a31,800/mo net is low income in most UK cities",
-      "mid": "\u00a32,200\u20133,500/mo net is middle class",
-      "high": "Above \u00a35,000/mo net is high earner"
+      "low": "Below £1,800/mo net is low income in most UK cities",
+      "mid": "£2,200–3,500/mo net is middle class",
+      "high": "Above £5,000/mo net is high earner"
     },
     "major_cities_cost_index": {
       "London": 95,
@@ -169,7 +255,53 @@
       "Post-Brexit complexity for EU nationals",
       "Strong fintech ecosystem",
       "High London cost of living"
-    ]
+    ],
+    "sector_income_benchmarks": {
+      "IT/Software/Engineering": {
+        "median_gbp": 4500,
+        "median_usd": 5625,
+        "note": "London tech scene competitive globally. Strong demand.",
+        "us_equivalent_role_salary_usd": "90000-150000/year"
+      },
+      "Finance": {
+        "median_gbp": 5000,
+        "median_usd": 6250,
+        "note": "City of London financial hub. Investment banking significantly higher.",
+        "us_equivalent_role_salary_usd": "80000-200000/year"
+      },
+      "Healthcare": {
+        "median_gbp": 4000,
+        "median_usd": 5000,
+        "note": "NHS salaries below private sector. Strong US credential recognition.",
+        "us_equivalent_role_salary_usd": "varies — licensing required"
+      }
+    },
+    "national_income_percentiles": {
+      "p10": 1300,
+      "p20": 1700,
+      "p30": 2100,
+      "p40": 2500,
+      "p50": 3000,
+      "p60": 3600,
+      "p70": 4400,
+      "p80": 5500,
+      "p90": 8000,
+      "p95": 12000,
+      "p99": 25000,
+      "unit": "GBP/month gross",
+      "source": "ONS ASHE 2023"
+    },
+    "cost_of_living_index": {
+      "vs_us_average": 88,
+      "note": "UK cost of living is approximately 88% of US average. London significantly higher than UK average.",
+      "monthly_comfortable_living_gbp": 3500,
+      "monthly_comfortable_living_usd_ppp": 19000
+    },
+    "lender_context": {
+      "banking_note": "Barclays, HSBC, Lloyds, NatWest, Monzo are major institutions. UK bank statements are highly standardised and verifiable.",
+      "income_stability_note": "Regular monthly salary (BACS payment) is strongest signal. Payslips (P60, P45) are key supporting documents.",
+      "verification_note": "NI number is primary identifier. Experian/Equifax/TransUnion operate in UK."
+    }
   },
   {
     "country": "Ukraine",
@@ -211,31 +343,55 @@
       1450
     ],
     "income_context": {
-      "low": "Below UAH 12,000/mo is below average \u2014 entry-level or rural",
-      "mid": "UAH 18,000\u201335,000/mo is solidly middle class in Ukraine",
-      "high": "Above UAH 50,000/mo (\u2248$1,200/mo) is top 15% \u2014 senior professional, IT sector, business owner",
-      "it_sector_note": "IT/tech workers often earn UAH 60,000\u2013200,000+/mo \u2014 significantly above national median and internationally competitive in remote work context"
+      "low": "Below UAH 12,000/mo is below average — entry-level or rural",
+      "mid": "UAH 18,000–35,000/mo is solidly middle class in Ukraine",
+      "high": "Above UAH 50,000/mo (≈$1,200/mo) is top 15% — senior professional, IT sector, business owner",
+      "it_sector_note": "IT/tech workers often earn UAH 60,000–200,000+/mo — significantly above national median and internationally competitive in remote work context"
     },
     "sector_income_benchmarks": {
-      "IT/Software": {
+      "IT/Software/Engineering": {
         "median_uah": 80000,
-        "note": "Top-earning sector, globally competitive remote rates"
+        "median_usd": 1930,
+        "junior_uah": 35000,
+        "senior_uah": 150000,
+        "note": "Top-earning sector. Junior devs ~$850/mo, seniors ~$3,600/mo. Globally competitive for remote work.",
+        "us_equivalent_role_salary_usd": "65000-130000/year"
       },
-      "Finance": {
+      "Finance/Banking": {
         "median_uah": 30000,
-        "note": "Well above national median"
+        "median_usd": 723,
+        "note": "Well above national median. Analysts and accountants.",
+        "us_equivalent_role_salary_usd": "50000-90000/year"
       },
-      "Medicine": {
+      "Healthcare/Medicine": {
         "median_uah": 18000,
-        "note": "Near national median despite specialisation"
+        "median_usd": 434,
+        "note": "Near national median despite specialisation. State-sector pay suppressed.",
+        "us_equivalent_role_salary_usd": "varies widely — licensing required"
+      },
+      "Legal": {
+        "median_uah": 25000,
+        "median_usd": 602,
+        "note": "Above median. Private practice significantly higher.",
+        "us_equivalent_role_salary_usd": "requalification required"
       },
       "Education": {
         "median_uah": 10000,
-        "note": "Below national median"
+        "median_usd": 241,
+        "note": "Below national median. State-sector compressed wages.",
+        "us_equivalent_role_salary_usd": "40000-60000/year with credentials"
       },
-      "Construction": {
+      "Manufacturing/Engineering": {
         "median_uah": 22000,
-        "note": "Above median, often informal component"
+        "median_usd": 530,
+        "note": "Above median. Skilled trades in demand.",
+        "us_equivalent_role_salary_usd": "45000-75000/year"
+      },
+      "Marketing/Sales": {
+        "median_uah": 25000,
+        "median_usd": 602,
+        "note": "Variable — highly dependent on company size and sector.",
+        "us_equivalent_role_salary_usd": "40000-80000/year"
       }
     },
     "major_cities_cost_index": {
@@ -244,12 +400,39 @@
       "Odesa": 72,
       "Kharkiv": 65
     },
-    "transferability_note": "Due to active conflict, Ukrainian financial history should be interpreted with context. Documents from 2022+ may show irregular patterns reflecting wartime conditions, not financial instability. Pre-war history (2019\u20132021) is stronger evidence baseline.",
+    "transferability_note": "Due to active conflict, Ukrainian financial history should be interpreted with context. Documents from 2022+ may show irregular patterns reflecting wartime conditions, not financial instability. Pre-war history (2019–2021) is stronger evidence baseline.",
     "notes": [
-      "Active conflict \u2014 economy severely disrupted since 2022",
+      "Active conflict — economy severely disrupted since 2022",
       "Strong IT/tech talent base with globally competitive income",
-      "High currency volatility \u2014 UAH figures should be contextualised against USD equivalent at time of statement"
-    ]
+      "High currency volatility — UAH figures should be contextualised against USD equivalent at time of statement"
+    ],
+    "national_income_percentiles": {
+      "p10": 5000,
+      "p20": 9000,
+      "p30": 12000,
+      "p40": 15000,
+      "p50": 20000,
+      "p60": 25000,
+      "p70": 32000,
+      "p80": 45000,
+      "p90": 70000,
+      "p95": 100000,
+      "p99": 180000,
+      "unit": "UAH/month gross",
+      "source": "State Statistics Service of Ukraine 2023-2024 estimates"
+    },
+    "cost_of_living_index": {
+      "vs_us_average": 18,
+      "note": "Ukraine cost of living is approximately 18% of US average. UAH 20,000/mo affords a comfortable lifestyle comparable to ~$3,600/mo in the US in terms of purchasing power.",
+      "monthly_comfortable_living_uah": 25000,
+      "monthly_comfortable_living_usd_ppp": 4500
+    },
+    "lender_context": {
+      "banking_note": "PrivatBank, Monobank, Oschadbank are major institutions. Monobank statements are digital-native and highly structured. PrivatBank is the largest retail bank.",
+      "income_stability_note": "Regular salary deposits appearing monthly from a single employer are the strongest stability signal. Freelance/IT contractor payments may appear as multiple smaller transfers.",
+      "wartime_note": "Since February 2022, some income irregularity is expected and should not be penalised. Many Ukrainians switched to remote/freelance during relocation.",
+      "verification_note": "Ukrainian bank statements are verifiable via bank hotlines. TIN (РНОКПП) is a reliable national identifier."
+    }
   },
   {
     "country": "India",
@@ -292,26 +475,36 @@
     ],
     "income_context": {
       "low": "Below INR 15,000/mo is below average",
-      "mid": "INR 25,000\u201360,000/mo is middle class in urban India",
-      "high": "Above INR 100,000/mo is top 10% \u2014 senior professional or manager",
-      "it_sector_note": "IT professionals in Bangalore/Hyderabad commonly earn INR 80,000\u2013300,000+/mo \u2014 highly transferable internationally"
+      "mid": "INR 25,000–60,000/mo is middle class in urban India",
+      "high": "Above INR 100,000/mo is top 10% — senior professional or manager",
+      "it_sector_note": "IT professionals in Bangalore/Hyderabad commonly earn INR 80,000–300,000+/mo — highly transferable internationally"
     },
     "sector_income_benchmarks": {
-      "IT/Software": {
+      "IT/Software/Engineering": {
         "median_inr": 120000,
-        "note": "Top tier, globally competitive, strong migration pattern to US/UK/CA"
+        "median_usd": 1437,
+        "junior_inr": 40000,
+        "senior_inr": 300000,
+        "note": "Globally competitive. Senior engineers in Bangalore/Hyderabad earn $2,000-4,000/mo. Strong US/UK migration pipeline.",
+        "us_equivalent_role_salary_usd": "80000-150000/year"
       },
       "Finance/Banking": {
         "median_inr": 60000,
-        "note": "Well above median in urban centres"
+        "median_usd": 719,
+        "note": "Well above median in urban centres. CA/CFA highly valued.",
+        "us_equivalent_role_salary_usd": "60000-110000/year"
       },
       "Healthcare": {
         "median_inr": 40000,
-        "note": "Above median, strong destination-country recognition"
+        "median_usd": 479,
+        "note": "Above median. USMLE pathway well-established for US migration.",
+        "us_equivalent_role_salary_usd": "200000+/year after licensing"
       },
       "Manufacturing": {
         "median_inr": 20000,
-        "note": "Near median"
+        "median_usd": 240,
+        "note": "Near national median.",
+        "us_equivalent_role_salary_usd": "35000-55000/year"
       }
     },
     "major_cities_cost_index": {
@@ -325,7 +518,33 @@
       "Large remittance-sending country",
       "UPI-based banking increasingly well documented",
       "Strong IT/engineering diaspora globally"
-    ]
+    ],
+    "national_income_percentiles": {
+      "p10": 6000,
+      "p20": 10000,
+      "p30": 14000,
+      "p40": 18000,
+      "p50": 25000,
+      "p60": 33000,
+      "p70": 45000,
+      "p80": 65000,
+      "p90": 120000,
+      "p95": 200000,
+      "p99": 500000,
+      "unit": "INR/month",
+      "source": "PLFS 2023 estimates, urban workforce"
+    },
+    "cost_of_living_index": {
+      "vs_us_average": 27,
+      "note": "India cost of living is approximately 27% of US average. INR 50,000/mo provides comfortable urban lifestyle equivalent to ~$6,500/mo US purchasing power.",
+      "monthly_comfortable_living_inr": 50000,
+      "monthly_comfortable_living_usd_ppp": 6500
+    },
+    "lender_context": {
+      "banking_note": "HDFC, ICICI, SBI, Axis are major verifiable institutions. UPI transaction history provides additional income evidence.",
+      "income_stability_note": "Salary credits from a single employer appearing monthly are strongest signal. Many IT workers receive bonuses quarterly.",
+      "verification_note": "PAN card is primary tax identifier. Form 16 (annual income certificate from employer) is a strong supplementary document."
+    }
   },
   {
     "country": "Nigeria",
@@ -344,14 +563,48 @@
     "currency_usd_rate_approx": 1580,
     "median_monthly_income_usd": 150,
     "income_context": {
-      "high": "Above NGN 500,000/mo (\u2248$315/mo) is top 10% \u2014 senior professional or business owner",
+      "high": "Above NGN 500,000/mo (≈$315/mo) is top 10% — senior professional or business owner",
       "it_sector_note": "Tech/fintech professionals in Lagos earn significantly above median, often in USD-denominated remote roles"
     },
     "notes": [
-      "High naira volatility \u2014 USD-denominated income is far stronger signal",
+      "High naira volatility — USD-denominated income is far stronger signal",
       "Significant informal economy",
       "Lenders should note currency risk; USD income stream is preferred"
-    ]
+    ],
+    "sector_income_benchmarks": {
+      "IT/Software/Engineering": {
+        "median_ngn": 400000,
+        "median_usd": 253,
+        "note": "Growing Lagos tech scene. Many work in USD-denominated remote roles.",
+        "us_equivalent_role_salary_usd": "50000-100000/year for remote roles"
+      },
+      "Finance/Banking": {
+        "median_ngn": 350000,
+        "median_usd": 221,
+        "note": "Above national median. Lagos financial sector well-developed.",
+        "us_equivalent_role_salary_usd": "45000-80000/year"
+      }
+    },
+    "national_income_percentiles": {
+      "p50": 120000,
+      "p70": 250000,
+      "p80": 400000,
+      "p90": 700000,
+      "p95": 1200000,
+      "unit": "NGN/month",
+      "source": "NBS estimates 2023 — high informal economy, wide variance"
+    },
+    "cost_of_living_index": {
+      "vs_us_average": 20,
+      "note": "Nigeria cost of living is approximately 20% of US average. USD income is far stronger signal than NGN due to currency volatility.",
+      "monthly_comfortable_living_ngn": 300000,
+      "monthly_comfortable_living_usd_ppp": 3200
+    },
+    "lender_context": {
+      "banking_note": "GTBank, Zenith, Access Bank, UBA are major institutions. USD-denominated accounts common for professionals.",
+      "income_stability_note": "USD income stream is the strongest signal for lenders. NGN income requires significant context due to high inflation.",
+      "verification_note": "BVN (Bank Verification Number) is the primary financial identity system — robust and fraud-resistant."
+    }
   },
   {
     "country": "Brazil",
@@ -383,14 +636,60 @@
     ],
     "income_context": {
       "low": "Below BRL 1,500/mo is below average",
-      "mid": "BRL 2,500\u20135,000/mo is middle class",
+      "mid": "BRL 2,500–5,000/mo is middle class",
       "high": "Above BRL 8,000/mo is top 15%"
     },
     "notes": [
       "Strong Pix banking documentation",
       "CPF is a reliable national tax identifier",
-      "IT sector growing strongly in S\u00e3o Paulo/Florian\u00f3polis"
-    ]
+      "IT sector growing strongly in São Paulo/Florianópolis"
+    ],
+    "sector_income_benchmarks": {
+      "IT/Software/Engineering": {
+        "median_brl": 12000,
+        "median_usd": 2400,
+        "note": "Growing tech sector in São Paulo/Florianópolis.",
+        "us_equivalent_role_salary_usd": "65000-110000/year"
+      },
+      "Finance": {
+        "median_brl": 8000,
+        "median_usd": 1600,
+        "note": "Above median, strong in São Paulo financial district.",
+        "us_equivalent_role_salary_usd": "50000-90000/year"
+      },
+      "Healthcare": {
+        "median_brl": 7000,
+        "median_usd": 1400,
+        "note": "Above median. Physicians significantly higher.",
+        "us_equivalent_role_salary_usd": "varies — licensing required"
+      }
+    },
+    "national_income_percentiles": {
+      "p10": 600,
+      "p20": 1000,
+      "p30": 1400,
+      "p40": 1800,
+      "p50": 2500,
+      "p60": 3200,
+      "p70": 4500,
+      "p80": 6500,
+      "p90": 10000,
+      "p95": 16000,
+      "p99": 40000,
+      "unit": "BRL/month",
+      "source": "IBGE PNAD 2023 estimates"
+    },
+    "cost_of_living_index": {
+      "vs_us_average": 38,
+      "note": "Brazil cost of living is approximately 38% of US average. BRL 5,000/mo provides comfortable lifestyle.",
+      "monthly_comfortable_living_brl": 5000,
+      "monthly_comfortable_living_usd_ppp": 5500
+    },
+    "lender_context": {
+      "banking_note": "Itaú, Bradesco, Banco do Brasil, Nubank are major institutions. Pix transfer system creates clear transaction trails.",
+      "income_stability_note": "CLT employment (formal contract) shows as regular monthly deposits. Freelancers/MEI may show variable patterns.",
+      "verification_note": "CPF is Brazil's primary tax ID — reliable national identifier. CTPS (work card) verifies employment history."
+    }
   },
   {
     "country": "UAE",
@@ -409,15 +708,56 @@
     "currency_usd_rate_approx": 3.67,
     "median_monthly_income_usd": 2800,
     "income_context": {
-      "mid": "AED 8,000\u201315,000/mo is solidly middle class for expats",
+      "mid": "AED 8,000–15,000/mo is solidly middle class for expats",
       "high": "Above AED 25,000/mo is high earner",
-      "note": "UAE income is tax-free \u2014 net = gross. Strong signal for lenders as income is fully spendable."
+      "note": "UAE income is tax-free — net = gross. Strong signal for lenders as income is fully spendable."
     },
     "notes": [
       "Pegged currency (AED/USD) = low volatility",
       "Tax-free income = high real purchasing power",
-      "Expat-dominated workforce \u2014 banking well-documented"
-    ]
+      "Expat-dominated workforce — banking well-documented"
+    ],
+    "sector_income_benchmarks": {
+      "IT/Software/Engineering": {
+        "median_aed": 18000,
+        "median_usd": 4900,
+        "note": "Tax-free income. Strong demand. Dubai/Abu Dhabi tech hubs growing fast.",
+        "us_equivalent_role_salary_usd": "90000-150000/year"
+      },
+      "Finance": {
+        "median_aed": 22000,
+        "median_usd": 5990,
+        "note": "DIFC financial hub. Very competitive compensation tax-free.",
+        "us_equivalent_role_salary_usd": "80000-180000/year"
+      },
+      "Healthcare": {
+        "median_aed": 15000,
+        "median_usd": 4085,
+        "note": "Strong expat healthcare sector. Tax-free makes it highly competitive.",
+        "us_equivalent_role_salary_usd": "varies — licensing required"
+      }
+    },
+    "national_income_percentiles": {
+      "p30": 6000,
+      "p50": 12000,
+      "p70": 20000,
+      "p80": 30000,
+      "p90": 50000,
+      "unit": "AED/month",
+      "note": "Expat-dominated workforce — wide variance by nationality and sector",
+      "source": "MOHaP and labour market estimates 2023"
+    },
+    "cost_of_living_index": {
+      "vs_us_average": 75,
+      "note": "UAE cost of living ~75% of US average but income is TAX-FREE — significantly boosts real purchasing power vs US. AED 15,000/mo tax-free ≈ US$80,000/year gross equivalent.",
+      "monthly_comfortable_living_aed": 12000,
+      "monthly_comfortable_living_usd_ppp": 17000
+    },
+    "lender_context": {
+      "banking_note": "ADCB, Emirates NBD, FAB, Mashreq are major institutions. Statements in English by default.",
+      "income_stability_note": "UAE income is tax-free. IMPORTANT: net = gross. Salary Transfer letters from employer are standard practice.",
+      "verification_note": "Emirates ID is primary identifier. AED pegged to USD — zero currency conversion risk."
+    }
   },
   {
     "country": "Philippines",
@@ -436,11 +776,11 @@
     "currency_usd_rate_approx": 57.0,
     "median_monthly_income_usd": 320,
     "income_context": {
-      "high": "Above PHP 50,000/mo (\u2248$880) is top 10%",
+      "high": "Above PHP 50,000/mo (≈$880) is top 10%",
       "note": "OFW (Overseas Filipino Worker) remittance history is a strong positive signal and widely understood by international lenders"
     },
     "notes": [
-      "Large diaspora \u2014 OFW documentation is internationally recognised",
+      "Large diaspora — OFW documentation is internationally recognised",
       "BPO/IT sector growing rapidly",
       "Remittance history is strong credibility signal"
     ]
@@ -462,14 +802,54 @@
     "currency_usd_rate_approx": 17.0,
     "median_monthly_income_usd": 600,
     "income_context": {
-      "mid": "MXN 15,000\u201330,000/mo is middle class",
+      "mid": "MXN 15,000–30,000/mo is middle class",
       "high": "Above MXN 40,000/mo is top 20%"
     },
     "notes": [
       "CURP/RFC are reliable identifiers",
-      "Strong US border economy \u2014 many dual-income households",
+      "Strong US border economy — many dual-income households",
       "Nearshoring boom increasing formal tech sector income"
-    ]
+    ],
+    "sector_income_benchmarks": {
+      "IT/Software/Engineering": {
+        "median_mxn": 35000,
+        "median_usd": 2060,
+        "note": "Nearshoring boom — salaries rising fast, especially in Monterrey/CDMX/Guadalajara.",
+        "us_equivalent_role_salary_usd": "60000-110000/year"
+      },
+      "Finance": {
+        "median_mxn": 25000,
+        "median_usd": 1470,
+        "note": "Above median in urban centres.",
+        "us_equivalent_role_salary_usd": "50000-85000/year"
+      }
+    },
+    "national_income_percentiles": {
+      "p10": 3000,
+      "p20": 5000,
+      "p30": 7000,
+      "p40": 9000,
+      "p50": 12000,
+      "p60": 16000,
+      "p70": 22000,
+      "p80": 32000,
+      "p90": 50000,
+      "p95": 75000,
+      "p99": 180000,
+      "unit": "MXN/month",
+      "source": "INEGI ENOE 2023 estimates"
+    },
+    "cost_of_living_index": {
+      "vs_us_average": 42,
+      "note": "Mexico cost of living is approximately 42% of US average. Many dual-income households near the US border.",
+      "monthly_comfortable_living_mxn": 20000,
+      "monthly_comfortable_living_usd_ppp": 5000
+    },
+    "lender_context": {
+      "banking_note": "BBVA México, Banamex, Santander MX, Banorte are major institutions.",
+      "income_stability_note": "Formal sector (IMSS-registered) workers show clean payroll deposits. Informal sector is large — document quality varies.",
+      "verification_note": "RFC is primary tax ID. CURP is national identity number."
+    }
   },
   {
     "country": "Poland",
@@ -501,29 +881,69 @@
     ],
     "income_context": {
       "low": "Below PLN 3,500/mo net is below average",
-      "mid": "PLN 5,000\u20139,000/mo net is solidly middle class",
+      "mid": "PLN 5,000–9,000/mo net is solidly middle class",
       "high": "Above PLN 12,000/mo net is top 15%",
-      "it_sector_note": "IT professionals in Warsaw/Krak\u00f3w earn PLN 10,000\u201325,000+/mo \u2014 among the highest in Eastern Europe"
+      "it_sector_note": "IT professionals in Warsaw/Kraków earn PLN 10,000–25,000+/mo — among the highest in Eastern Europe"
     },
     "sector_income_benchmarks": {
-      "IT/Software": {
+      "IT/Software/Engineering": {
         "median_pln": 14000,
-        "note": "Strong and growing sector, internationally competitive"
+        "median_usd": 3500,
+        "junior_pln": 7000,
+        "senior_pln": 30000,
+        "note": "Among highest in Eastern Europe. Warsaw/Kraków IT hubs are internationally competitive.",
+        "us_equivalent_role_salary_usd": "80000-140000/year"
       },
       "Finance": {
         "median_pln": 8000,
-        "note": "Well above median"
+        "median_usd": 2000,
+        "note": "Well above national median.",
+        "us_equivalent_role_salary_usd": "55000-95000/year"
+      },
+      "Healthcare": {
+        "median_pln": 6500,
+        "median_usd": 1625,
+        "note": "Slightly above median. EU-recognised credentials.",
+        "us_equivalent_role_salary_usd": "varies — licensing required"
       },
       "Manufacturing": {
         "median_pln": 5000,
-        "note": "Near median"
+        "median_usd": 1250,
+        "note": "Near national median.",
+        "us_equivalent_role_salary_usd": "40000-60000/year"
       }
     },
     "notes": [
-      "EU member \u2014 documents accepted across Schengen",
-      "Strong IT hub in Warsaw/Krak\u00f3w/Wroc\u0142aw",
+      "EU member — documents accepted across Schengen",
+      "Strong IT hub in Warsaw/Kraków/Wrocław",
       "PLN relatively stable vs EUR"
-    ]
+    ],
+    "national_income_percentiles": {
+      "p10": 2200,
+      "p20": 3000,
+      "p30": 3700,
+      "p40": 4300,
+      "p50": 5600,
+      "p60": 6500,
+      "p70": 7800,
+      "p80": 10000,
+      "p90": 15000,
+      "p95": 22000,
+      "p99": 45000,
+      "unit": "PLN/month gross",
+      "source": "GUS (Statistics Poland) 2023"
+    },
+    "cost_of_living_index": {
+      "vs_us_average": 48,
+      "note": "Poland cost of living is approximately 48% of US average. PLN 7,000/mo net provides comfortable lifestyle equivalent to ~$8,000/mo US purchasing power.",
+      "monthly_comfortable_living_pln": 7000,
+      "monthly_comfortable_living_usd_ppp": 8000
+    },
+    "lender_context": {
+      "banking_note": "PKO BP, Santander PL, ING, mBank are major institutions. Polish bank statements follow EU standards — highly structured and verifiable.",
+      "income_stability_note": "Regular salary (wynagrodzenie) appearing monthly is strongest signal. B2B contractors (common in IT) may show irregular but larger deposits.",
+      "verification_note": "PESEL is the primary national identifier. EU banking documents are easily verifiable."
+    }
   },
   {
     "country": "France",
@@ -541,8 +961,8 @@
     "currency_code": "EUR",
     "median_monthly_income_usd": 2800,
     "income_context": {
-      "mid": "\u20ac2,000\u20133,500/mo net is solidly middle class",
-      "high": "Above \u20ac5,000/mo net is high earner"
+      "mid": "€2,000–3,500/mo net is solidly middle class",
+      "high": "Above €5,000/mo net is high earner"
     },
     "notes": [
       "EU member",
@@ -567,8 +987,8 @@
     "currency_usd_rate_approx": 32.5,
     "median_monthly_income_usd": 450,
     "income_context": {
-      "note": "Due to high inflation, TRY-denominated figures from 2021\u20132023 require significant contextualisation. USD-indexed income or USD bank accounts are a much stronger signal.",
-      "high": "Above TRY 50,000/mo is top 20% \u2014 but USD equivalent should be calculated at time of statement"
+      "note": "Due to high inflation, TRY-denominated figures from 2021–2023 require significant contextualisation. USD-indexed income or USD bank accounts are a much stronger signal.",
+      "high": "Above TRY 50,000/mo is top 20% — but USD equivalent should be calculated at time of statement"
     },
     "notes": [
       "Very high inflation requires USD-equivalent normalisation",
@@ -593,8 +1013,8 @@
     "currency_usd_rate_approx": 18.5,
     "median_monthly_income_usd": 600,
     "income_context": {
-      "high": "Above ZAR 30,000/mo is top 15% \u2014 senior professional",
-      "note": "High inequality \u2014 median is depressed by large informal sector. Formal sector earners are significantly above median."
+      "high": "Above ZAR 30,000/mo is top 15% — senior professional",
+      "note": "High inequality — median is depressed by large informal sector. Formal sector earners are significantly above median."
     },
     "notes": [
       "High unemployment overall but strong formal sector",
@@ -620,13 +1040,13 @@
     "median_monthly_income_usd": 600,
     "median_monthly_income_local": 270000,
     "income_context": {
-      "high": "Above KZT 500,000/mo is top 20% \u2014 senior professional in Almaty/Astana",
+      "high": "Above KZT 500,000/mo is top 20% — senior professional in Almaty/Astana",
       "it_sector_note": "IT sector growing rapidly, salaries competitive with Eastern Europe"
     },
     "notes": [
       "Oil-based economy",
       "Growing IT sector in Almaty",
-      "Tenge volatility moderate \u2014 USD context helpful"
+      "Tenge volatility moderate — USD context helpful"
     ]
   },
   {
@@ -646,8 +1066,8 @@
     "currency_usd_rate_approx": 2.7,
     "median_monthly_income_usd": 550,
     "income_context": {
-      "high": "Above GEL 3,000/mo is top 20% \u2014 professional in Tbilisi",
-      "note": "Georgia is a popular digital nomad destination \u2014 USD/EUR income common and well-documented"
+      "high": "Above GEL 3,000/mo is top 20% — professional in Tbilisi",
+      "note": "Georgia is a popular digital nomad destination — USD/EUR income common and well-documented"
     },
     "notes": [
       "Low bureaucracy",
@@ -673,7 +1093,7 @@
     "median_monthly_income_usd": 500,
     "income_context": {
       "high": "Above AMD 300,000/mo is top 20% in Yerevan",
-      "it_sector_note": "Strong IT sector \u2014 Yerevan is a growing tech hub with competitive salaries"
+      "it_sector_note": "Strong IT sector — Yerevan is a growing tech hub with competitive salaries"
     },
     "notes": [
       "Growing tech hub in Yerevan",
@@ -698,9 +1118,9 @@
     "currency_usd_rate_approx": 4.6,
     "median_monthly_income_usd": 950,
     "income_context": {
-      "mid": "RON 4,000\u20137,000/mo net is solidly middle class",
+      "mid": "RON 4,000–7,000/mo net is solidly middle class",
       "high": "Above RON 10,000/mo is top 20%",
-      "it_sector_note": "IT sector (Bucharest, Cluj-Napoca) salaries reach RON 15,000\u201335,000/mo \u2014 highly competitive"
+      "it_sector_note": "IT sector (Bucharest, Cluj-Napoca) salaries reach RON 15,000–35,000/mo — highly competitive"
     },
     "notes": [
       "EU member",
