@@ -172,7 +172,7 @@ THEN write:
 - origin_income_context: 2-3 sentences. What does this income mean IN the origin country? Reference sector.
 - income_transfer_narrative: 2-3 sentences FOR THE LENDER. Can this person pay rent/loan in destination?
 
-Data: \${JSON.stringify(ctx)}
+Data: ${JSON.stringify(ctx)}
 Rules: all scores 0-100. Use actual numbers from country intelligence. Return JSON only.`,
 
   Behavioral: (ctx) => `Behavioral analyst. Assess consistency of profile data.

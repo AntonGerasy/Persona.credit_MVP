@@ -6,7 +6,7 @@
  *
  * Body (JSON):
  *   { fileBase64: string, mimeType: string, fieldLabel: string,
- *     fieldSubLabel?: string, applicantName: string, isOriginTrack: boolean }
+ *     fieldSubLabel?: string, applicantName: string }
  *
  * Response:
  *   { isValid: boolean, reason: string }
@@ -30,7 +30,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  const { fileBase64, mimeType, fieldLabel, fieldSubLabel, applicantName, isOriginTrack } = req.body;
+  const { fileBase64, mimeType, fieldLabel, fieldSubLabel, applicantName } = req.body;
 
   if (!fileBase64 || !mimeType || !fieldLabel) {
     return res.status(400).json({ error: 'Missing required fields: fileBase64, mimeType, fieldLabel' });
