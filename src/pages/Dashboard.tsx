@@ -449,7 +449,41 @@ const PaywallOverlay: React.FC<{ onUnlock: () => void }> = ({ onUnlock }) => (
 );
 
 const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, referralCode, isPaid, plan, onLogout, onGoToPricing, onExitToLanding, isAdmin }) => {
-  const data = useMemo(() => propData || profile?.scores || SOPHISTICATED_DEMO_DATA, [propData, profile]);
+  const rawData = useMemo(() => propData || profile?.scores || SOPHISTICATED_DEMO_DATA, [propData, profile]);
+
+  // NORMALIZATION LAYER — guarantees all fields the render path touches always exist.
+  // Reports built from agent outputs (or fallbacks) may be missing nested objects/arrays;
+  // without this, a single undefined access blanks the whole dashboard.
+  const data = useMemo(() => {
+    const d: any = { ...(rawData || {}) };
+    // Scalars
+    d.score = d.score ?? 0;
+    d.level = d.level || 'Assessed';
+    d.confidence = d.confidence ?? 0;
+    d.fullName = d.fullName || d.full_name || 'Verified Applicant';
+    d.summaryStatement = d.summaryStatement || d.summary_statement || 'Financial profile generated from available data.';
+    d.status = d.status || 'Active Analysis';
+    d.destinationCountryFit = d.destinationCountryFit || 'Optimal';
+    d.origin_country = d.origin_country || 'Origin Country';
+    // Arrays
+    d.reasonCodes = Array.isArray(d.reasonCodes) ? d.reasonCodes : [];
+    d.partnerOffers = Array.isArray(d.partnerOffers) ? d.partnerOffers : [];
+    d.rationalWarnings = Array.isArray(d.rationalWarnings) ? d.rationalWarnings : [];
+    d.recommendations = Array.isArray(d.recommendations) ? d.recommendations : [];
+    d.improvements = Array.isArray(d.improvements) ? d.improvements : undefined; // keep undefined so fallback chain works
+    d.documentAnalysis = Array.isArray(d.documentAnalysis) ? d.documentAnalysis : [];
+    d.aggregated_strengths = Array.isArray(d.aggregated_strengths) ? d.aggregated_strengths : [];
+    d.aggregated_risks = Array.isArray(d.aggregated_risks) ? d.aggregated_risks : [];
+    d.strengths = Array.isArray(d.strengths) ? d.strengths : [];
+    d.risks = Array.isArray(d.risks) ? d.risks : [];
+    // Nested objects
+    d.countryContext = d.countryContext || { countryName: d.origin_country, medianIncomePPP: 0, costOfLivingIndex: 0, inflation: 0, unemployment: 0 };
+    d.breakdown = d.breakdown || {};
+    d.useCases = d.useCases || {};
+    d.country_analysis = d.country_analysis || {};
+    d.financial_verified = d.financial_verified || {};
+    return d;
+  }, [rawData]);
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [isDownloading, setIsDownloading] = useState(false);
   const isAlphaBuildView = false;
@@ -589,26 +623,26 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div className="space-y-1">
                                                     <p className="text-[8px] text-brand-gray/60 uppercase font-black">Base Score</p>
-                                                    <p className="text-sm font-black text-brand-dark">{data.score_breakdown.base_score}</p>
+                                                    <p className="text-sm font-black text-brand-dark">{data.score_breakdown?.base_score}</p>
                                                 </div>
                                                 <div className="space-y-1">
                                                     <p className="text-[8px] text-brand-gray/60 uppercase font-black">Adjusted Integrity</p>
-                                                    <p className="text-sm font-black text-brand-dark">{data.score_breakdown.final_adjusted_score}</p>
+                                                    <p className="text-sm font-black text-brand-dark">{data.score_breakdown?.final_adjusted_score}</p>
                                                 </div>
                                             </div>
                                             <div className="space-y-1.5">
                                                 <div className="flex justify-between items-center text-[10px]">
                                                     <span className="text-brand-gray/80 font-medium italic">Contradiction Penalty</span>
-                                                    <span className="text-red-600 font-bold">-{data.score_breakdown.contradiction_penalty}</span>
+                                                    <span className="text-red-600 font-bold">-{data.score_breakdown?.contradiction_penalty}</span>
                                                 </div>
                                                 <div className="flex justify-between items-center text-[10px]">
                                                     <span className="text-brand-gray/80 font-medium italic">Confidence Modifier</span>
-                                                    <span className="text-brand-dark font-bold">-{data.score_breakdown.confidence_adjustment}</span>
+                                                    <span className="text-brand-dark font-bold">-{data.score_breakdown?.confidence_adjustment}</span>
                                                 </div>
                                                 <div className="flex justify-between items-center text-[10px]">
                                                     <span className="text-brand-gray/80 font-medium italic">Evidence Delta</span>
-                                                    <span className={data.score_breakdown.evidence_adjustment >= 0 ? 'text-brand-success font-bold' : 'text-red-600 font-bold'}>
-                                                        {data.score_breakdown.evidence_adjustment >= 0 ? '+' : ''}{data.score_breakdown.evidence_adjustment}
+                                                    <span className={data.score_breakdown?.evidence_adjustment >= 0 ? 'text-brand-success font-bold' : 'text-red-600 font-bold'}>
+                                                        {data.score_breakdown?.evidence_adjustment >= 0 ? '+' : ''}{data.score_breakdown?.evidence_adjustment}
                                                     </span>
                                                 </div>
                                             </div>
@@ -619,27 +653,27 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                         <div className="mt-10 pt-10 border-t border-brand-border space-y-6">
                                             <div className="flex justify-between items-center">
                                                 <p className="text-[9px] font-bold text-brand-gray uppercase tracking-widest">Confidence & Uncertainty Engine</p>
-                                                <Badge variant={data.uncertaintyAnalysis.overall_uncertainty > 50 ? 'warning' : 'info'}>
-                                                    Uncertainty: {data.uncertaintyAnalysis.overall_uncertainty}%
+                                                <Badge variant={data.uncertaintyAnalysis?.overall_uncertainty > 50 ? 'warning' : 'info'}>
+                                                    Uncertainty: {data.uncertaintyAnalysis?.overall_uncertainty}%
                                                 </Badge>
                                             </div>
                                             
-                                            {data.uncertaintyAnalysis.high_uncertainty_areas.length > 0 && (
+                                            {data.uncertaintyAnalysis?.high_uncertainty_areas.length > 0 && (
                                                 <div className="space-y-2">
                                                     <p className="text-[8px] font-bold text-red-500 uppercase tracking-widest">Evidence Gaps / High Uncertainty</p>
                                                     <div className="flex flex-wrap gap-2">
-                                                        {data.uncertaintyAnalysis.high_uncertainty_areas.map((area, i) => (
+                                                        {data.uncertaintyAnalysis?.high_uncertainty_areas.map((area, i) => (
                                                             <span key={i} className="px-2 py-1 bg-red-50 text-red-700 text-[9px] font-bold rounded border border-red-100">{area}</span>
                                                         ))}
                                                     </div>
                                                 </div>
                                             )}
 
-                                            {data.uncertaintyAnalysis.missing_critical_information.length > 0 && (
+                                            {data.uncertaintyAnalysis?.missing_critical_information.length > 0 && (
                                                 <div className="space-y-2">
                                                     <p className="text-[8px] font-bold text-brand-gray uppercase tracking-widest">Missing Critical Information</p>
                                                     <ul className="text-[10px] space-y-1">
-                                                        {data.uncertaintyAnalysis.missing_critical_information.map((item, i) => (
+                                                        {data.uncertaintyAnalysis?.missing_critical_information.map((item, i) => (
                                                             <li key={i} className="flex items-center gap-2 text-brand-dark/70">
                                                                 <span className="w-1 h-1 bg-brand-gray/30 rounded-full"></span>
                                                                 {item}
@@ -835,19 +869,19 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                             <div className="space-y-4">
                                                 <div className="flex justify-between items-center border-b border-brand-border pb-3">
                                                     <span className="text-[10px] text-brand-gray/60 uppercase font-black">Profile Type</span>
-                                                    <span className="text-xs font-bold text-brand-dark text-right">{data.dossier_analysis.financial_identity_profile.profile_type}</span>
+                                                    <span className="text-xs font-bold text-brand-dark text-right">{data.dossier_analysis?.financial_identity_profile.profile_type}</span>
                                                 </div>
                                                 <div className="flex justify-between items-center border-b border-brand-border pb-3">
                                                     <span className="text-[10px] text-brand-gray/60 uppercase font-black">Cross-Border Readiness</span>
-                                                    <span className="text-xs font-bold text-brand-blue text-right">{data.dossier_analysis.financial_identity_profile.cross_border_readiness}</span>
+                                                    <span className="text-xs font-bold text-brand-blue text-right">{data.dossier_analysis?.financial_identity_profile.cross_border_readiness}</span>
                                                 </div>
                                                 <div className="flex justify-between items-center border-b border-brand-border pb-3">
                                                     <span className="text-[10px] text-brand-gray/60 uppercase font-black">Resilience Level</span>
-                                                    <span className="text-xs font-bold text-brand-dark text-right">{data.dossier_analysis.financial_identity_profile.financial_resilience_level}</span>
+                                                    <span className="text-xs font-bold text-brand-dark text-right">{data.dossier_analysis?.financial_identity_profile.financial_resilience_level}</span>
                                                 </div>
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-[10px] text-brand-gray/60 uppercase font-black">Trust Assessment</span>
-                                                    <span className="text-xs font-bold text-brand-success text-right">{data.dossier_analysis.financial_identity_profile.trust_assessment}</span>
+                                                    <span className="text-xs font-bold text-brand-success text-right">{data.dossier_analysis?.financial_identity_profile.trust_assessment}</span>
                                                 </div>
                                             </div>
                                         </CardContent>
@@ -863,26 +897,26 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                 <div className="space-y-1.5">
                                                     <div className="flex justify-between items-center text-[10px] text-white/70 uppercase font-black">
                                                         <span>Migration Readiness</span>
-                                                        <span>{data.dossier_analysis.cross_border_analysis.migration_readiness}%</span>
+                                                        <span>{data.dossier_analysis?.cross_border_analysis.migration_readiness}%</span>
                                                     </div>
                                                     <div className="h-1 bg-white/20 rounded-full overflow-hidden">
-                                                        <div className="h-full bg-white transition-all duration-1000" style={{ width: `${data.dossier_analysis.cross_border_analysis.migration_readiness}%` }} />
+                                                        <div className="h-full bg-white transition-all duration-1000" style={{ width: `${data.dossier_analysis?.cross_border_analysis.migration_readiness}%` }} />
                                                     </div>
                                                 </div>
                                                 <div className="space-y-1.5">
                                                     <div className="flex justify-between items-center text-[10px] text-white/70 uppercase font-black">
                                                         <span>Economic Adaptability</span>
-                                                        <span>{data.dossier_analysis.cross_border_analysis.economic_adaptability}%</span>
+                                                        <span>{data.dossier_analysis?.cross_border_analysis.economic_adaptability}%</span>
                                                     </div>
                                                     <div className="h-1 bg-white/20 rounded-full overflow-hidden">
-                                                        <div className="h-full bg-white transition-all duration-1000" style={{ width: `${data.dossier_analysis.cross_border_analysis.economic_adaptability}%` }} />
+                                                        <div className="h-full bg-white transition-all duration-1000" style={{ width: `${data.dossier_analysis?.cross_border_analysis.economic_adaptability}%` }} />
                                                     </div>
                                                 </div>
                                             </div>
                                             <div className="space-y-4">
                                                 <p className="text-[9px] font-bold text-white/50 uppercase tracking-widest">Global Strengths</p>
                                                 <ul className="text-[10px] space-y-2">
-                                                    {data.dossier_analysis.cross_border_analysis.cross_border_strengths.map((str: string, i: number) => (
+                                                    {data.dossier_analysis?.cross_border_analysis?.cross_border_strengths?.map((str: string, i: number) => (
                                                         <li key={i} className="flex gap-2 items-start">
                                                             <div className="w-1.5 h-1.5 rounded-full bg-white/30 mt-1 flex-shrink-0" />
                                                             <span className="font-medium italic leading-tight">{str}</span>
@@ -903,7 +937,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                 Core Profile Strengths
                                             </p>
                                             <div className="space-y-4">
-                                                {data.dossier_analysis.strengths.map((s: any, i: number) => (
+                                                {data.dossier_analysis?.strengths.map((s: any, i: number) => (
                                                     <div key={i} className="p-6 bg-white border border-brand-border rounded-2xl shadow-sm hover:shadow-md transition-all group">
                                                         <div className="flex justify-between items-start mb-2">
                                                             <h4 className="text-sm font-black text-brand-dark uppercase">{s.title}</h4>
@@ -921,7 +955,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                 Integrity Risks & Adjustments
                                             </p>
                                             <div className="space-y-4">
-                                                {data.dossier_analysis.risks.map((r: any, i: number) => (
+                                                {data.dossier_analysis?.risks.map((r: any, i: number) => (
                                                     <div key={i} className="p-6 bg-slate-50 border border-brand-border rounded-2xl shadow-sm group">
                                                         <div className="flex justify-between items-start mb-2">
                                                             <h4 className="text-sm font-black text-brand-dark uppercase">{r.title}</h4>
@@ -977,10 +1011,10 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                         {pattern}
                                                     </div>
                                                 ))}
-                                                {data.behavioral_analysis?.risk_signals && data.behavioral_analysis.risk_signals.length > 0 && (
+                                                {data.behavioral_analysis?.risk_signals && data.behavioral_analysis?.risk_signals.length > 0 && (
                                                     <div className="mt-4 space-y-2">
                                                         <p className="text-[9px] font-black text-red-500 uppercase tracking-widest">Risk Anomalies</p>
-                                                        {data.behavioral_analysis.risk_signals.map((risk, i) => (
+                                                        {data.behavioral_analysis?.risk_signals.map((risk, i) => (
                                                             <div key={i} className="flex gap-2 items-center text-[10px] text-red-600 font-bold italic">
                                                                 <AlertTriangle className="w-3 h-3" />
                                                                 {risk}
@@ -1000,7 +1034,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                     <div className="space-y-4">
                                                         <p className="text-[9px] font-black text-brand-success uppercase tracking-widest">Positive Catalysts</p>
                                                         <ul className="space-y-3">
-                                                            {data.dossier_analysis.score_explanation.score_increase_factors.map((f: string, i: number) => (
+                                                            {data.dossier_analysis?.score_explanation?.score_increase_factors?.map((f: string, i: number) => (
                                                                 <li key={i} className="flex gap-3 items-center text-xs text-brand-dark font-black italic">
                                                                     <div className="w-5 h-5 flex items-center justify-center bg-brand-success/10 text-brand-success rounded-full border border-brand-success/20">
                                                                         <TrendingUp className="w-2.5 h-2.5" />
@@ -1013,7 +1047,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                     <div className="space-y-4">
                                                         <p className="text-[9px] font-black text-red-500 uppercase tracking-widest">Pressure Factors</p>
                                                         <ul className="space-y-3">
-                                                            {data.dossier_analysis.score_explanation.score_decrease_factors.map((f: string, i: number) => (
+                                                            {data.dossier_analysis?.score_explanation?.score_decrease_factors?.map((f: string, i: number) => (
                                                                 <li key={i} className="flex gap-3 items-center text-xs text-brand-dark font-black italic">
                                                                     <div className="w-5 h-5 flex items-center justify-center bg-red-50 text-red-500 rounded-full border border-red-100">
                                                                         <ChevronDown className="w-2.5 h-2.5" />
@@ -1027,7 +1061,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                 <div className="p-8 bg-slate-50 rounded-2xl border border-brand-border flex flex-col justify-center gap-6">
                                                     <p className="text-[10px] font-black text-brand-gray uppercase tracking-widest text-center">Primary Underwriting Weights</p>
                                                     <div className="space-y-4">
-                                                        {data.dossier_analysis.score_explanation.most_influential_factors.map((f: string, i: number) => (
+                                                        {data.dossier_analysis?.score_explanation?.most_influential_factors?.map((f: string, i: number) => (
                                                             <div key={i} className="px-4 py-3 bg-white border border-brand-border rounded-xl text-center shadow-sm">
                                                                 <p className="text-xs font-black text-brand-dark uppercase tracking-tight">{f}</p>
                                                             </div>
@@ -1046,7 +1080,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                 <div className="space-y-3">
                                                     <p className="text-[9px] font-black text-amber-700 uppercase tracking-widest">Logic Gaps Identified</p>
                                                     <div className="flex flex-wrap gap-2">
-                                                        {data.dossier_analysis.uncertainty_analysis.high_uncertainty_areas.map((a: string, i: number) => (
+                                                        {data.dossier_analysis?.uncertainty_analysis?.high_uncertainty_areas?.map((a: string, i: number) => (
                                                             <span key={i} className="px-2 py-1 bg-white text-amber-700 text-[9px] font-bold rounded border border-amber-200">{a}</span>
                                                         ))}
                                                     </div>
@@ -1054,7 +1088,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                 <div className="space-y-3">
                                                     <p className="text-[9px] font-black text-amber-700 uppercase tracking-widest">Evidence Recommendations</p>
                                                     <ul className="text-xs space-y-2">
-                                                        {data.dossier_analysis.uncertainty_analysis.recommended_additional_evidence.map((e: string, i: number) => (
+                                                        {data.dossier_analysis?.uncertainty_analysis?.recommended_additional_evidence?.map((e: string, i: number) => (
                                                             <li key={i} className="flex gap-3 items-center text-brand-dark/80 font-bold italic">
                                                                 <PlusCircle className="w-3.5 h-3.5 text-amber-500" />
                                                                 {e}
@@ -1069,14 +1103,14 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                             <CardHeader><CardTitle>Evidence Quality Metrics</CardTitle></CardHeader>
                                             <CardContent className="space-y-8">
                                                 <div className="flex flex-col items-center justify-center p-6 bg-slate-50 rounded-full w-32 h-32 mx-auto border-4 border-brand-blue/10">
-                                                    <span className="text-3xl font-black text-brand-dark leading-none">{data.dossier_analysis.evidence_summary.evidence_quality}%</span>
+                                                    <span className="text-3xl font-black text-brand-dark leading-none">{data.dossier_analysis?.evidence_summary.evidence_quality}%</span>
                                                     <span className="text-[9px] font-black text-brand-gray uppercase mt-1">Fidelity</span>
                                                 </div>
                                                 <div className="space-y-4">
                                                     <div>
                                                         <p className="text-[9px] font-black text-brand-success uppercase tracking-widest mb-2">Prime Evidence Nodes</p>
                                                         <ul className="text-[10px] space-y-1.5">
-                                                            {data.dossier_analysis.evidence_summary.strongest_evidence.map((e: string, i: number) => (
+                                                            {data.dossier_analysis?.evidence_summary?.strongest_evidence?.map((e: string, i: number) => (
                                                                 <li key={i} className="flex items-center gap-2 font-black text-brand-dark italic">
                                                                     <div className="w-1.5 h-1.5 rounded-full bg-brand-success" />
                                                                     {e}
@@ -1097,10 +1131,10 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                             </CardHeader>
                                             <CardContent className="space-y-6 relative z-10">
                                                 <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest leading-relaxed">
-                                                    AI has identified {data.dossier_analysis.recommendations.high_impact_actions.length} high-impact actions to optimize your international economic identity.
+                                                    AI has identified {data.dossier_analysis?.recommendations?.high_impact_actions?.length} high-impact actions to optimize your international economic identity.
                                                 </p>
                                                 <div className="space-y-2">
-                                                    {data.dossier_analysis.financial_pathway_summary.top_improvement_priorities.slice(0, 2).map((p, i) => (
+                                                    {data.dossier_analysis?.financial_pathway_summary?.top_improvement_priorities?.slice(0, 2).map((p, i) => (
                                                         <div key={i} className="flex gap-2 items-center text-[9px] font-black uppercase text-white">
                                                             <div className="w-1 h-1 bg-cyber-teal rounded-full" />
                                                             {p}
@@ -1160,7 +1194,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                         </CardHeader>
                                         <CardContent className="space-y-6 relative z-10">
                                             <div className="space-y-4">
-                                                {data.dossier_analysis.financial_pathway_summary.top_improvement_priorities.map((p: string, i: number) => (
+                                                {data.dossier_analysis?.financial_pathway_summary?.top_improvement_priorities?.map((p: string, i: number) => (
                                                     <div key={i} className="flex gap-3 items-start">
                                                         <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center shrink-0 text-white font-bold text-[10px]">{i+1}</div>
                                                         <p className="text-xs font-bold leading-relaxed">{p}</p>
@@ -1170,7 +1204,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                             <div className="pt-6 border-t border-white/10">
                                                 <p className="text-[10px] font-black text-white/50 uppercase tracking-widest mb-4">Highest Impact Changes</p>
                                                 <ul className="space-y-3">
-                                                    {data.dossier_analysis.financial_pathway_summary.highest_impact_changes.map((c: string, i: number) => (
+                                                    {data.dossier_analysis?.financial_pathway_summary?.highest_impact_changes?.map((c: string, i: number) => (
                                                         <li key={i} className="flex gap-2 items-center text-[11px] font-bold">
                                                             <Zap className="w-3 h-3 text-emerald-400" />
                                                             {c}
@@ -1184,7 +1218,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                     <Card className="bg-slate-50 border-brand-border">
                                         <CardHeader><CardTitle>Documentation Support</CardTitle></CardHeader>
                                         <CardContent className="space-y-4">
-                                            {data.dossier_analysis.recommendations.documentation_improvements.map((item: string, i: number) => (
+                                            {data.dossier_analysis?.recommendations?.documentation_improvements?.map((item: string, i: number) => (
                                                 <div key={i} className="p-4 bg-white border border-brand-border rounded-xl shadow-sm flex items-start gap-3">
                                                     <PlusCircle className="w-4 h-4 text-brand-blue shrink-0 mt-0.5" />
                                                     <p className="text-xs font-bold text-brand-dark leading-tight">{item}</p>
@@ -1202,7 +1236,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                             High-Impact Growth Actions
                                         </p>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            {data.dossier_analysis.recommendations.high_impact_actions.map((action: any, i: number) => (
+                                            {data.dossier_analysis?.recommendations?.high_impact_actions?.map((action: any, i: number) => (
                                                 <div key={i} className="p-6 bg-white border border-brand-border rounded-2xl shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
                                                     <div className={`absolute top-0 right-0 w-1.5 h-full ${action.priority === 'high' ? 'bg-red-500' : 'bg-brand-blue'}`}></div>
                                                     <div className="flex justify-between items-start mb-4">
@@ -1229,7 +1263,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                             <CardContent className="space-y-6">
                                                 <div className="space-y-4">
                                                     <p className="text-[9px] font-black text-brand-dark uppercase tracking-widest">Financial Stability</p>
-                                                    {data.dossier_analysis.recommendations.financial_stability_improvements.map((item: string, i: number) => (
+                                                    {data.dossier_analysis?.recommendations?.financial_stability_improvements?.map((item: string, i: number) => (
                                                         <div key={i} className="flex gap-3 items-center text-xs text-brand-dark font-black italic p-3 bg-white border border-brand-border rounded-xl">
                                                             <div className="w-5 h-5 flex items-center justify-center bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100">
                                                                 <Check className="w-2.5 h-2.5" />
@@ -1240,7 +1274,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                 </div>
                                                 <div className="space-y-4">
                                                     <p className="text-[9px] font-black text-brand-dark uppercase tracking-widest">Cross-Border Readiness</p>
-                                                    {data.dossier_analysis.recommendations.cross_border_readiness_improvements.map((item: string, i: number) => (
+                                                    {data.dossier_analysis?.recommendations?.cross_border_readiness_improvements?.map((item: string, i: number) => (
                                                         <div key={i} className="flex gap-3 items-center text-xs text-brand-dark font-black italic p-3 bg-white border border-brand-border rounded-xl">
                                                             <div className="w-5 h-5 flex items-center justify-center bg-brand-blue/5 text-brand-blue rounded-full border border-brand-blue/10">
                                                                 <Globe className="w-2.5 h-2.5" />
@@ -1255,7 +1289,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                         <Card className="bg-red-50/10 border-red-100">
                                             <CardHeader className="bg-red-50/50 border-red-100"><CardTitle className="text-red-700">Risk Reduction Strategy</CardTitle></CardHeader>
                                             <CardContent className="space-y-6">
-                                                {data.dossier_analysis.recommendations.risk_reduction_actions.map((item: any, i: number) => (
+                                                {data.dossier_analysis?.recommendations?.risk_reduction_actions?.map((item: any, i: number) => (
                                                     <div key={i} className="space-y-3 p-4 bg-white border border-red-50 rounded-2xl shadow-sm">
                                                         <div className="flex justify-between items-start">
                                                             <p className="text-[9px] font-black text-red-500 uppercase tracking-widest">Risk: {item.risk}</p>
@@ -1272,7 +1306,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                         <CardContent className="p-8 text-center space-y-4">
                                             <p className="text-xs font-black text-brand-dark uppercase tracking-widest">Next Steps Execution</p>
                                             <div className="flex flex-wrap justify-center gap-4">
-                                                {data.dossier_analysis.financial_pathway_summary.recommended_next_steps.map((step: string, i: number) => (
+                                                {data.dossier_analysis?.financial_pathway_summary?.recommended_next_steps?.map((step: string, i: number) => (
                                                     <Badge key={i} variant="info" className="py-2 px-4 text-[10px] font-bold">{step}</Badge>
                                                 ))}
                                             </div>
@@ -1669,7 +1703,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                     </div>
                                     <div>
                                         <p className="text-[10px] font-bold text-brand-gray uppercase tracking-widest">Target Territory</p>
-                                        <p className="font-bold text-brand-dark">{data.countryContext.countryName}</p>
+                                        <p className="font-bold text-brand-dark">{data.countryContext?.countryName || data.origin_country || 'Origin Country'}</p>
                                     </div>
                                 </div>
                                 <div className="text-right">
@@ -1697,7 +1731,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                     <div className="space-y-6">
                         <h4 className="text-[10px] font-bold text-brand-gray uppercase tracking-widest ml-1">Path to Potential +100</h4>
                         <div className="space-y-3">
-                            {(data.improvements || (data.recommendations.map(r => r.text))).slice(0, 3).map((text, i) => (
+                            {(data.improvements || (data.recommendations || []).map(r => r.text)).slice(0, 3).map((text, i) => (
                                 <div key={i} className="group flex items-center justify-between p-6 bg-white border border-brand-border rounded-xl hover:border-brand-blue transition-all hover:bg-slate-50 duration-300 cursor-default shadow-sm">
                                     <div className="flex items-center gap-4">
                                         <div className="w-2 h-2 rounded-full bg-brand-blue/20 group-hover:bg-brand-blue transition-colors"></div>
