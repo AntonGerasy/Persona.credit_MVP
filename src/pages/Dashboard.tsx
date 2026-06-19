@@ -1206,7 +1206,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                 <div key={i} className="p-6 bg-white border border-brand-border rounded-2xl shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
                                                     <div className={`absolute top-0 right-0 w-1.5 h-full ${action.priority === 'high' ? 'bg-red-500' : 'bg-brand-blue'}`}></div>
                                                     <div className="flex justify-between items-start mb-4">
-                                                        <Badge variant={action.priority === 'high' ? 'negative' : 'info'}>{action.priority.toUpperCase()} PRIORITY</Badge>
+                                                        <Badge variant={action.priority === 'high' ? 'negative' : 'info'}>{(action.priority || 'normal').toUpperCase()} PRIORITY</Badge>
                                                         <div className="text-right">
                                                             <p className="text-[8px] font-black text-brand-gray uppercase">Predicting</p>
                                                             <p className="text-sm font-black text-brand-success">+{action.expected_impact} pts</p>
@@ -1323,7 +1323,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                         </div>
                         <div className="grid grid-cols-1 gap-6">
                             {data.documentAnalysis.map((doc, i) => {
-                                 const isIrrelevant = doc.documentType.toLowerCase().includes('irrelevant') || doc.status.toLowerCase().includes('failed');
+                                 const isIrrelevant = (doc.documentType || '').toLowerCase().includes('irrelevant') || (doc.status || '').toLowerCase().includes('failed');
                                  return (
                                      <Card key={i} className={`group transition-all hover:shadow-lg hover:border-brand-blue ${isIrrelevant ? 'opacity-40 grayscale pointer-events-none' : ''} border-brand-border shadow-sm`}>
                                         <div className="p-8">
@@ -2039,7 +2039,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
 
           {/* Dynamic Content */}
           <div className="lg:col-span-9">
-            {data.status.toLowerCase().includes('action') && (
+            {(data.status || '').toLowerCase().includes('action') && (
                 <div className="mb-8 p-6 bg-amber-50/50 border border-amber-100 rounded-3xl flex items-center gap-6">
                      <div className="p-3 bg-white rounded-2xl shadow-sm text-amber-500">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>

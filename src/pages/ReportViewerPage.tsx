@@ -146,7 +146,7 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
           </div>
           <div className="text-right">
             <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Report ID</p>
-            <p className="text-[11px] font-black text-slate-600">{token.slice(0, 14).toUpperCase()}</p>
+            <p className="text-[11px] font-black text-slate-600">{(token || '').slice(0, 14).toUpperCase()}</p>
           </div>
         </div>
       </header>
@@ -589,7 +589,7 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
           &copy; {new Date().getFullYear()} Persona.Credit &bull; Cross-Border Financial Verification
         </p>
         <p className="text-[9px] text-slate-300 mt-2">
-          Report ID: {token.slice(0, 20).toUpperCase()} &bull; Confidential — for intended recipient only
+          Report ID: {(token || '').slice(0, 20).toUpperCase()} &bull; Confidential — for intended recipient only
         </p>
       </footer>
     </div>

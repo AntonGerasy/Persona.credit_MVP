@@ -129,7 +129,10 @@ const App: React.FC = () => {
             loginProvider(currentDB.currentProvider);
         }
         };
-        initApp();
+        initApp().catch(err => {
+            console.error('App initialization error (non-fatal):', err);
+            // Never let init failure leave a blank screen — fall through to landing
+        });
     }, []);
 
     const loginUser = async (email: string) => {
@@ -307,7 +310,7 @@ const App: React.FC = () => {
             }
 
             if (field.type === 'checkbox' && field.required && !formData[field.id]) {
-                newErrors[field.id] = `You must agree to ${field.label.toLowerCase()}.`;
+                newErrors[field.id] = `You must agree to ${(field.label || 'this').toLowerCase()}.`;
             }
 
             if (field.type === 'file') {
@@ -1063,7 +1066,7 @@ const App: React.FC = () => {
                 const verifiedIncome = finNode.verified_monthly_income_local
                     ? `${finNode.verified_currency || ''} ${finNode.verified_monthly_income_local?.toLocaleString()}/month`
                     : formData.local_monthly_income ? `${formData.local_currency || ''} ${formData.local_monthly_income}/month` : 'income not verified';
-                parsedResult.summary_statement = `${formData.full_name || 'Applicant'} presents a ${parsedResult.financial_identity_profile.overall_integrity_level.toLowerCase()} financial profile from ${countryOfOrigin}. ` +
+                parsedResult.summary_statement = `${formData.full_name || 'Applicant'} presents a ${(parsedResult.financial_identity_profile?.overall_integrity_level || 'assessed').toLowerCase()} financial profile from ${countryOfOrigin}. ` +
                     `Verified income: ${verifiedIncome}. ` +
                     `${countryNode.income_transfer_narrative || countryNode.origin_income_context || 'Cross-border profile assessed.'}`;
             }

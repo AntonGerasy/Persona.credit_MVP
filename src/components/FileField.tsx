@@ -123,7 +123,7 @@ const FileField: React.FC<FileFieldProps> = ({ id, label, value, error, onChange
                             <p className="pl-1">or drag & drop</p>
                         </div>
                         <p className="text-[10px] font-bold text-brand-gray/40 tracking-widest uppercase">
-                            {accept?.join(' / ').toUpperCase()} EVIDENCE SUPPORTED
+                            {(accept?.join(' / ') || 'ALL').toUpperCase()} EVIDENCE SUPPORTED
                         </p>
                     </div>
                 </div>

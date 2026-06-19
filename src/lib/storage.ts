@@ -177,9 +177,13 @@ export const db = {
 
   async loadAsync(): Promise<AppDB> {
     try {
-      const data = await storage.get(FULL_DB_KEY);
+      // Race KV against a 5s timeout — never let a hanging KV block startup.
+      const data = await Promise.race([
+        storage.get(FULL_DB_KEY),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
+      ]);
       if (data && typeof data === 'object') return data as AppDB;
-    } catch { /* ignore */ }
+    } catch { /* ignore — fall through to localStorage */ }
     // Try legacy localStorage format
     const legacy = db.load();
     if (Object.keys(legacy.users).length > 0) return legacy;
@@ -200,11 +204,24 @@ export const db = {
   },
 
   async saveAsync(data: AppDB): Promise<void> {
-    // Sync write first
-    const store = lsLoad();
-    store[FULL_DB_KEY] = data;
-    lsSave(store);
-    // Then KV
-    await storage.set(FULL_DB_KEY, data);
+    // Sync write to localStorage first — this ALWAYS succeeds and is the
+    // source of truth for the current browser. Never let KV failure break this.
+    try {
+      const store = lsLoad();
+      store[FULL_DB_KEY] = data;
+      lsSave(store);
+    } catch (lsErr) {
+      console.warn('localStorage write failed:', lsErr);
+    }
+
+    // Then attempt KV write — but NEVER throw if it fails.
+    // KV is a nice-to-have for cross-device sync, not a hard requirement.
+    try {
+      await storage.set(FULL_DB_KEY, data);
+    } catch (kvErr) {
+      // Non-fatal: localStorage already has the data. Cross-device sync
+      // just won't work until KV is reachable again.
+      console.warn('KV save failed (localStorage fallback active):', kvErr);
+    }
   },
 };
