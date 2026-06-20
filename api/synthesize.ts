@@ -4,6 +4,9 @@
  * Returns ONLY summary_statement — 2-3 sentences for the lender.
  * Everything else is built client-side from agent outputs.
  */
+
+export const maxDuration = 60; // Vercel Hobby supports up to 60s via module-level export
+
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI, Type } from '@google/genai';
 

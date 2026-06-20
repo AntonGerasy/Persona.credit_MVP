@@ -432,6 +432,19 @@
       "income_stability_note": "Regular salary deposits appearing monthly from a single employer are the strongest stability signal. Freelance/IT contractor payments may appear as multiple smaller transfers.",
       "wartime_note": "Since February 2022, some income irregularity is expected and should not be penalised. Many Ukrainians switched to remote/freelance during relocation.",
       "verification_note": "Ukrainian bank statements are verifiable via bank hotlines. TIN (РНОКПП) is a reliable national identifier."
+    },
+    "financial_culture": {
+      "cash_norm": "High cash usage is normal and not a red flag. A large share of income — often 30-50% — is held or transacted in cash, especially outside Kyiv. Salaries were historically paid partly in cash ('envelope wages'), so cash savings reflect normal practice, not undeclared income.",
+      "primary_savings_vehicles": [
+        "Real estate — owning an apartment outright is THE primary store of wealth; mortgages are rare so a paid-off flat = lifetime savings",
+        "Foreign currency cash (USD/EUR) held physically as inflation/hryvnia-devaluation hedge",
+        "Bank deposits — common but trust fluctuates with banking-sector stability"
+      ],
+      "investment_culture": "Stock-market and brokerage investing is NOT culturally established. Absence of a securities portfolio or retirement account is normal and does not indicate financial illiteracy. There is no widespread 401k/IRA equivalent; the state pension is minimal so people rely on property and family.",
+      "debt_attitude": "Strong cultural aversion to debt. Carrying consumer debt is seen as irresponsible; many pride themselves on never borrowing. Low credit usage is a sign of prudence, NOT lack of creditworthiness — the opposite of how a US credit-score model reads a 'thin file'.",
+      "family_finance": "Family is a financial unit. Adult children and parents pool money; large purchases (apartments, cars, weddings) are often family-funded. Money sent to/from relatives is normal and not suspicious.",
+      "wartime_note": "Since 2022, financial behaviour shifted: increased cash holding, USD preference, income disruption, and relocation costs are war-driven and should NOT be read as instability or risk.",
+      "lender_translation": "A Ukrainian applicant with a paid-off apartment, USD cash savings, and no credit history is, by Ukrainian norms, financially CONSERVATIVE and STABLE — the inverse of how a thin US credit file would appear. Read absence-of-debt as discipline."
     }
   },
   {
@@ -544,6 +557,19 @@
       "banking_note": "HDFC, ICICI, SBI, Axis are major verifiable institutions. UPI transaction history provides additional income evidence.",
       "income_stability_note": "Salary credits from a single employer appearing monthly are strongest signal. Many IT workers receive bonuses quarterly.",
       "verification_note": "PAN card is primary tax identifier. Form 16 (annual income certificate from employer) is a strong supplementary document."
+    },
+    "financial_culture": {
+      "cash_norm": "Cash remains widely used despite rapid digital-payment (UPI) adoption. Cash savings are normal, particularly for older generations and outside metro areas. A cash-heavy profile is not inherently suspicious.",
+      "primary_savings_vehicles": [
+        "Gold — culturally the #1 store of value and a liquid asset; families hold significant gold (jewellery/coins) as emergency savings and is readily pledged for loans",
+        "Real estate and land — major wealth store, often ancestral/family-owned",
+        "Bank fixed deposits (FDs) — extremely popular, trusted conservative instrument",
+        "Public Provident Fund (PPF) / Employee Provident Fund (EPF) — government retirement schemes"
+      ],
+      "investment_culture": "Equity-market participation is growing among urban youth but still low overall (~5% of population). Lack of a stock portfolio is normal. Gold and FDs are the default — these ARE the investment culture, not a sign of unsophistication.",
+      "debt_attitude": "Traditionally debt-averse, especially unsecured/consumer debt, though this is shifting in cities. Gold loans and family loans are preferred over credit cards. A low credit-card footprint is cultural, not a creditworthiness flag.",
+      "family_finance": "Joint family finances are deeply embedded. Income and assets are frequently shared across a multi-generational household. Remittances within India and from abroad are routine. A single bank account may support an entire extended family.",
+      "lender_translation": "An Indian applicant holding gold, fixed deposits, and family-shared assets but no Western-style credit history is following a conservative, time-tested wealth strategy. Gold holdings alone can represent substantial liquid net worth invisible to a standard credit check."
     }
   },
   {
@@ -849,6 +875,19 @@
       "banking_note": "BBVA México, Banamex, Santander MX, Banorte are major institutions.",
       "income_stability_note": "Formal sector (IMSS-registered) workers show clean payroll deposits. Informal sector is large — document quality varies.",
       "verification_note": "RFC is primary tax ID. CURP is national identity number."
+    },
+    "financial_culture": {
+      "cash_norm": "Mexico is a predominantly cash economy — a large majority of transactions are cash, and a significant share of workers are in the informal sector (~55%). High cash usage and limited bank records are the NORM and must not be read as hidden income or fraud.",
+      "primary_savings_vehicles": [
+        "Real estate / land — primary wealth store, often built incrementally and self-financed",
+        "Cash savings (peso and USD) held at home",
+        "Tandas / cundinas — informal rotating savings clubs among trusted groups, a legitimate and widespread savings mechanism",
+        "Livestock or a small business in rural areas as capital"
+      ],
+      "investment_culture": "Formal investment (stocks, AFORE retirement funds beyond the mandatory minimum) is limited. Most wealth-building is through property, family business, or informal savings. No brokerage account is completely normal.",
+      "debt_attitude": "Mixed: formal credit access is limited and often distrusted due to high interest rates; informal lending within family/community is preferred. A thin formal-credit file usually reflects limited access, not irresponsibility.",
+      "family_finance": "Strong family financial solidarity. Remittances are a major, normal money flow (Mexico is among the world's top remittance recipients). Pooled family resources for housing and business are standard.",
+      "lender_translation": "A Mexican applicant paid largely in cash, saving through property and tandas, with little formal credit, is operating exactly as their economy works. Informal savings and remittance flows represent real, stable financial capacity that standard US underwriting misses entirely."
     }
   },
   {

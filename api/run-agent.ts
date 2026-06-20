@@ -7,6 +7,9 @@
  * - No retries — fail fast, client handles fallback
  * - Schemas and ultra-short prompts live here
  */
+
+export const maxDuration = 60; // Vercel Hobby supports up to 60s via module-level export
+
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI, Type } from '@google/genai';
 
@@ -132,6 +135,21 @@ const SCHEMAS: Record<string, any> = {
     required: ['behavioral_consistency','narrative_stability','risk_signals',
       'positive_signals','confidence','missing_information','evidence_strength'],
   },
+
+  Culture: {
+    type: Type.OBJECT,
+    properties: {
+      financial_culture_context:  { type: Type.STRING },
+      cultural_asset_notes:       { type: Type.ARRAY, items: { type: Type.STRING } },
+      cash_economy_note:          { type: Type.STRING },
+      debt_culture_note:          { type: Type.STRING },
+      lender_cultural_guidance:   { type: Type.STRING },
+      confidence:                 { type: Type.NUMBER },
+      evidence_strength:          { type: Type.NUMBER },
+    },
+    required: ['financial_culture_context','cultural_asset_notes','cash_economy_note',
+      'debt_culture_note','lender_cultural_guidance','confidence','evidence_strength'],
+  },
 };
 
 // ── Ultra-short prompts — designed to complete in < 8s ──────────────────────
@@ -178,6 +196,27 @@ Rules: all scores 0-100. Use actual numbers from country intelligence. Return JS
   Behavioral: (ctx) => `Behavioral analyst. Assess consistency of profile data.
 Data: ${JSON.stringify(ctx)}
 Rules: scores 0-100. Return JSON only.`,
+
+  Culture: (ctx) => `Financial Culture Analyst for US/UK/CA lenders.
+Your job: explain the applicant's origin-country FINANCIAL CULTURE so a Western lender does not misread normal local behaviour as risk.
+Use the financial_culture block inside origin_intelligence if present.
+
+Key principle: in many countries, behaviour that looks "risky" to a US underwriter is actually normal and conservative:
+- Heavy cash use (informal economies) is normal, NOT hidden income
+- No stock portfolio / no 401k is normal where investment culture differs
+- No credit history / no debt is often PRUDENCE, not a thin-file risk
+- Wealth held in property, gold, livestock, or foreign-currency cash is legitimate net worth invisible to credit checks
+- Family-pooled finances and remittances are normal money flows
+
+Produce:
+- financial_culture_context: 2-3 sentences on how money is managed in this country (savings, investment norms).
+- cultural_asset_notes: array of 2-4 short notes on locally-normal assets/behaviours a lender might otherwise misjudge.
+- cash_economy_note: 1 sentence on whether cash-heavy behaviour is normal here.
+- debt_culture_note: 1 sentence on how to read the applicant's debt/credit profile in cultural context.
+- lender_cultural_guidance: 1-2 sentences directly advising the lender how to fairly interpret this applicant.
+
+Data: ${JSON.stringify(ctx)}
+Rules: factual, specific to the country. If no culture data available, give best general guidance and set evidence_strength low. Return JSON only.`,
 };
 
 // ── Safe fallback values ─────────────────────────────────────────────────────
@@ -188,6 +227,7 @@ const FALLBACKS: Record<string, any> = {
   Fraud:     { fraud_risk:20, contradiction_score:0, risk_patterns:[], contradictions:[], confidence:0.3, missing_information:['Agent timeout'], evidence_strength:10 },
   Country:   { country_transferability:50, destination_alignment:50, migration_readiness:50, economic_adaptability:50, currency_risk:50, origin_income_percentile:50, origin_income_context:'Unable to assess.', destination_income_equivalent_usd:0, income_transfer_narrative:'Unable to assess.', sector_demand_in_destination:'Unknown', risk_factors:[], strengths:[], confidence:0.3, missing_information:['Agent timeout'], evidence_strength:10 },
   Behavioral:{ behavioral_consistency:50, narrative_stability:50, risk_signals:[], positive_signals:[], confidence:0.3, missing_information:['Agent timeout'], evidence_strength:10 },
+  Culture:{ financial_culture_context:'Cultural financial context could not be assessed.', cultural_asset_notes:[], cash_economy_note:'', debt_culture_note:'', lender_cultural_guidance:'', confidence:0.3, evidence_strength:10 },
 };
 
 // ── Handler ──────────────────────────────────────────────────────────────────
@@ -217,7 +257,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         responseMimeType: 'application/json',
         responseSchema: schema,
         thinkingConfig: { thinkingBudget: 0 },
-        maxOutputTokens: 400,
+        maxOutputTokens: 1024,
       },
     });
 

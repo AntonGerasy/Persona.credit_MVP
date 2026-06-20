@@ -12,6 +12,9 @@
  *   { isValid: boolean, reason: string }
  */
 
+export const maxDuration = 60; // Vercel Hobby supports up to 60s via module-level export
+
+
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI, Type } from '@google/genai';
 

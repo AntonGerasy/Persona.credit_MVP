@@ -35,6 +35,7 @@ const App: React.FC = () => {
     const [currentProviderUser, setCurrentProviderUser] = useState<ProviderUser | null>(null);
     type View = 'landing' | 'auth' | 'form' | 'dashboard' | 'providerOnboarding' | 'providerDashboard' | 'helpCenter' | 'report' | 'partner' | 'partnerLanding' | 'pricing';
     const [view, setView] = useState<View>('landing');
+    const [isInitializing, setIsInitializing] = useState(true);
     const [isPaid, setIsPaid] = useState(true); // MVP: all features open
     const [plan, setPlan] = useState<'standard' | 'membership' | null>(null);
     const [previousView, setPreviousView] = useState<View | null>(null);
@@ -129,10 +130,13 @@ const App: React.FC = () => {
             loginProvider(currentDB.currentProvider);
         }
         };
-        initApp().catch(err => {
-            console.error('App initialization error (non-fatal):', err);
-            // Never let init failure leave a blank screen — fall through to landing
-        });
+        initApp()
+            .catch(err => {
+                console.error('App initialization error (non-fatal):', err);
+            })
+            .finally(() => {
+                setIsInitializing(false);
+            });
     }, []);
 
     const loginUser = async (email: string) => {
@@ -541,10 +545,10 @@ const App: React.FC = () => {
         return { success: true, message: "" };
     };
 
-    const handleLogout = () => {
-        const currentDB = db.load();
+    const handleLogout = async () => {
+        const currentDB = await db.loadAsync();
         currentDB.currentUser = null;
-        db.save(currentDB);
+        await db.saveAsync(currentDB);
         setUserSession(null);
         setUserProfile(null);
         setFormData(getInitialFormData(formSchema));
@@ -947,13 +951,28 @@ const App: React.FC = () => {
                 doc_count: documentSummary.usable_documents,
             };
 
-            // ── PARALLEL agent execution — all 5 fire simultaneously ────
-            const [idNode, finNode, fraudNode, countryNode, behNode] = await Promise.all([
+            const cultureContext = {
+                origin_country: countryOfOrigin,
+                destination_country: destCountry,
+                origin_intelligence: originIntelligence,
+                applicant_financials: {
+                    declared_income_usd: formData.ann_income_usd,
+                    liquid_reserves: formData.liquid_reserves,
+                    debts_total_origin: formData.debts_total_origin,
+                    official_income_share: formData.official_income_share,
+                    job_sector: formData.job_sector,
+                    has_documents: documentSummary.usable_documents > 0,
+                },
+            };
+
+            // ── PARALLEL agent execution — all 6 fire simultaneously ────
+            const [idNode, finNode, fraudNode, countryNode, behNode, cultureNode] = await Promise.all([
                 callAgent('Identity',  idContext),
                 callAgent('Financial', finContext),
                 callAgent('Fraud',     fraudContext),
                 callAgent('Country',   countryContext),
                 callAgent('Behavioral',behContext),
+                callAgent('Culture',   cultureContext),
             ]);
 
             // FINAL SYNTHESIS — Structured Aggregation Engine
@@ -1286,6 +1305,13 @@ const App: React.FC = () => {
                     sector_demand_in_destination: countryNode.sector_demand_in_destination ?? null,
                     currency_risk: countryNode.currency_risk ?? null,
                     country_transferability: countryNode.country_transferability ?? null,
+                    raw_data_table: countryNode.raw_data_table ?? null,
+                    // Financial culture context (from dedicated Culture agent)
+                    financial_culture_context: cultureNode?.financial_culture_context ?? null,
+                    cultural_asset_notes: cultureNode?.cultural_asset_notes ?? null,
+                    cash_economy_note: cultureNode?.cash_economy_note ?? null,
+                    debt_culture_note: cultureNode?.debt_culture_note ?? null,
+                    lender_cultural_guidance: cultureNode?.lender_cultural_guidance ?? null,
                 },
                 // Financial agent verified figures
                 financial_verified: {
@@ -1513,12 +1539,12 @@ const App: React.FC = () => {
     };
 
 
-    const handleGoHome = () => {
+    const handleGoHome = async () => {
         if (userSession) {
-            const currentDB = db.load();
+            const currentDB = await db.loadAsync();
             if (currentDB.users[userSession]?.dashboardResult) {
-                setView('dashboard');
                 setResult(currentDB.users[userSession].dashboardResult);
+                setView('dashboard');
             } else {
                 setView('landing');
             }
@@ -1531,9 +1557,36 @@ const App: React.FC = () => {
 
     // --- View Rendering Logic ---
 
-    const handleStartNewApplication = () => {
+    // Show a loading screen while we read session/report from KV.
+    // Prevents the "stuck on landing page" flash for logged-in users.
+    if (isInitializing) {
+        return (
+            <div style={{
+                minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: '#F8FAFC', fontFamily: 'system-ui, -apple-system, sans-serif',
+            }}>
+                <div style={{ textAlign: 'center' }}>
+                    <div style={{
+                        width: '48px', height: '48px', borderRadius: '14px', background: '#0F292F',
+                        margin: '0 auto 20px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                        <div style={{
+                            width: '20px', height: '20px', border: '2.5px solid rgba(255,255,255,0.3)',
+                            borderTopColor: 'white', borderRadius: '50%', animation: 'pcspin 0.7s linear infinite',
+                        }} />
+                    </div>
+                    <p style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#94A3B8' }}>
+                        Loading your dossier…
+                    </p>
+                </div>
+                <style>{`@keyframes pcspin { to { transform: rotate(360deg); } }`}</style>
+            </div>
+        );
+    }
+
+    const handleStartNewApplication = async () => {
         if (userSession) {
-            const currentDB = db.load();
+            const currentDB = await db.loadAsync();
             if (currentDB.users[userSession]?.dashboardResult) {
                 setResult(currentDB.users[userSession].dashboardResult);
                 setView('dashboard');

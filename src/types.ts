@@ -292,6 +292,11 @@ export interface DashboardData {
             document_period?: string;
             income_pattern?: string;
         } | null;
+        financial_culture_context?: string | null;
+        cultural_asset_notes?: string[] | null;
+        cash_economy_note?: string | null;
+        debt_culture_note?: string | null;
+        lender_cultural_guidance?: string | null;
     };
     financial_verified?: {
         verified_monthly_income_local?: number | null;

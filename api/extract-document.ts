@@ -8,6 +8,9 @@
  * - For images: uses inlineData directly (faster, < 1MB usually)
  * - thinkingBudget: 0, maxOutputTokens: 500
  */
+
+export const maxDuration = 60; // Vercel Hobby supports up to 60s via module-level export
+
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI, Type } from '@google/genai';
 

@@ -1727,6 +1727,152 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                     </Card>
                 </div>
 
+                {/* ── ORIGINAL DOCUMENT DATA & INTERPRETATION ── */}
+                {data.country_analysis?.raw_data_table && (
+                    <Card className="border-brand-border shadow-md">
+                        <CardHeader>
+                            <CardTitle>Original Document Data & Interpretation</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-5">
+                            <p className="text-[11px] text-brand-gray leading-relaxed">
+                                Direct figures from your origin-country documents, translated into USD and
+                                explained against {data.origin_country || 'origin-country'} economic data — the
+                                view a lender sees to assess you fairly.
+                            </p>
+                            <div className="overflow-hidden rounded-xl border border-brand-border">
+                                <table className="w-full text-left">
+                                    <thead>
+                                        <tr className="bg-slate-50">
+                                            <th className="px-4 py-3 text-[9px] font-black uppercase tracking-widest text-brand-gray">Original Figure</th>
+                                            <th className="px-4 py-3 text-[9px] font-black uppercase tracking-widest text-brand-gray">Translation & Context</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {(() => {
+                                            const rdt = data.country_analysis.raw_data_table;
+                                            const rows = [];
+                                            if (rdt.monthly_income_original) rows.push(
+                                                <tr key="inc">
+                                                    <td className="px-4 py-3 align-top">
+                                                        <p className="text-[13px] font-black text-brand-dark">{rdt.monthly_income_original}</p>
+                                                        <p className="text-[9px] font-bold uppercase tracking-wide text-brand-gray mt-0.5">Monthly Income</p>
+                                                    </td>
+                                                    <td className="px-4 py-3 align-top">
+                                                        <p className="text-[12px] font-bold text-brand-blue">{rdt.monthly_income_usd || '—'}</p>
+                                                        {rdt.ppp_equivalent_usd && <p className="text-[10px] text-brand-gray mt-1">{rdt.ppp_equivalent_usd}</p>}
+                                                    </td>
+                                                </tr>
+                                            );
+                                            if (rdt.income_percentile_label) rows.push(
+                                                <tr key="pct">
+                                                    <td className="px-4 py-3 align-top">
+                                                        <p className="text-[12px] font-bold text-brand-dark">{rdt.income_percentile_label}</p>
+                                                        <p className="text-[9px] font-bold uppercase tracking-wide text-brand-gray mt-0.5">National Standing</p>
+                                                    </td>
+                                                    <td className="px-4 py-3 align-top">
+                                                        <p className="text-[11px] text-brand-gray leading-relaxed">{rdt.income_vs_national_median || '—'}</p>
+                                                    </td>
+                                                </tr>
+                                            );
+                                            if (rdt.income_vs_sector_median) rows.push(
+                                                <tr key="sec">
+                                                    <td className="px-4 py-3 align-top">
+                                                        <p className="text-[12px] font-bold text-brand-dark">Profession Benchmark</p>
+                                                        <p className="text-[9px] font-bold uppercase tracking-wide text-brand-gray mt-0.5">vs Sector Median</p>
+                                                    </td>
+                                                    <td className="px-4 py-3 align-top">
+                                                        <p className="text-[11px] text-brand-gray leading-relaxed">{rdt.income_vs_sector_median}</p>
+                                                        {rdt.sector_benchmark_note && <p className="text-[10px] text-brand-gray/70 italic mt-1">{rdt.sector_benchmark_note}</p>}
+                                                    </td>
+                                                </tr>
+                                            );
+                                            if (rdt.document_institution || rdt.document_period) rows.push(
+                                                <tr key="doc">
+                                                    <td className="px-4 py-3 align-top">
+                                                        <p className="text-[12px] font-bold text-brand-dark">{rdt.document_institution || 'Document'}</p>
+                                                        <p className="text-[9px] font-bold uppercase tracking-wide text-brand-gray mt-0.5">Source Institution</p>
+                                                    </td>
+                                                    <td className="px-4 py-3 align-top">
+                                                        <p className="text-[11px] text-brand-gray">{rdt.document_period || '—'}</p>
+                                                        {rdt.income_pattern && <p className="text-[10px] text-brand-gray/70 mt-1">{rdt.income_pattern}</p>}
+                                                    </td>
+                                                </tr>
+                                            );
+                                            return rows;
+                                        })()}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {data.country_analysis.origin_income_context && (
+                                <div className="bg-slate-50 rounded-xl p-4">
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-brand-gray mb-2">In Origin-Country Context</p>
+                                    <p className="text-[12px] text-brand-dark leading-relaxed">{data.country_analysis.origin_income_context}</p>
+                                </div>
+                            )}
+                            {data.country_analysis.income_transfer_narrative && (
+                                <div className="bg-brand-blue/5 border border-brand-blue/10 rounded-xl p-4">
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-brand-blue mb-2">What This Means For A Lender</p>
+                                    <p className="text-[12px] text-brand-dark leading-relaxed font-medium">{data.country_analysis.income_transfer_narrative}</p>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* ── FINANCIAL CULTURE CONTEXT ── */}
+                {data.country_analysis?.financial_culture_context && (
+                    <Card className="border-brand-border shadow-md">
+                        <CardHeader>
+                            <CardTitle>Financial Culture Context — {data.origin_country || 'Origin Country'}</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <p className="text-[11px] text-brand-gray leading-relaxed">
+                                How money is managed in your origin country — so a lender does not misread
+                                locally-normal financial behaviour as risk.
+                            </p>
+                            <div className="bg-slate-50 rounded-xl p-4">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-brand-gray mb-2">How Finances Work Here</p>
+                                <p className="text-[12px] text-brand-dark leading-relaxed">{data.country_analysis.financial_culture_context}</p>
+                            </div>
+                            {Array.isArray(data.country_analysis.cultural_asset_notes) && data.country_analysis.cultural_asset_notes.length > 0 && (
+                                <div>
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-brand-gray mb-2 ml-1">Locally-Normal Assets & Behaviours</p>
+                                    <div className="space-y-2">
+                                        {data.country_analysis.cultural_asset_notes.map((note: string, i: number) => (
+                                            <div key={i} className="flex items-start gap-2 bg-white border border-brand-border rounded-lg p-3">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-brand-blue mt-1.5 shrink-0" />
+                                                <p className="text-[11px] text-brand-dark leading-relaxed">{note}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {(data.country_analysis.cash_economy_note || data.country_analysis.debt_culture_note) && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {data.country_analysis.cash_economy_note && (
+                                        <div className="bg-slate-50 rounded-xl p-4">
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-brand-gray mb-1.5">On Cash Usage</p>
+                                            <p className="text-[11px] text-brand-dark leading-relaxed">{data.country_analysis.cash_economy_note}</p>
+                                        </div>
+                                    )}
+                                    {data.country_analysis.debt_culture_note && (
+                                        <div className="bg-slate-50 rounded-xl p-4">
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-brand-gray mb-1.5">On Debt & Credit</p>
+                                            <p className="text-[11px] text-brand-dark leading-relaxed">{data.country_analysis.debt_culture_note}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                            {data.country_analysis.lender_cultural_guidance && (
+                                <div className="bg-brand-blue/5 border border-brand-blue/10 rounded-xl p-4">
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-brand-blue mb-2">Guidance For The Lender</p>
+                                    <p className="text-[12px] text-brand-dark leading-relaxed font-medium">{data.country_analysis.lender_cultural_guidance}</p>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                )}
+
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 pb-12">
                     <div className="space-y-6">
                         <h4 className="text-[10px] font-bold text-brand-gray uppercase tracking-widest ml-1">Path to Potential +100</h4>

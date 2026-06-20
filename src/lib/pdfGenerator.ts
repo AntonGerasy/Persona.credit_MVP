@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { DashboardData } from '../types';
 
 interface jsPDFWithAutoTable extends jsPDF {
@@ -100,7 +100,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
   };
 
   const infoTable = (rows: [string, string][]) => {
-    doc.autoTable({
+    autoTable(doc, {
       startY: y,
       body: rows,
       theme: 'plain',
@@ -111,7 +111,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
         1: { fontStyle: 'normal' },
       },
     });
-    y = (doc as any).lastAutoTable.finalY + 8;
+    y = ((doc as any).lastAutoTable?.finalY ?? y) + 8;
   };
 
   const drawLine = () => {
@@ -196,6 +196,68 @@ export const generateDossierPDF = async (data: DashboardData) => {
     y += 10;
   }
 
+  // ── Original Document Raw Data table ──────────────────────────────────────
+  const rdt = (ca as any).raw_data_table;
+  if (rdt) {
+    if (y > 230) { doc.addPage(); y = 20; }
+    y += 2;
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...C.slate);
+    doc.text('Original Document Data — Translated & Contextualised:', margin, y);
+    y += 5;
+
+    const rawRows: [string, string][] = [];
+    if (rdt.monthly_income_original) rawRows.push([rdt.monthly_income_original, rdt.monthly_income_usd || '—']);
+    if (rdt.ppp_equivalent_usd) rawRows.push(['PPP Equivalent', rdt.ppp_equivalent_usd]);
+    if (rdt.income_percentile_label) rawRows.push([rdt.income_percentile_label, rdt.income_vs_national_median || '—']);
+    if (rdt.income_vs_sector_median) rawRows.push(['vs Sector Median', rdt.income_vs_sector_median]);
+    if (rdt.sector_benchmark_note) rawRows.push(['Profession Note', rdt.sector_benchmark_note]);
+    if (rdt.document_institution) rawRows.push(['Source Institution', rdt.document_institution]);
+    if (rdt.document_period) rawRows.push(['Document Period', rdt.document_period]);
+    if (rdt.income_pattern) rawRows.push(['Income Pattern', rdt.income_pattern]);
+
+    if (rawRows.length > 0) {
+      autoTable(doc, {
+        startY: y,
+        head: [['Original Figure / Metric', 'Translation & Context']],
+        body: rawRows,
+        theme: 'striped',
+        margin: { left: margin, right: margin },
+        headStyles: { fillColor: C.dark, textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold' },
+        bodyStyles: { fontSize: 7.5, textColor: C.dark },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 65, textColor: C.slate } },
+      });
+      y = ((doc as any).lastAutoTable?.finalY ?? y) + 8;
+    }
+  }
+
+  // ── Financial Culture Context ─────────────────────────────────────────────
+  const fcc = (ca as any).financial_culture_context;
+  if (fcc) {
+    if (y > 240) { doc.addPage(); y = 20; }
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...C.slate);
+    doc.text('Financial Culture Context — how money is managed in the origin country:', margin, y);
+    y += 5;
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.dark);
+    const fccLines = doc.splitTextToSize(fcc, 175);
+    doc.text(fccLines, margin, y);
+    y += fccLines.length * 4 + 3;
+
+    const guidance = (ca as any).lender_cultural_guidance;
+    if (guidance) {
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(...C.slate);
+      const gLines = doc.splitTextToSize('Lender guidance: ' + guidance, 175);
+      doc.text(gLines, margin, y);
+      y += gLines.length * 4 + 4;
+    }
+  }
+
   drawLine();
 
   // ── IV. DOCUMENT EVIDENCE ─────────────────────────────────────────────────
@@ -238,7 +300,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
 
       docRows.push(['Name Match', docItem.account_holder_name_match || '—']);
 
-      doc.autoTable({
+      autoTable(doc, {
         startY: y,
         body: docRows,
         theme: 'plain',
@@ -248,7 +310,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
           0: { fontStyle: 'bold', cellWidth: 55, textColor: C.slate },
         },
       });
-      y = (doc as any).lastAutoTable.finalY + 4;
+      y = ((doc as any).lastAutoTable?.finalY ?? y) + 4;
 
       if (docItem.analyst_note) {
         doc.setFontSize(7);
@@ -283,7 +345,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
 
   const bd = data.breakdown;
   if (bd) {
-    doc.autoTable({
+    autoTable(doc, {
       startY: y,
       head: [['Factor', 'Score (0–100)', 'Weight']],
       body: [
@@ -302,7 +364,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
         2: { halign: 'center' as const, textColor: C.slate },
       },
     });
-    y = (doc as any).lastAutoTable.finalY + 10;
+    y = ((doc as any).lastAutoTable?.finalY ?? y) + 10;
   }
 
   // ── VI. STRENGTHS & CONSIDERATIONS ───────────────────────────────────────
