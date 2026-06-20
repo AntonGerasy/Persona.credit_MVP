@@ -82,7 +82,7 @@ Respond STRICTLY in valid JSON only. No conversational text.`;
   try {
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-preview-05-20',
+      model: 'gemini-2.5-flash',
       contents: {
         parts: [
           { text: promptText },

@@ -251,7 +251,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-preview-05-20',
+      model: 'gemini-2.5-flash',
       contents: { parts: [{ text: promptFn(context) }] },
       config: {
         responseMimeType: 'application/json',
@@ -271,8 +271,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json(parsed);
 
   } catch (err) {
-    console.error(`[run-agent:${agentName}]`, String(err));
-    // Return fallback — never crash the pipeline
-    return res.status(200).json({ ...fallback, _timeout: true });
+    const errMsg = String(err);
+    console.error(`[run-agent:${agentName}]`, errMsg);
+    // Return fallback — never crash the pipeline.
+    // Include the real error reason so we can diagnose (timeout vs API key vs model vs quota).
+    return res.status(200).json({ ...fallback, _agent_failed: true, _error_reason: errMsg.slice(0, 200) });
   }
 }

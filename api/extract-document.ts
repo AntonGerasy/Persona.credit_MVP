@@ -116,7 +116,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-preview-05-20',
+      model: 'gemini-2.5-flash',
       contents: {
         parts: [
           { text: PROMPT(applicantName || 'Unknown', fieldLabel || 'Financial Document', originCountry || '', destinationCountry || '') },
