@@ -2128,6 +2128,37 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
         </div>
       </header>
 
+      {(() => {
+        const summary: any = (data as any)?.agent_summary || (data as any)?.analysis?.agent_summary;
+        const entries: [string, any][] = summary ? Object.entries(summary) : [];
+        const failed = entries.filter(([, a]) => a && a._agent_failed);
+        if (failed.length === 0) return null;
+        const first = failed[0][1];
+        const keyUsed = first?._key_used || 'unknown';
+        const anyRateLimited = failed.some(([, a]) => a && a._rate_limited);
+        const reason = first?._error_reason || 'No reason returned by API.';
+        return (
+          <div className="max-w-7xl mx-auto px-6 sm:px-10 pt-6">
+            <div style={{
+              border: '1px solid #FECACA', background: '#FEF2F2', borderRadius: '12px',
+              padding: '16px 20px', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#B91C1C', marginBottom: '8px' }}>
+                ⚠ AI AGENTS FAILED — {failed.length}/{entries.length} ({failed.map(([n]) => n).join(', ')})
+              </div>
+              <div style={{ fontSize: '13px', color: '#7F1D1D', lineHeight: 1.7 }}>
+                <div>GEMINI_API_KEY in use: <strong style={{ background: '#FEE2E2', padding: '1px 6px', borderRadius: '4px' }}>{keyUsed}</strong></div>
+                <div>Failure type: <strong>{anyRateLimited ? 'rate-limit / quota / credits' : 'API error'}</strong></div>
+                <div style={{ wordBreak: 'break-word' }}>Reason: {reason}</div>
+              </div>
+              <div style={{ fontSize: '11px', color: '#9CA3AF', marginTop: '10px' }}>
+                This score and all $0 / 0% values are the result of every agent returning a fallback. Fix the key/billing, then click “New Assessment”.
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       <main className="max-w-7xl mx-auto px-6 sm:px-10 py-12">
         {isAlphaBuildView ? (
             <AlphaBuildView data={data} />
