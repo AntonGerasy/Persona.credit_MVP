@@ -238,13 +238,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(503).json({ error: 'AI service not configured' });
 
-  // DIAGNOSTIC: log last 4 chars of the key actually in use (safe — not the full key).
-  // Lets us confirm whether Vercel is using the Tier 1 key (...7ydQ) or the free key (...XyPQ).
+  // DIAGNOSTIC: safe fingerprint of the key actually in use (last 4 chars only).
   const keyFingerprint = apiKey.length >= 4 ? apiKey.slice(-4) : 'short';
-  console.log(`[run-agent:${agentName}] using GEMINI_API_KEY ending in ...${keyFingerprint}`);
 
   const { agentName, context } = req.body;
   if (!agentName || !context) return res.status(400).json({ error: 'Missing agentName or context' });
+
+  // Log which key is in use — confirms Tier 1 (...7ydQ) vs free (...XyPQ).
+  console.log(`[run-agent:${agentName}] using GEMINI_API_KEY ending in ...${keyFingerprint}`);
 
   const schema = SCHEMAS[agentName];
   const promptFn = PROMPTS[agentName];
