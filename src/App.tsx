@@ -853,7 +853,10 @@ const App: React.FC = () => {
 
             // --- PARALLEL AGENT ORCHESTRATION ---
             // ── HELPER: call a single agent ─────────────────────────────
-            const callAgent = async (agentName: string, context: any): Promise<any> => {
+            // staggerMs spaces out the start of each agent so we don't fire
+            // all 6 requests in the same instant and trip the free-tier rate limit.
+            const callAgent = async (agentName: string, context: any, staggerMs = 0): Promise<any> => {
+                if (staggerMs > 0) await new Promise(r => setTimeout(r, staggerMs));
                 try {
                     const resp = await fetch('/api/run-agent', {
                         method: 'POST',
@@ -965,14 +968,16 @@ const App: React.FC = () => {
                 },
             };
 
-            // ── PARALLEL agent execution — all 6 fire simultaneously ────
+            // ── PARALLEL agent execution — staggered to respect rate limits ────
+            // Each agent starts ~400ms after the previous one. Total spread ~2s,
+            // keeping us under the free-tier burst limit while still running concurrently.
             const [idNode, finNode, fraudNode, countryNode, behNode, cultureNode] = await Promise.all([
-                callAgent('Identity',  idContext),
-                callAgent('Financial', finContext),
-                callAgent('Fraud',     fraudContext),
-                callAgent('Country',   countryContext),
-                callAgent('Behavioral',behContext),
-                callAgent('Culture',   cultureContext),
+                callAgent('Identity',  idContext,      0),
+                callAgent('Financial', finContext,     400),
+                callAgent('Fraud',     fraudContext,   800),
+                callAgent('Country',   countryContext, 1200),
+                callAgent('Behavioral',behContext,     1600),
+                callAgent('Culture',   cultureContext, 2000),
             ]);
 
             // FINAL SYNTHESIS — Structured Aggregation Engine

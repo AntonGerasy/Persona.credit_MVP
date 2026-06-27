@@ -238,6 +238,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(503).json({ error: 'AI service not configured' });
 
+  // DIAGNOSTIC: log last 4 chars of the key actually in use (safe — not the full key).
+  // Lets us confirm whether Vercel is using the Tier 1 key (...7ydQ) or the free key (...XyPQ).
+  const keyFingerprint = apiKey.length >= 4 ? apiKey.slice(-4) : 'short';
+  console.log(`[run-agent:${agentName}] using GEMINI_API_KEY ending in ...${keyFingerprint}`);
+
   const { agentName, context } = req.body;
   if (!agentName || !context) return res.status(400).json({ error: 'Missing agentName or context' });
 
@@ -249,17 +254,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const ai = new GoogleGenAI({ apiKey });
 
+  // Retry wrapper: on 429 (rate limit), wait and retry with exponential backoff.
+  // Free-tier Gemini allows ~10-15 req/min; parallel agents can burst past that.
+  const generateWithRetry = async (maxRetries = 3): Promise<any> => {
+    let lastErr: any;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        return await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: { parts: [{ text: promptFn(context) }] },
+          config: {
+            responseMimeType: 'application/json',
+            responseSchema: schema,
+            thinkingConfig: { thinkingBudget: 0 },
+            maxOutputTokens: 1024,
+          },
+        });
+      } catch (err) {
+        lastErr = err;
+        const msg = String(err);
+        const is429 = msg.includes('429') || msg.toLowerCase().includes('quota') || msg.toLowerCase().includes('rate');
+        if (is429 && attempt < maxRetries) {
+          // Exponential backoff: 1s, 2s, 4s (+ jitter). Stays within the 60s function budget.
+          const waitMs = Math.min(1000 * Math.pow(2, attempt), 8000) + Math.random() * 500;
+          await new Promise(r => setTimeout(r, waitMs));
+          continue;
+        }
+        throw err;
+      }
+    }
+    throw lastErr;
+  };
+
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: { parts: [{ text: promptFn(context) }] },
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: schema,
-        thinkingConfig: { thinkingBudget: 0 },
-        maxOutputTokens: 1024,
-      },
-    });
+    const response = await generateWithRetry();
 
     let jsonStr = (response.text || '{}').trim();
     if (jsonStr.includes('```')) {
@@ -273,8 +301,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (err) {
     const errMsg = String(err);
     console.error(`[run-agent:${agentName}]`, errMsg);
+    const isRateLimit = errMsg.includes('429') || errMsg.toLowerCase().includes('quota') || errMsg.toLowerCase().includes('rate');
     // Return fallback — never crash the pipeline.
-    // Include the real error reason so we can diagnose (timeout vs API key vs model vs quota).
-    return res.status(200).json({ ...fallback, _agent_failed: true, _error_reason: errMsg.slice(0, 200) });
+    return res.status(200).json({
+      ...fallback,
+      _agent_failed: true,
+      _rate_limited: isRateLimit,
+      _key_used: `...${keyFingerprint}`,
+      _error_reason: (isRateLimit ? 'Rate/quota error. ' : '') + errMsg.slice(0, 180),
+    });
   }
 }
