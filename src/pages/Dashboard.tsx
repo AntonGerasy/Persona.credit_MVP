@@ -448,7 +448,7 @@ const PaywallOverlay: React.FC<{ onUnlock: () => void }> = ({ onUnlock }) => (
     </div>
 );
 
-const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, referralCode, isPaid, plan, onLogout, onGoToPricing, onExitToLanding, isAdmin }) => {
+const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, referralCode, isPaid, plan, onReset, onLogout, onGoToPricing, onExitToLanding, isAdmin }) => {
   const rawData = useMemo(() => propData || profile?.scores || SOPHISTICATED_DEMO_DATA, [propData, profile]);
 
   // NORMALIZATION LAYER — guarantees all fields the render path touches always exist.
@@ -2105,6 +2105,16 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                     <span className="text-[10px] font-bold uppercase tracking-widest leading-none">Cloud Sync Active</span>
                 </div>
                 <div className="h-4 w-px bg-brand-border"></div>
+                <button
+                    onClick={() => {
+                        if (window.confirm('Start a new assessment? This clears the current dossier and re-runs the analysis from a fresh form.')) {
+                            onReset();
+                        }
+                    }}
+                    className="px-6 py-2.5 bg-brand-dark text-white text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all shadow-lg hover:opacity-90 active:scale-95"
+                >
+                    New Assessment
+                </button>
                 {activeTab === 'overview' && (
                     <button 
                         onClick={() => setActiveTab('ai_dossier')}

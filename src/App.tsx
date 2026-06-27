@@ -493,13 +493,15 @@ const App: React.FC = () => {
         }
     };
 
-    const handleReset = () => {
+    const handleReset = async () => {
         if (userSession) {
-            const currentDB = db.load();
-            delete currentDB.users[userSession].formData;
-            delete currentDB.users[userSession].currentStep;
-            delete currentDB.users[userSession].dashboardResult;
-            db.save(currentDB);
+            const currentDB = await db.loadAsync();
+            if (currentDB.users[userSession]) {
+                delete currentDB.users[userSession].formData;
+                delete currentDB.users[userSession].currentStep;
+                delete currentDB.users[userSession].dashboardResult;
+                await db.saveAsync(currentDB);
+            }
         }
         setFormData(getInitialFormData(formSchema));
         setCurrentStep(0);
