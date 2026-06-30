@@ -56,9 +56,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     required: ['isValid', 'reason'],
   };
 
+  const today = new Date().toISOString().slice(0, 10);
   const promptText = `You are a document intake analyst for Persona.Credit, a cross-border financial verification service.
 An applicant has uploaded a file for the form field: "${fieldLabel}" ${fieldSubLabel ? `(${fieldSubLabel})` : ''}.
 Applicant name on file: ${applicantName || 'Unknown'}.
+
+IMPORTANT — TODAY'S DATE IS ${today}. Any date on or BEFORE ${today} is in the PAST and is valid. Only a date STRICTLY AFTER ${today} is "future-dated". Do not rely on your own assumptions about the current date; use ${today} as the present.
 
 TASK: Determine if this document is usable for financial verification purposes.
 
@@ -67,10 +70,11 @@ TASK: Determine if this document is usable for financial verification purposes.
    - Photos of people, animals, landscapes, blank pages, memes, unrelated receipts = invalid.
    - If irrelevant: reason = "Irrelevant document — this does not appear to be a ${fieldLabel}."
 
-2. RECENCY:
-   - Origin country documents: 2022–2026 are acceptable (wartime/economic disruption context considered).
-   - Destination country documents: must be from the last 12 months.
-   - Note if outdated but do not reject origin-country historical documents unless severely stale.
+2. RECENCY (compare against TODAY = ${today}):
+   - Origin country documents: 2022 through ${today} are acceptable (wartime/economic disruption context considered).
+   - Destination country documents: must be dated within the 12 months ending ${today}.
+   - A document dated within the last 12 months is RECENT and valid — never call a past date "in the future".
+   - Note if genuinely outdated, but do not reject origin-country historical documents unless severely stale.
 
 3. LEGIBILITY: Is the document readable? Can key figures be extracted?
    - Mark invalid only if completely unreadable or clearly tampered.

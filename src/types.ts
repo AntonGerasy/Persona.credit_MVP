@@ -145,6 +145,19 @@ export interface UnderwritingPillars {
     transferabilityIndex: number;
 }
 
+export interface IncomeReconciliation {
+    income_status: 'verified' | 'partial' | 'declared' | 'contradicted' | 'unverified';
+    declared_monthly_usd: number;
+    verified_monthly_usd: number;
+    discrepancy_pct: number | null;
+    evidence_factor: number;
+    is_provisional: boolean;
+    has_usable_docs: boolean;
+    doc_currency: string | null;
+    name_mismatch: boolean;
+    explanation: string;
+}
+
 export interface ScoringAnalysis {
     identity_reliability: number;
     financial_stability: number;
@@ -262,6 +275,9 @@ export interface DashboardData {
     // Live Oracle Indicators
     realTimeInflationOffset?: number;
     livePPPMultiplier?: number;
+    // Income reconciliation: declared (user) vs verified (documents)
+    reconciliation?: IncomeReconciliation;
+    is_provisional?: boolean;
     generatedAt?: number;
     shareId?: string;
     fullName?: string;

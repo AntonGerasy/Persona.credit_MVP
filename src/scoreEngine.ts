@@ -10,6 +10,10 @@ export interface ScoringInputs {
   overall_confidence: number;
   evidence_strength: number;
   overall_uncertainty: number;
+  // 0-1 multiplier reflecting how well declared income is backed by documents.
+  // 1.0 = verified, 0.85 = partial, 0.25 = declared-only, 0.0 = contradicted.
+  // Income-driven pillars are scaled by this so an unverified profile cannot score high.
+  income_evidence_factor?: number;
 }
 
 export interface ScoreBreakdown {
@@ -57,12 +61,16 @@ export function calculateTransferScore(inputs: ScoringInputs): ScoringResult {
   const confidence = Math.max(0, Math.min(1, inputs.overall_confidence));
   const evStrength = Math.max(0, Math.min(100, inputs.evidence_strength));
   const uncertainty = Math.max(0, Math.min(100, inputs.overall_uncertainty));
+  // Evidence backing for income (0-1). Scales the income-driven pillars so that
+  // self-declared-but-undocumented income cannot inflate the score.
+  const incomeFactor = Math.max(0, Math.min(1, inputs.income_evidence_factor ?? 1));
 
   // STEP 1: Base weighted score
+  // financial_stability and migration_resilience are income-driven → scaled by incomeFactor.
   const baseScore = 
     (idRel * 0.22) + 
-    (finStab * 0.26) + 
-    (migRes * 0.14) + 
+    (finStab * incomeFactor * 0.26) + 
+    (migRes * incomeFactor * 0.14) + 
     (ctryTrns * 0.16) + 
     (behCons * 0.10) + 
     ((100 - fraudRisk) * 0.12);

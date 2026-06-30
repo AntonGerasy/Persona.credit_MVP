@@ -55,6 +55,7 @@ const extractSchema = {
 
 const PROMPT = (applicantName: string, fieldLabel: string, originCountry: string, destinationCountry: string) =>
 `Extract financial data from this document. Applicant: ${applicantName}. Origin: ${originCountry}. Destination: ${destinationCountry}. Field: ${fieldLabel}.
+TODAY'S DATE IS ${new Date().toISOString().slice(0, 10)} — treat any date on or before today as a normal past date, never as "future".
 Rules:
 - account_holder_name_match: "Match"/"Partial match"/"No match"/"Cannot determine" vs "${applicantName}"
 - currency_code: ISO 4217 (UAH, USD, INR, BRL etc)

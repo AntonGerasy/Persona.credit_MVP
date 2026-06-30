@@ -982,6 +982,113 @@ const App: React.FC = () => {
                 callAgent('Culture',   cultureContext, 2000),
             ]);
 
+            // NORMALIZE CONFIDENCE SCALE: agents are prompted with "numbers are 0-100",
+            // so they may return confidence as 0-100 (e.g. 39) while all downstream math
+            // and display assume 0-1. Coerce any value >1 to the 0-1 range. Fallback
+            // objects already use 0-1 (e.g. 0.3) and pass through unchanged.
+            const toUnitConfidence = (v: any): number => {
+                const n = Number(v);
+                if (!isFinite(n)) return 0.5;
+                return n > 1 ? Math.min(1, n / 100) : Math.max(0, n);
+            };
+            [idNode, finNode, fraudNode, countryNode, behNode, cultureNode].forEach((node: any) => {
+                if (node && node.confidence != null) node.confidence = toUnitConfidence(node.confidence);
+            });
+
+            // ============================================================
+            // DETERMINISTIC INCOME RECONCILIATION — source of truth for score.
+            // The LLM produces narrative; the NUMBERS here drive the score.
+            // Core product rule: declared income only counts if a document backs it.
+            // ============================================================
+            const numOf = (v: any) => { const n = Number(v); return isFinite(n) ? n : 0; };
+            // currency_usd_rate_approx is "local units per 1 USD" (e.g. UAH 41.5 = $1) → USD = local / rate
+            const originRate = numOf(originIntelligence?.currency_usd_rate_approx) || null;
+
+            // Declared monthly income in USD (ann_income_usd is ANNUAL; local_monthly_income is MONTHLY local)
+            let declaredMonthlyUsd = 0;
+            if (numOf(formData.ann_income_usd) > 0) {
+                declaredMonthlyUsd = numOf(formData.ann_income_usd) / 12;
+            } else if (numOf(formData.local_monthly_income) > 0 && originRate) {
+                declaredMonthlyUsd = numOf(formData.local_monthly_income) / originRate;
+            }
+
+            // Verified monthly income in USD, from documents (verifiedMonthlyInflow is in the document currency)
+            const usableDocCurrency =
+                extractedDocuments.find((d: any) => d.is_usable && d.currency_code)?.currency_code ||
+                originIntelligence?.currency_code || null;
+            let docRate: number | null = null;
+            if (usableDocCurrency) {
+                if (String(usableDocCurrency).toUpperCase() === 'USD') docRate = 1;
+                else docRate = originRate; // doc is in origin currency (or best-effort)
+            }
+            let verifiedMonthlyUsd = 0;
+            if (verifiedMonthlyInflow && docRate) verifiedMonthlyUsd = verifiedMonthlyInflow / docRate;
+
+            const hasVerifiedIncome = verifiedMonthlyUsd > 0;
+            const hasDeclaredIncome = declaredMonthlyUsd > 0;
+
+            // Decide status + evidence factor
+            let incomeStatus: 'verified' | 'partial' | 'declared' | 'contradicted' | 'unverified' = 'unverified';
+            let incomeEvidenceFactor = 0.15;
+            let discrepancyPct: number | null = null;
+
+            if (hasVerifiedIncome && hasDeclaredIncome) {
+                discrepancyPct = Math.round(((verifiedMonthlyUsd - declaredMonthlyUsd) / declaredMonthlyUsd) * 100);
+                const ratio = verifiedMonthlyUsd / declaredMonthlyUsd;
+                if (ratio >= 0.85) { incomeStatus = 'verified'; incomeEvidenceFactor = 1.0; }      // docs confirm (or exceed) declared
+                else if (ratio >= 0.60) { incomeStatus = 'partial'; incomeEvidenceFactor = 0.85; }  // docs somewhat below declared
+                else { incomeStatus = 'contradicted'; incomeEvidenceFactor = 0.0; }                  // declared significantly inflated vs evidence
+            } else if (hasVerifiedIncome && !hasDeclaredIncome) {
+                incomeStatus = 'verified'; incomeEvidenceFactor = 1.0;   // the document speaks for itself
+            } else if (!hasVerifiedIncome && hasDeclaredIncome) {
+                incomeStatus = 'declared'; incomeEvidenceFactor = 0.25;  // claim only, no backing
+            } else {
+                incomeStatus = 'unverified'; incomeEvidenceFactor = 0.15; // nothing to go on
+            }
+
+            // Name reconciliation (backlog #1, deterministic): any usable doc whose holder name doesn't match
+            const nameMismatch = extractedDocuments.some(
+                (d: any) => d.is_usable && d.account_holder_name_match === 'No match'
+            );
+
+            const isProvisional = incomeStatus !== 'verified' && incomeStatus !== 'partial';
+
+            // Human-readable explanation (deterministic — never invents numbers)
+            const fmtUsd = (n: number) => `$${Math.round(n).toLocaleString()}`;
+            let reconciliationExplanation = '';
+            if (incomeStatus === 'contradicted') {
+                reconciliationExplanation = `Declared income (~${fmtUsd(declaredMonthlyUsd)}/mo) is significantly higher than documented income (~${fmtUsd(verifiedMonthlyUsd)}/mo, ${discrepancyPct}% difference). The gap is unexplained and lowers verified standing.`;
+            } else if (incomeStatus === 'partial') {
+                reconciliationExplanation = `Documents confirm ~${fmtUsd(verifiedMonthlyUsd)}/mo against a declared ~${fmtUsd(declaredMonthlyUsd)}/mo (${discrepancyPct}%). Partially verified.`;
+            } else if (incomeStatus === 'verified') {
+                reconciliationExplanation = `Documented income (~${fmtUsd(verifiedMonthlyUsd)}/mo) supports the declared figure. Income is document-verified.`;
+            } else if (incomeStatus === 'declared') {
+                reconciliationExplanation = `Income of ~${fmtUsd(declaredMonthlyUsd)}/mo is self-declared with no supporting document. Treated as a provisional claim until a bank statement is uploaded.`;
+            } else {
+                reconciliationExplanation = `No income figure was declared or documented. Upload a bank statement to establish verified income.`;
+            }
+
+            const reconciliation = {
+                income_status: incomeStatus,
+                declared_monthly_usd: Math.round(declaredMonthlyUsd),
+                verified_monthly_usd: Math.round(verifiedMonthlyUsd),
+                discrepancy_pct: discrepancyPct,
+                evidence_factor: incomeEvidenceFactor,
+                is_provisional: isProvisional,
+                has_usable_docs: (documentSummary.usable_documents || 0) > 0,
+                doc_currency: usableDocCurrency,
+                name_mismatch: nameMismatch,
+                explanation: reconciliationExplanation,
+            };
+
+            // A contradiction must bite the score: force the contradiction channel.
+            if (incomeStatus === 'contradicted' && fraudNode) {
+                fraudNode.contradiction_score = Math.max(numOf(fraudNode.contradiction_score), 70);
+            }
+            if (nameMismatch && fraudNode) {
+                fraudNode.contradiction_score = Math.max(numOf(fraudNode.contradiction_score), 60);
+            }
+
             // FINAL SYNTHESIS — Structured Aggregation Engine
             // synthesis is now called inline above — no separate function needed
 
@@ -1223,7 +1330,8 @@ const App: React.FC = () => {
                 contradiction_score: fraudNode.contradiction_score ?? 0,
                 overall_confidence: parsedResult.overall_confidence ?? 0.5,
                 evidence_strength: evidence_strength,
-                overall_uncertainty: overall_uncertainty
+                overall_uncertainty: overall_uncertainty,
+                income_evidence_factor: incomeEvidenceFactor
             });
 
             // Map results to dossier
@@ -1343,6 +1451,37 @@ const App: React.FC = () => {
                     crossBorderScore: countryNode.country_transferability ?? 50
                 }
             };
+
+            // --- Terminal Home top cards (underwriting pillars + PPP/inflation widgets) ---
+            // These were never wired into the agent pipeline, so they always showed $0/0%.
+            // Derive them from agent outputs + the curated country economic profile.
+            const originIntel: any = originIntelligence || {};
+            const colVsUs: number | undefined = originIntel?.cost_of_living_index?.vs_us_average;
+            const pppMultiplier = (typeof colVsUs === 'number' && colVsUs > 0) ? (100 / colVsUs) : null;
+            const pppEquivUsd =
+                countryNode.destination_income_equivalent_usd ??
+                originIntel?.cost_of_living_index?.monthly_comfortable_living_usd_ppp ??
+                finNode.verified_income_usd_estimate ??
+                0;
+            const currencyRisk: number =
+                (typeof countryNode.currency_risk === 'number' ? countryNode.currency_risk : undefined) ??
+                (typeof originIntel?.currency_volatility === 'number' ? originIntel.currency_volatility : undefined) ??
+                50;
+
+            finalResult.underwritingPillars = {
+                purchasingPowerEquivalence: Math.round(Number(pppEquivUsd) || 0),
+                stabilityScore: Math.round(finNode.financial_stability ?? 50),
+                inflationDefenseFactor: currencyRisk <= 35 ? 'Positive' : currencyRisk >= 70 ? 'Negative' : 'Neutral',
+                transferabilityIndex: Math.round(countryNode.country_transferability ?? 50),
+            };
+            finalResult.livePPPMultiplier = pppMultiplier ? pppMultiplier.toFixed(2) : '1.00';
+            finalResult.realTimeInflationOffset = (typeof originIntel?.inflation_risk === 'number')
+                ? Number((originIntel.inflation_risk / 10).toFixed(1))
+                : 0.0;
+
+            // Income reconciliation (declared vs documented) + provisional status for the UI
+            finalResult.reconciliation = reconciliation;
+            finalResult.is_provisional = isProvisional;
 
             // --- Date Check & Financial Benchmarking Logic ---
             const userDeclaredMonthly = Number(formData['local_monthly_income'] || 0);

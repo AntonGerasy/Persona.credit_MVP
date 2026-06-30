@@ -1642,6 +1642,47 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                     />
                 </div>
 
+                {data.reconciliation && (() => {
+                    const rec = data.reconciliation;
+                    const statusMap: Record<string, { label: string; bg: string; fg: string }> = {
+                        verified:     { label: 'Document-Verified', bg: '#ECFDF5', fg: '#047857' },
+                        partial:      { label: 'Partially Verified', bg: '#FEFCE8', fg: '#A16207' },
+                        declared:     { label: 'Declared (unverified)', bg: '#FFF7ED', fg: '#C2410C' },
+                        contradicted: { label: 'Contradicted', bg: '#FEF2F2', fg: '#B91C1C' },
+                        unverified:   { label: 'No income evidence', bg: '#F8FAFC', fg: '#64748B' },
+                    };
+                    const s = statusMap[rec.income_status] || statusMap.unverified;
+                    const fmt = (n: number) => `$${Math.round(n || 0).toLocaleString()}`;
+                    return (
+                        <Card className="border-brand-border shadow-sm">
+                            <CardContent className="p-8">
+                                <div className="flex items-center justify-between mb-6">
+                                    <p className="text-[10px] font-bold text-brand-gray uppercase tracking-widest m-0">Income Reconciliation — Declared vs Verified</p>
+                                    <span style={{ background: s.bg, color: s.fg }} className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">{s.label}</span>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                                    <div>
+                                        <p className="text-[9px] font-bold text-brand-gray uppercase tracking-widest mb-1">Declared by applicant</p>
+                                        <p className="text-2xl font-bold text-brand-dark m-0">{rec.declared_monthly_usd > 0 ? fmt(rec.declared_monthly_usd) : '—'}<span className="text-xs text-brand-gray font-medium">{rec.declared_monthly_usd > 0 ? '/mo' : ''}</span></p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[9px] font-bold text-brand-gray uppercase tracking-widest mb-1">Verified by documents</p>
+                                        <p className="text-2xl font-bold m-0" style={{ color: rec.verified_monthly_usd > 0 ? '#047857' : '#94A3B8' }}>{rec.verified_monthly_usd > 0 ? fmt(rec.verified_monthly_usd) : '—'}<span className="text-xs text-brand-gray font-medium">{rec.verified_monthly_usd > 0 ? '/mo' : ''}</span></p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[9px] font-bold text-brand-gray uppercase tracking-widest mb-1">Gap</p>
+                                        <p className="text-2xl font-bold m-0" style={{ color: rec.discrepancy_pct == null ? '#94A3B8' : (rec.discrepancy_pct < -15 ? '#B91C1C' : '#475569') }}>{rec.discrepancy_pct == null ? '—' : `${rec.discrepancy_pct > 0 ? '+' : ''}${rec.discrepancy_pct}%`}</p>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-brand-dark/70 leading-relaxed mt-6 mb-0 italic">{rec.explanation}</p>
+                                {rec.name_mismatch && (
+                                    <p className="text-xs font-bold mt-3 mb-0" style={{ color: '#B91C1C' }}>⚠ Name on documents does not match the applicant name on file.</p>
+                                )}
+                            </CardContent>
+                        </Card>
+                    );
+                })()}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <Card className="bg-white border-brand-border p-8 text-brand-dark flex items-center justify-between group overflow-hidden relative shadow-sm">
                          <div className="absolute top-0 right-0 w-24 h-24 bg-brand-blue/5 rounded-full blur-2xl -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-1000"></div>
@@ -2153,6 +2194,30 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
               </div>
               <div style={{ fontSize: '11px', color: '#9CA3AF', marginTop: '10px' }}>
                 This score and all $0 / 0% values are the result of every agent returning a fallback. Fix the key/billing, then click “New Assessment”.
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {(() => {
+        const rec: any = (data as any)?.reconciliation;
+        if (!rec || !rec.is_provisional) return null;
+        const contradicted = rec.income_status === 'contradicted';
+        const bg = contradicted ? '#FEF2F2' : '#FFFBEB';
+        const border = contradicted ? '#FECACA' : '#FDE68A';
+        const fg = contradicted ? '#B91C1C' : '#92400E';
+        return (
+          <div className="max-w-7xl mx-auto px-6 sm:px-10 pt-6">
+            <div style={{ border: `1px solid ${border}`, background: bg, borderRadius: '12px', padding: '14px 20px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: fg, marginBottom: '4px' }}>
+                {contradicted ? '⚠ Contradiction detected — declared vs documented income' : '◷ Provisional dossier — based on unverified claims'}
+              </div>
+              <div style={{ fontSize: '13px', color: fg, lineHeight: 1.6 }}>{rec.explanation}</div>
+              <div style={{ fontSize: '11px', color: '#9CA3AF', marginTop: '8px' }}>
+                {contradicted
+                  ? 'Upload a bank statement that matches your declared income to clear this flag.'
+                  : 'Upload a bank statement to convert declared figures into document-verified income and raise your standing.'}
               </div>
             </div>
           </div>
