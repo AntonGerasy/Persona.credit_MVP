@@ -769,10 +769,21 @@ const App: React.FC = () => {
             const runDocumentExtraction = async (): Promise<ExtractedDocument[]> => {
                 const results: ExtractedDocument[] = [];
 
+                // Form fields store uploads as FileData wrappers ({ file, validationStatus }),
+                // NOT raw File objects. Unwrap to File and skip anything explicitly invalid,
+                // otherwise extraction silently receives garbage and yields zero documents.
+                const pickFiles = (key: string): File[] => {
+                    const raw = (formData[key] as any[]) || [];
+                    return raw
+                        .filter((item: any) => item && (item instanceof File || item.validationStatus !== 'invalid'))
+                        .map((item: any) => (item instanceof File ? item : item?.file))
+                        .filter((f: any): f is File => f instanceof File);
+                };
+
                 const allDocumentEntries: { key: string; label: string; files: File[] }[] = [
-                    { key: 'bank_statements_origin', label: 'Origin Country Bank Statement', files: (formData['bank_statements_origin'] as File[]) || [] },
-                    { key: 'bank_statements_us',     label: 'Destination Country Bank Statement', files: (formData['bank_statements_us'] as File[]) || [] },
-                    { key: 'asset_evidence',         label: 'Asset / Property Document', files: (formData['asset_evidence'] as File[]) || [] },
+                    { key: 'bank_statements_origin', label: 'Origin Country Bank Statement', files: pickFiles('bank_statements_origin') },
+                    { key: 'bank_statements_us',     label: 'Destination Country Bank Statement', files: pickFiles('bank_statements_us') },
+                    { key: 'asset_evidence',         label: 'Asset / Property Document', files: pickFiles('asset_evidence') },
                 ];
 
                 for (const entry of allDocumentEntries) {
@@ -918,11 +929,21 @@ const App: React.FC = () => {
                 origin_intelligence: originIntelligence,
             };
 
+            // Normalized declared income with EXPLICIT units, so agents never confuse monthly vs annual.
+            // ann_income_usd is an ANNUAL figure; local_monthly_income is MONTHLY in origin currency.
+            const originRatePre = Number(originIntelligence?.currency_usd_rate_approx) || null;
+            const declaredAnnualUsdNorm = annIncomeUSD > 0 ? Math.round(annIncomeUSD) : 0;
+            const declaredMonthlyUsdNorm =
+                annIncomeUSD > 0 ? Math.round(annIncomeUSD / 12)
+                : (monthlyIncome > 1 && originRatePre ? Math.round(monthlyIncome / originRatePre) : 0);
+            const declaredMonthlyLocalNorm = monthlyIncome > 1 ? monthlyIncome : null;
+
             const fraudContext = {
                 document_extractions: documentSummary,
                 self_declared: {
-                    declared_income_usd: formData.ann_income_usd,
-                    declared_monthly_local: formData.local_monthly_income,
+                    declared_monthly_income_usd: declaredMonthlyUsdNorm,
+                    declared_annual_income_usd: declaredAnnualUsdNorm,
+                    declared_monthly_local: declaredMonthlyLocalNorm,
                     declared_currency: formData.local_currency,
                     employer: formData.employer_name,
                     name: formData.full_name,
@@ -938,7 +959,9 @@ const App: React.FC = () => {
                 applicant_financials: {
                     verified_monthly_inflow: verifiedMonthlyInflow,
                     verified_currency: extractedDocuments[0]?.currency_code || null,
-                    declared_income_usd: formData.ann_income_usd,
+                    declared_monthly_income_usd: declaredMonthlyUsdNorm,
+                    declared_annual_income_usd: declaredAnnualUsdNorm,
+                    declared_monthly_income_local: declaredMonthlyLocalNorm,
                     job_sector: formData.job_sector,
                     job_title: formData.job_title_specific,
                     experience_years: formData.experience_years,
@@ -961,7 +984,8 @@ const App: React.FC = () => {
                 destination_country: destCountry,
                 origin_intelligence: originIntelligence,
                 applicant_financials: {
-                    declared_income_usd: formData.ann_income_usd,
+                    declared_monthly_income_usd: declaredMonthlyUsdNorm,
+                    declared_annual_income_usd: declaredAnnualUsdNorm,
                     liquid_reserves: formData.liquid_reserves,
                     debts_total_origin: formData.debts_total_origin,
                     official_income_share: formData.official_income_share,

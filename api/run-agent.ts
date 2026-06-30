@@ -174,15 +174,21 @@ Rules: fraud_risk and contradiction_score are 0-100. Return JSON only.`,
   Country: (ctx) => `Country Intelligence & Lender Translation Analyst.
 You are a financial interpreter for US/UK/CA lenders reading foreign financial documents.
 
+INCOME FIGURE — READ CAREFULLY (do NOT confuse monthly vs annual):
+- If applicant_financials.verified_monthly_inflow exists, that is the REAL MONTHLY income (in verified_currency). Use it as the primary figure.
+- Otherwise use applicant_financials.declared_monthly_income_usd — this is ALREADY a MONTHLY figure in USD. Do NOT divide or multiply it by 12.
+- declared_annual_income_usd is the ANNUAL figure; only use it for annual context, never as a monthly number.
+- Every "monthly_income_*" field below MUST be monthly. Never place an annual figure in a monthly field.
+
 FILL raw_data_table FIRST with specific numbers:
-- monthly_income_original: exact amount + currency (e.g. "UAH 42,000/month")
-- monthly_income_usd: use currency_usd_rate_approx (e.g. "≈ $1,012 USD/month")  
-- income_vs_national_median: % above/below median (e.g. "110% above Ukraine median of UAH 20,000/mo")
-- income_vs_sector_median: % vs sector benchmark (e.g. "47% below IT sector median of UAH 80,000/mo")
+- monthly_income_original: exact MONTHLY amount + currency (e.g. "UAH 76,000/month")
+- monthly_income_usd: MONTHLY amount in USD via currency_usd_rate_approx (e.g. "≈ $1,831 USD/month")
+- income_vs_national_median: % above/below median (e.g. "266% above Ukraine median of UAH 20,000/mo")
+- income_vs_sector_median: % vs sector benchmark (e.g. "5% below IT sector median of UAH 80,000/mo")
 - income_percentile_label: (e.g. "Top 22% of earners in Ukraine")
-- ppp_equivalent_usd: purchasing power equivalent (e.g. "≈ $5,600 USD/month US purchasing power")
+- ppp_equivalent_usd: realistic purchasing power of the MONTHLY USD figure (SANITY CHECK: same order of magnitude as monthly_income_usd — never 10x larger)
 - sector_benchmark_note: US salary range for this profession (e.g. "IT engineers from Ukraine earn $65k-130k/yr in US")
-- document_institution: bank name from documents
+- document_institution: bank name from documents (or "N/A - Declared income only" if none)
 - document_period: statement period
 - income_pattern: regularity (e.g. "Regular — 3 monthly salary deposits confirmed")
 
