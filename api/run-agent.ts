@@ -173,33 +173,44 @@ Rules: fraud_risk and contradiction_score are 0-100. Return JSON only.`,
 
   Country: (ctx) => `Country Intelligence & Lender Translation Analyst.
 You are a financial interpreter for US/UK/CA lenders reading foreign financial documents.
+${ctx.geo?.already_in_destination ? `
+GEOGRAPHY — THE APPLICANT ALREADY LIVES IN THE DESTINATION (${ctx.geo.destination_country}). Evidence: ${(ctx.geo.signals || []).join('; ')}.
+- Do NOT frame this as someone "planning to relocate" or who "must secure a destination job / establish a destination identity." They are already resident.
+- migration_readiness here means how ESTABLISHED they already are locally (documents, address, time in country), NOT willingness/ability to move.
+- income_transfer_narrative must speak to an applicant who is already on the ground: reconcile their origin financial history with their existing local footprint. Recommendations must fit a resident, not a newcomer.` : `
+GEOGRAPHY: No strong evidence the applicant already resides in the destination — treat origin financial history as the primary basis and frame destination fit prospectively.`}
 
-INCOME FIGURE — READ CAREFULLY (do NOT confuse monthly vs annual):
-- If applicant_financials.verified_monthly_inflow exists, that is the REAL MONTHLY income (in verified_currency). Use it as the primary figure.
-- Otherwise use applicant_financials.declared_monthly_income_usd — this is ALREADY a MONTHLY figure in USD. Do NOT divide or multiply it by 12.
-- declared_annual_income_usd is the ANNUAL figure; only use it for annual context, never as a monthly number.
-- Every "monthly_income_*" field below MUST be monthly. Never place an annual figure in a monthly field.
+INCOME FIGURE — DOCUMENTED REALITY IS THE SOURCE OF TRUTH (never confuse monthly vs annual):
+- applicant_financials.has_documented_income tells you whether any income is backed by documents.
+- If TRUE: applicant_financials.documented_monthly_income_usd is the REAL, verified MONTHLY income in USD, already normalized from the documents. ANCHOR every income number and the whole narrative on THIS figure. applicant_financials.documented_monthly_income_local (in documented_currency) is the same figure in the origin currency.
+- The declared_*_UNVERIFIED fields are the applicant's OWN CLAIM and are NOT verified. NEVER present a declared figure as the income. If a declared figure differs from the documented one, say plainly it is an unverified claim and state the gap — do NOT average the two.
+- If has_documented_income is FALSE: there is NO verified income. Say so directly and present any declared figure only as an unverified claim.
+- declared_annual_income_usd_UNVERIFIED is ANNUAL; never put an annual figure in a monthly field. Every "monthly_income_*" field MUST be monthly.
 
-FILL raw_data_table FIRST with specific numbers:
-- monthly_income_original: exact MONTHLY amount + currency (e.g. "UAH 76,000/month")
-- monthly_income_usd: MONTHLY amount in USD via currency_usd_rate_approx (e.g. "≈ $1,831 USD/month")
-- income_vs_national_median: % above/below median (e.g. "266% above Ukraine median of UAH 20,000/mo")
-- income_vs_sector_median: % vs sector benchmark (e.g. "5% below IT sector median of UAH 80,000/mo")
-- income_percentile_label: (e.g. "Top 22% of earners in Ukraine")
+FILL raw_data_table FIRST — all income figures come from the DOCUMENTED values above, never the declared claim:
+- monthly_income_original: documented MONTHLY amount + currency from documented_monthly_income_local / documented_currency (e.g. "UAH 35,689/month"). If has_documented_income is false: "N/A — declared only, unverified".
+- monthly_income_usd: documented_monthly_income_usd (e.g. "≈ $860 USD/month"). NEVER the declared claim.
+- income_vs_national_median: % above/below median, based on the DOCUMENTED figure (e.g. "78% above Ukraine median of UAH 20,000/mo")
+- income_vs_sector_median: % vs sector benchmark, based on the DOCUMENTED figure
+- income_percentile_label: percentile based on the DOCUMENTED figure (e.g. "Top 40% of earners in Ukraine")
 - ppp_equivalent_usd: realistic purchasing power of the MONTHLY USD figure (SANITY CHECK: same order of magnitude as monthly_income_usd — never 10x larger)
 - sector_benchmark_note: US salary range for this profession (e.g. "IT engineers from Ukraine earn $65k-130k/yr in US")
-- document_institution: bank name from documents (or "N/A - Declared income only" if none)
+- document_institution: bank name from documents (or "N/A — no income documents" if none)
 - document_period: statement period
-- income_pattern: regularity (e.g. "Regular — 3 monthly salary deposits confirmed")
+- income_pattern: regularity AND source type from the documents (e.g. "Irregular — P2P transfers from individuals, not salary")
+${ctx.ppp_context_only ? `
+PPP RULE (this is a USD-obligation product — rent/loan/mortgage): ppp_equivalent_usd is ORIGIN CONTEXT ONLY. Do NOT headline it and do NOT put PPP or "purchasing-power equivalent" in the strengths array. The recipient collects in USD, so the figure that matters is the documented USD income (monthly_income_usd), never a PPP-inflated number. If income looks strong only in PPP terms, that is NOT a strength for this product.` : ''}
 
 THEN write:
 - origin_income_context: 2-3 sentences. What does this income mean IN the origin country? Reference sector.
-- income_transfer_narrative: 2-3 sentences FOR THE LENDER. Can this person pay rent/loan in destination?
+- income_transfer_narrative: 2-3 sentences FOR THE RECIPIENT OF THIS DOSSIER. The applicant is applying for: ${ctx.verification_purpose || 'financial verification'}. Underwriting lens for this product: ${ctx.purpose_lens || 'general financial picture'}. Frame the narrative around what THIS product's decision-maker actually evaluates — do not give a generic answer.
 
 Data: ${JSON.stringify(ctx)}
 Rules: all scores 0-100. Use actual numbers from country intelligence. Return JSON only.`,
 
   Behavioral: (ctx) => `Behavioral analyst. Assess consistency of profile data.
+${ctx.geo?.already_in_destination ? `Note: the applicant ALREADY resides in the destination (${(ctx.geo.signals || []).join('; ')}). Do NOT flag "no destination presence" as a risk, and do NOT treat them as a prospective migrant.` : ''}
+${ctx.income_contradicted ? `CRITICAL: documented income (~$${ctx.documented_monthly_usd}/mo) CONTRADICTS the declared figure (~$${ctx.declared_monthly_usd}/mo, ${ctx.income_discrepancy_pct}% gap). Do NOT state that declared income "matches" experience/sector or that the profile is consistent on income. This income discrepancy MUST appear in risk_signals and lower behavioral_consistency.` : ''}
 Data: ${JSON.stringify(ctx)}
 Rules: scores 0-100. Return JSON only.`,
 

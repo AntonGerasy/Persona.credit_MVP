@@ -59,8 +59,10 @@ TODAY'S DATE IS ${new Date().toISOString().slice(0, 10)} — treat any date on o
 Rules:
 - account_holder_name_match: "Match"/"Partial match"/"No match"/"Cannot determine" vs "${applicantName}"
 - currency_code: ISO 4217 (UAH, USD, INR, BRL etc)
-- average_monthly_inflow: average monthly credits/income
-- income_regularity: "Regular"/"Irregular"/"Single entry"
+- average_monthly_inflow: TOTAL third-party credits over the period DIVIDED BY period_months. Do NOT annualize or inflate a partial period. EXCLUDE internal transfers, transfers between the applicant's own accounts, and deposits from the applicant's OWN company/business (self-funding is NOT income). If period_months < 1 or inflow is a single lump sum, base it on what is actually shown and mark income_regularity accordingly.
+- estimated_monthly_obligations: recurring monthly outflows clearly shown (rent, loan/utility autopay). Return 0 if not clearly determinable — do NOT guess. Must not exceed average_monthly_inflow unless the statement clearly shows deficit spending.
+- income_regularity: "Regular" ONLY for recurring similar-sized deposits (e.g. monthly salary). Lump/one-off/self/P2P transfers → "Irregular" or "Single entry".
+- income_sources_detected: name the payers/sources; note if they are individuals (P2P) or the applicant's own company.
 - is_usable: false only if blank/unreadable/irrelevant
 - analyst_note: 1 sentence what this proves
 - Return 0 for missing numbers, "" for missing strings
@@ -139,6 +141,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const result = JSON.parse(jsonStr);
+
+    // #7 — deterministic sanity guards (do not trust raw LLM magnitudes blindly):
+    const inflow = Number(result.average_monthly_inflow) || 0;
+    let obligations = Number(result.estimated_monthly_obligations) || 0;
+    // Obligations can't credibly exceed inflow unless clear deficit — clamp the common hallucination.
+    if (inflow > 0 && obligations > inflow) {
+      obligations = inflow;
+      result.estimated_monthly_obligations = obligations;
+    }
+    // A sub-month / partial period cannot establish "Regular" income — downgrade honestly.
+    const periodMonths = Number(result.period_months) || 0;
+    if (periodMonths > 0 && periodMonths < 1 && result.income_regularity === 'Regular') {
+      result.income_regularity = 'Irregular';
+    }
+    // Flag inflow whose magnitude the system could not corroborate, so the UI can label it as such.
+    result.inflow_unverified =
+      inflow > 0 && (result.income_regularity !== 'Regular' || (periodMonths > 0 && periodMonths < 1));
+
     return res.status(200).json(result);
 
   } catch (err) {

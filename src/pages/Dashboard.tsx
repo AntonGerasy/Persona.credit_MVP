@@ -484,6 +484,13 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
     d.financial_verified = d.financial_verified || {};
     return d;
   }, [rawData]);
+
+  // Honesty gate (#5): when the deterministic reconciliation flags a CONTRADICTION,
+  // the profile must NOT wear green "verified" / positive integrity labels. The
+  // reconciliation card already tells the real story; these gates stop the rest of
+  // the page from contradicting it.
+  const isContradicted = (data as any)?.reconciliation?.income_status === 'contradicted';
+
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [isDownloading, setIsDownloading] = useState(false);
   const isAlphaBuildView = false;
@@ -781,9 +788,9 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                 <ShieldCheck className="w-32 h-32 text-white" />
                                             </div>
                                             <div className="relative z-10 space-y-6">
-                                                <Badge variant="info" className="bg-white text-brand-blue shadow-none">Global Standard Prime</Badge>
-                                                <h4 className="text-2xl font-bold leading-tight">Subject has cleared multi-region regulatory fidelity checks.</h4>
-                                                <p className="text-xs text-white/70 leading-relaxed font-medium">This document certifies that the subject possesses verified financial integrity equivalent to a Prime US credit profile.</p>
+                                                <Badge variant="info" className={`shadow-none ${isContradicted || data.score < 500 ? 'bg-white text-amber-600' : 'bg-white text-brand-blue'}`}>{isContradicted || data.score < 500 ? 'Provisional — Needs Review' : 'Global Standard Prime'}</Badge>
+                                                <h4 className="text-2xl font-bold leading-tight">{isContradicted ? 'Documented income does not support the declared profile.' : data.score < 500 ? 'Profile does not yet meet prime verification thresholds.' : 'Subject has cleared multi-region regulatory fidelity checks.'}</h4>
+                                                <p className="text-xs text-white/70 leading-relaxed font-medium">{isContradicted || data.score < 500 ? 'This assessment reflects gaps between declared and documented financials. It is not a prime credit certification.' : 'This document certifies that the subject possesses verified financial integrity equivalent to a Prime US credit profile.'}</p>
                                             </div>
                                         </div>
                                         <div className="space-y-8">
@@ -846,7 +853,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                             <div className="flex flex-col items-end gap-4">
                                 <div className="text-right">
                                     <p className="text-[10px] font-bold text-brand-gray/50 uppercase tracking-widest mb-1">Integrity Status</p>
-                                    <Badge variant="positive" className="text-lg py-1 px-4">{data.dossier_analysis?.financial_identity_profile.overall_integrity_level || "Active Analysis"}</Badge>
+                                    <Badge variant={isContradicted ? 'warning' : 'positive'} className="text-lg py-1 px-4">{isContradicted ? 'Contested — Income Disputed' : (data.dossier_analysis?.financial_identity_profile.overall_integrity_level || "Active Analysis")}</Badge>
                                 </div>
                                 <button 
                                     onClick={handleDownloadPDF}
@@ -877,11 +884,11 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                 </div>
                                                 <div className="flex justify-between items-center border-b border-brand-border pb-3">
                                                     <span className="text-[10px] text-brand-gray/60 uppercase font-black">Resilience Level</span>
-                                                    <span className="text-xs font-bold text-brand-dark text-right">{data.dossier_analysis?.financial_identity_profile.financial_resilience_level}</span>
+                                                    <span className="text-xs font-bold text-brand-dark text-right">{isContradicted ? 'Contested · pending reconciliation' : data.dossier_analysis?.financial_identity_profile.financial_resilience_level}</span>
                                                 </div>
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-[10px] text-brand-gray/60 uppercase font-black">Trust Assessment</span>
-                                                    <span className="text-xs font-bold text-brand-success text-right">{data.dossier_analysis?.financial_identity_profile.trust_assessment}</span>
+                                                    <span className={`text-xs font-bold text-right ${isContradicted ? 'text-amber-600' : 'text-brand-success'}`}>{isContradicted ? 'Unverified — declared income contradicted by documents' : data.dossier_analysis?.financial_identity_profile.trust_assessment}</span>
                                                 </div>
                                             </div>
                                         </CardContent>
@@ -1350,10 +1357,10 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                     <ArrowLeft className="w-3 h-3" />
                                     Back to Overview
                                 </button>
-                                <h2 className="text-2xl font-bold text-brand-dark tracking-tight">Verified Evidence Detail</h2>
+                                <h2 className="text-2xl font-bold text-brand-dark tracking-tight">{isContradicted ? 'Evidence Detail' : 'Verified Evidence Detail'}</h2>
                                 <p className="text-xs text-brand-gray font-medium mt-1">Professional analysis of cross-border financial documentation.</p>
                             </div>
-                            <Badge variant="info">AI Verified Node</Badge>
+                            <Badge variant={isContradicted ? 'warning' : 'info'}>{isContradicted ? 'AI Analysis Node' : 'AI Verified Node'}</Badge>
                         </div>
                         <div className="grid grid-cols-1 gap-6">
                             {data.documentAnalysis.map((doc, i) => {
@@ -1615,12 +1622,22 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                 )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <PillarCard 
-                        label="Purchasing Power" 
-                        value={`$${(data.underwritingPillars?.purchasingPowerEquivalence || 0).toLocaleString()}`} 
-                        sublabel="equiv." 
-                        icon={<DollarSign className="w-5 h-5" />}
-                    />
+                    {data.pppContextOnly ? (
+                        <PillarCard
+                            label="Verified Income"
+                            value={data.reconciliation?.verified_monthly_usd > 0 ? `$${Math.round(data.reconciliation.verified_monthly_usd).toLocaleString()}` : '—'}
+                            sublabel="documented /mo (USD)"
+                            icon={<DollarSign className="w-5 h-5" />}
+                            variant={isContradicted ? 'negative' : 'default'}
+                        />
+                    ) : (
+                        <PillarCard
+                            label="Purchasing Power"
+                            value={`$${(data.underwritingPillars?.purchasingPowerEquivalence || 0).toLocaleString()}`}
+                            sublabel="equiv. (origin PPP)"
+                            icon={<DollarSign className="w-5 h-5" />}
+                        />
+                    )}
                     <PillarCard 
                         label="Stability Index" 
                         value={`${data.underwritingPillars?.stabilityScore || 0}%`} 
@@ -1641,6 +1658,23 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                         icon={<Globe className="w-5 h-5" />}
                     />
                 </div>
+
+                {data.geo?.already_in_destination && (
+                    <Card className="border-brand-border shadow-sm" >
+                        <CardContent className="p-6">
+                            <div className="flex items-start gap-4">
+                                <div className="w-10 h-10 rounded-xl bg-brand-blue/5 border border-brand-blue/10 flex items-center justify-center flex-shrink-0">
+                                    <Globe className="w-5 h-5 text-brand-blue" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-1">Geography — Already Resident</p>
+                                    <p className="text-sm font-bold text-brand-dark m-0">Applicant is already established in {data.geo.destination_country || 'the destination country'}.</p>
+                                    <p className="text-xs text-brand-gray leading-relaxed mt-1 mb-0">This dossier is framed for a current resident, not a prospective mover. Signals: {(data.geo.signals || []).join('; ') || 'destination footprint detected'}.</p>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
 
                 {data.reconciliation && (() => {
                     const rec = data.reconciliation;
@@ -1687,8 +1721,9 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                     <Card className="bg-white border-brand-border p-8 text-brand-dark flex items-center justify-between group overflow-hidden relative shadow-sm">
                          <div className="absolute top-0 right-0 w-24 h-24 bg-brand-blue/5 rounded-full blur-2xl -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-1000"></div>
                          <div className="relative z-10">
-                            <p className="text-[9px] font-bold text-brand-gray uppercase tracking-widest mb-1">Live PPP Multiplier</p>
-                            <p className="text-3xl font-bold tracking-tight text-brand-blue">x{data.livePPPMultiplier || '1.00'}</p>
+                            <p className="text-[9px] font-bold text-brand-gray uppercase tracking-widest mb-1">{data.pppContextOnly ? 'PPP — Origin Context Only' : 'Live PPP Multiplier'}</p>
+                            <p className={`text-3xl font-bold tracking-tight ${data.pppContextOnly ? 'text-brand-gray' : 'text-brand-blue'}`}>x{data.livePPPMultiplier || '1.00'}</p>
+                            {data.pppContextOnly && <p className="text-[9px] text-brand-gray/70 mt-1 font-medium normal-case tracking-normal">Origin purchasing power — not US repayment capacity. Underwriting uses documented USD income.</p>}
                          </div>
                          <div className="relative z-10 w-12 h-12 bg-slate-50 border border-brand-border rounded-xl flex items-center justify-center">
                             <Globe className="w-6 h-6 text-brand-blue" />
@@ -1713,9 +1748,9 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                             <div className="flex flex-col gap-6">
                                 <div className="flex justify-between items-start">
                                     <Badge variant="info" className="w-fit">Executive Summary</Badge>
-                                    <Badge variant="positive" className="flex items-center gap-1.5 px-3 py-1 text-[8px] font-bold uppercase tracking-widest shadow-sm">
-                                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
-                                        Verified: April 2026
+                                    <Badge variant={isContradicted ? 'warning' : 'positive'} className="flex items-center gap-1.5 px-3 py-1 text-[8px] font-bold uppercase tracking-widest shadow-sm">
+                                        <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${isContradicted ? 'bg-amber-500' : 'bg-emerald-500'}`}></div>
+                                        {isContradicted ? 'Contested' : 'Assessed'}: {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                                     </Badge>
                                 </div>
                                 <p className="text-xl font-bold leading-relaxed text-brand-dark">"{data.summaryStatement}"</p>

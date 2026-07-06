@@ -888,12 +888,8 @@ const App: React.FC = () => {
             };
 
             // ── Build contexts ───────────────────────────────────────────
-            const verifiedMonthlyInflow = extractedDocuments.length > 0
-                ? extractedDocuments
-                    .filter(d => d.is_usable && d.average_monthly_inflow > 0)
-                    .reduce((sum: number, d: any) => sum + d.average_monthly_inflow, 0) /
-                    Math.max(1, extractedDocuments.filter((d: any) => d.is_usable && d.average_monthly_inflow > 0).length)
-                : null;
+            // (Old currency-mixed `verifiedMonthlyInflow` removed — documented income is now
+            //  computed per-currency below as `verifiedMonthlyUsd`, the single source of truth.)
 
             const idContext = {
                 document_extractions: documentSummary,
@@ -929,6 +925,25 @@ const App: React.FC = () => {
                 origin_intelligence: originIntelligence,
             };
 
+            // Product-specific underwriting lens — tailors narrative & recommendations to what the
+            // recipient of THIS dossier actually evaluates. Domain knowledge centralized here.
+            const PURPOSE_LENS: Record<string, { label: string; lens: string }> = {
+                apartment_rental: { label: 'Apartment / Housing Rental', lens: 'Recipient is a landlord. Prioritize: monthly income comfortably covering rent (rule of thumb: income ≈ 3x monthly rent), recent and regular income, and deposit / first-month ability. Long credit history is secondary; horizon is short.' },
+                personal_loan:    { label: 'Personal Loan', lens: 'Recipient is a lender. Prioritize: debt-to-income ratio, income stability, existing obligations, and repayment capacity over a short-to-medium term.' },
+                auto_financing:   { label: 'Auto Financing', lens: 'The loan is secured by the vehicle. Prioritize: down-payment ability and stable income for fixed monthly payments. Shorter term; collateral reduces lender risk.' },
+                credit_card:      { label: 'Credit Card', lens: 'Revolving credit, lower stakes per decision. Prioritize: baseline income and basic creditworthiness / identity. Tolerance for thin credit files is higher.' },
+                mortgage:         { label: 'Mortgage', lens: 'The most stringent product. Prioritize: stable DOCUMENT-VERIFIED income over 2+ years, cash reserves (several months of payments), conservative debt ratios (~28/36 front/back-end), employment continuity, and down-payment capacity. Undocumented or irregular foreign income is the hardest to use here and must be flagged plainly.' },
+                business_account: { label: 'Business / Bank Account', lens: 'Focus is KYC/AML, not income capacity. Prioritize: identity verification, legitimacy and source of funds, and transaction transparency.' },
+                other:            { label: 'Financial Verification', lens: 'Provide a balanced cross-border financial picture for a general recipient.' },
+            };
+            const purposeInfo = PURPOSE_LENS[(formData.verification_purpose as string) || 'other'] || PURPOSE_LENS.other;
+
+            // #4: For products where the obligation is paid in USD (rent, loans, mortgage), origin-country
+            // PPP is NOT a US creditworthiness signal — the recipient lends/collects in USD against USD cash
+            // flow. PPP stays as origin CONTEXT only; it must not headline or be listed as a strength here.
+            const usdObligationProduct = ['apartment_rental', 'personal_loan', 'auto_financing', 'credit_card', 'mortgage']
+                .includes((formData.verification_purpose as string) || '');
+
             // Normalized declared income with EXPLICIT units, so agents never confuse monthly vs annual.
             // ann_income_usd is an ANNUAL figure; local_monthly_income is MONTHLY in origin currency.
             const originRatePre = Number(originIntelligence?.currency_usd_rate_approx) || null;
@@ -937,6 +952,94 @@ const App: React.FC = () => {
                 annIncomeUSD > 0 ? Math.round(annIncomeUSD / 12)
                 : (monthlyIncome > 1 && originRatePre ? Math.round(monthlyIncome / originRatePre) : 0);
             const declaredMonthlyLocalNorm = monthlyIncome > 1 ? monthlyIncome : null;
+
+            // ── DOCUMENTED monthly income — computed BEFORE the agents so the Country
+            // narrative can anchor on DOCUMENTED reality instead of the declared CLAIM.
+            // Single source of truth: the reconciliation block below reuses these exact values.
+            // Each document is normalized to USD by ITS OWN currency before averaging; origin-country
+            // documents are preferred because declared income is an origin-country monthly figure.
+            const originCur = String(originIntelligence?.currency_code || '').toUpperCase();
+            const toUsdByCurrency = (amount: number, currency?: string | null): number | null => {
+                if (!amount || amount <= 0) return null;
+                const cur = String(currency || '').toUpperCase();
+                if (cur === 'USD') return amount;
+                return originRatePre ? amount / originRatePre : null; // origin currency (or unknown) → origin rate
+            };
+            const usableInflowDocs = extractedDocuments.filter(
+                (d: any) => d.is_usable && d.average_monthly_inflow > 0
+            );
+            const originInflowDocs = usableInflowDocs.filter(
+                (d: any) =>
+                    String(d.currency_code || '').toUpperCase() === originCur ||
+                    String(d.issuing_country || '').toLowerCase() === String(countryOfOrigin || '').toLowerCase()
+            );
+            const basisDocs = originInflowDocs.length ? originInflowDocs : usableInflowDocs;
+            const perDocUsd = basisDocs
+                .map((d: any) => toUsdByCurrency(d.average_monthly_inflow, d.currency_code))
+                .filter((v: any): v is number => typeof v === 'number' && v > 0);
+            const usableDocCurrency =
+                basisDocs.find((d: any) => d.currency_code)?.currency_code ||
+                originIntelligence?.currency_code || null;
+            const verifiedMonthlyUsd = perDocUsd.length
+                ? perDocUsd.reduce((s: number, v: number) => s + v, 0) / perDocUsd.length
+                : 0;
+            // Documented monthly figure in the origin (local) currency, for "monthly_income_original".
+            const documentedMonthlyLocal = basisDocs.length
+                ? Math.round(
+                    basisDocs.reduce((s: number, d: any) => s + (Number(d.average_monthly_inflow) || 0), 0) /
+                    basisDocs.length
+                  )
+                : null;
+            const hasDocumentedIncome = verifiedMonthlyUsd > 0;
+
+            // ── #9: Deterministic GEOGRAPHY signal ─────────────────────────────────────
+            // Form answers + destination-issued documents can prove the applicant is ALREADY
+            // RESIDING in the destination (not "planning to move"). Without this, the narrative
+            // recommends nonsense like "establish a destination identity" to someone who has
+            // lived there over a year and runs a local company. Computed deterministically.
+            const monthsInDestination = Number(formData.years_in_destination) || 0;
+            const hasDestinationNexus = !!formData.has_us_nexus;
+            const destinationAddress = String(formData.current_local_address || '').trim();
+            const normGeo = (s: any) => String(s || '').toLowerCase().replace(/[^a-z]/g, '');
+            const destNorm = normGeo(destCountry);
+            const originNorm = normGeo(countryOfOrigin);
+            const destinationDocs = extractedDocuments.filter((d: any) => {
+                if (!d.is_usable) return false;
+                const iss = normGeo(d.issuing_country);
+                if (!iss) return false;
+                if (destNorm && iss.includes(destNorm)) return true;            // issued in destination
+                return iss !== originNorm && String(d.currency_code || '').toUpperCase() === 'USD'; // USD doc, non-origin bank
+            });
+            const destinationDocCount = destinationDocs.length;
+            const geoReasons: string[] = [];
+            if (monthsInDestination >= 6) geoReasons.push(`Reports ${monthsInDestination} months in the destination country`);
+            if (destinationDocCount > 0) geoReasons.push(`${destinationDocCount} destination-issued financial document(s) on file`);
+            if (destinationAddress) geoReasons.push('Provided a current residential address in the destination country');
+            if (hasDestinationNexus) geoReasons.push('Reports existing destination-country financial records');
+            const alreadyInDestination =
+                monthsInDestination >= 6 || destinationDocCount > 0 || (hasDestinationNexus && !!destinationAddress);
+            const geoSignal = {
+                already_in_destination: alreadyInDestination,
+                months_in_destination: monthsInDestination,
+                destination_doc_count: destinationDocCount,
+                has_destination_address: !!destinationAddress,
+                has_destination_nexus: hasDestinationNexus,
+                origin_country: countryOfOrigin,
+                destination_country: destCountry,
+                signals: geoReasons,
+            };
+
+            // #8: documented-vs-declared income status, computed PRE-agent (same 0.60 ratio
+            // threshold the deterministic reconciliation uses below) so the Behavioral agent
+            // cannot rubber-stamp "declared income matches" when the documents contradict it.
+            const declaredMonthlyUsdPre = declaredMonthlyUsdNorm || 0;
+            const incomeContradictedPre =
+                verifiedMonthlyUsd > 0 && declaredMonthlyUsdPre > 0 &&
+                (verifiedMonthlyUsd / declaredMonthlyUsdPre) < 0.60;
+            const incomeDiscrepancyPctPre =
+                verifiedMonthlyUsd > 0 && declaredMonthlyUsdPre > 0
+                    ? Math.round(((verifiedMonthlyUsd - declaredMonthlyUsdPre) / declaredMonthlyUsdPre) * 100)
+                    : null;
 
             const fraudContext = {
                 document_extractions: documentSummary,
@@ -954,14 +1057,23 @@ const App: React.FC = () => {
             const countryContext = {
                 origin_country: countryOfOrigin,
                 destination_country: destCountry,
+                verification_purpose: purposeInfo.label,
+                purpose_lens: purposeInfo.lens,
+                ppp_context_only: usdObligationProduct,
+                geo: geoSignal,
                 origin_intelligence: originIntelligence,
                 destination_intelligence: destIntelligence,
                 applicant_financials: {
-                    verified_monthly_inflow: verifiedMonthlyInflow,
-                    verified_currency: extractedDocuments[0]?.currency_code || null,
-                    declared_monthly_income_usd: declaredMonthlyUsdNorm,
-                    declared_annual_income_usd: declaredAnnualUsdNorm,
-                    declared_monthly_income_local: declaredMonthlyLocalNorm,
+                    // DOCUMENTED income = the source of truth. Per-currency normalized, origin docs preferred.
+                    has_documented_income: hasDocumentedIncome,
+                    documented_monthly_income_usd: hasDocumentedIncome ? Math.round(verifiedMonthlyUsd) : null,
+                    documented_monthly_income_local: documentedMonthlyLocal,
+                    documented_currency: usableDocCurrency,
+                    // DECLARED by the applicant — an UNVERIFIED claim. Never present as the income figure.
+                    declared_monthly_income_usd_UNVERIFIED: declaredMonthlyUsdNorm,
+                    declared_annual_income_usd_UNVERIFIED: declaredAnnualUsdNorm,
+                    declared_monthly_income_local_UNVERIFIED: declaredMonthlyLocalNorm,
+                    declared_currency: formData.local_currency,
                     job_sector: formData.job_sector,
                     job_title: formData.job_title_specific,
                     experience_years: formData.experience_years,
@@ -977,6 +1089,11 @@ const App: React.FC = () => {
                 declared_currency: formData.local_currency,
                 has_documents: documentSummary.usable_documents > 0,
                 doc_count: documentSummary.usable_documents,
+                geo: geoSignal,
+                documented_monthly_usd: hasDocumentedIncome ? Math.round(verifiedMonthlyUsd) : null,
+                declared_monthly_usd: declaredMonthlyUsdPre || null,
+                income_contradicted: incomeContradictedPre,
+                income_discrepancy_pct: incomeDiscrepancyPctPre,
             };
 
             const cultureContext = {
@@ -1036,17 +1153,9 @@ const App: React.FC = () => {
                 declaredMonthlyUsd = numOf(formData.local_monthly_income) / originRate;
             }
 
-            // Verified monthly income in USD, from documents (verifiedMonthlyInflow is in the document currency)
-            const usableDocCurrency =
-                extractedDocuments.find((d: any) => d.is_usable && d.currency_code)?.currency_code ||
-                originIntelligence?.currency_code || null;
-            let docRate: number | null = null;
-            if (usableDocCurrency) {
-                if (String(usableDocCurrency).toUpperCase() === 'USD') docRate = 1;
-                else docRate = originRate; // doc is in origin currency (or best-effort)
-            }
-            let verifiedMonthlyUsd = 0;
-            if (verifiedMonthlyInflow && docRate) verifiedMonthlyUsd = verifiedMonthlyInflow / docRate;
+            // Documented monthly income in USD (verifiedMonthlyUsd) is the SINGLE SOURCE OF TRUTH,
+            // computed ONCE above (before the agents) so the Country narrative and the score share it.
+            // See the "DOCUMENTED monthly income" block earlier in this handler.
 
             const hasVerifiedIncome = verifiedMonthlyUsd > 0;
             const hasDeclaredIncome = declaredMonthlyUsd > 0;
@@ -1201,6 +1310,11 @@ const App: React.FC = () => {
                         country: countryNode,
                         id: idNode,
                         documentSummary,
+                        purpose: purposeInfo.label,
+                        purpose_lens: purposeInfo.lens,
+                        reconciliation,
+                        ppp_context_only: usdObligationProduct,
+                        geo: geoSignal,
                     }),
                 });
                 clearTimeout(synthesisTimeout);
@@ -1308,7 +1422,9 @@ const App: React.FC = () => {
                 financial_pathway_summary: {
                     top_improvement_priorities: parsedResult.recommendation_summary.slice(0, 3),
                     highest_impact_changes: parsedResult.recommendation_summary.slice(0, 2),
-                    recommended_next_steps: ["Connect Global Accounts", "Establish Destination Identity"],
+                    recommended_next_steps: geoSignal.already_in_destination
+                        ? ["Formalize destination income documentation", "Build local credit history"]
+                        : ["Connect Global Accounts", "Establish Destination Identity"],
                     long_term_strengthening_areas: []
                 },
                 recommendations: {
@@ -1499,6 +1615,7 @@ const App: React.FC = () => {
                 transferabilityIndex: Math.round(countryNode.country_transferability ?? 50),
             };
             finalResult.livePPPMultiplier = pppMultiplier ? pppMultiplier.toFixed(2) : '1.00';
+            finalResult.pppContextOnly = usdObligationProduct; // #4: gate PPP headline/strength off for USD-obligation products
             finalResult.realTimeInflationOffset = (typeof originIntel?.inflation_risk === 'number')
                 ? Number((originIntel.inflation_risk / 10).toFixed(1))
                 : 0.0;
@@ -1506,6 +1623,7 @@ const App: React.FC = () => {
             // Income reconciliation (declared vs documented) + provisional status for the UI
             finalResult.reconciliation = reconciliation;
             finalResult.is_provisional = isProvisional;
+            finalResult.geo = geoSignal;
 
             // --- Date Check & Financial Benchmarking Logic ---
             const userDeclaredMonthly = Number(formData['local_monthly_income'] || 0);

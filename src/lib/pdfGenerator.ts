@@ -149,14 +149,29 @@ export const generateDossierPDF = async (data: DashboardData) => {
   sectionHeader('III. Income & Financial Verification');
 
   if (usableDocs.length > 0) {
-    infoTable([
-      ['Verified Monthly Income', fmt(fv.verified_monthly_income_local, fv.verified_currency || '')],
-      ['USD Equivalent (approx.)', `$${fmt(fv.verified_income_usd_estimate)}/month`],
+    const rec: any = data.reconciliation || {};
+    const recStatus = rec.income_status || 'unverified';
+    const docUsd = Number(rec.verified_monthly_usd) || 0;
+    const incomeLabel =
+      recStatus === 'verified' ? 'Verified Monthly Income (USD)'
+      : recStatus === 'partial' ? 'Documented Monthly Income (partial vs declared)'
+      : recStatus === 'contradicted' ? 'Documented Monthly Income (declared figure contradicted)'
+      : 'Documented Monthly Income (USD)';
+
+    const incomeRows: [string, string][] = [
+      [incomeLabel, docUsd > 0 ? `$${fmt(docUsd)}/month` : (fv.verified_monthly_income_local ? fmt(fv.verified_monthly_income_local, fv.verified_currency || '') : '—')],
+    ];
+    // On a contradiction, show the declared claim and the gap plainly — never present it as verified.
+    if (recStatus === 'contradicted' && Number(rec.declared_monthly_usd) > 0) {
+      incomeRows.push(['Declared (unverified claim)', `$${fmt(rec.declared_monthly_usd)}/month — ${rec.discrepancy_pct}% vs documented`]);
+    }
+    incomeRows.push(
       ['Income Percentile in Origin', ca.origin_income_percentile ? `Top ${100 - ca.origin_income_percentile}% in ${data.origin_country}` : '—'],
       ['Documents Analysed', `${usableDocs.length} document(s)`],
       ['Coverage Period', fv.document_coverage_months ? `~${fv.document_coverage_months} months` : '—'],
       ['Sector Demand (Destination)', ca.sector_demand_in_destination || '—'],
-    ]);
+    );
+    infoTable(incomeRows);
 
     // Income context in origin
     if (ca.origin_income_context) {

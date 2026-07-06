@@ -461,6 +461,7 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
                           <div>
                             <span className="text-slate-400">Avg monthly inflow: </span>
                             <span className="font-bold text-slate-800">{fmt(doc.average_monthly_inflow, doc.currency_code)}</span>
+                            {doc.inflow_unverified && <span className="text-amber-600 font-semibold"> · unverified magnitude</span>}
                           </div>
                         )}
                         {doc.ending_balance > 0 && (

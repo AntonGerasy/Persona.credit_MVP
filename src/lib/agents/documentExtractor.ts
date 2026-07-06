@@ -84,6 +84,7 @@ export type ExtractedDocument = {
     currency_code: string;
     currency_name: string;
     average_monthly_inflow: number;
+    inflow_unverified?: boolean;
     total_inflow: number;
     ending_balance: number;
     largest_single_inflow: number;
