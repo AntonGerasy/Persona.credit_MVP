@@ -801,6 +801,8 @@ const App: React.FC = () => {
                                     mimeType: file.type || 'application/octet-stream',
                                     fieldLabel: entry.label,
                                     applicantName: formData.full_name || 'Unknown',
+                                    employerName: formData.employer_name || '',
+                                    employmentType: formData.employment_type || '',
                                     originCountry: countryOfOrigin,
                                     destinationCountry: destCountry,
                                 }),
@@ -956,14 +958,41 @@ const App: React.FC = () => {
             // ── DOCUMENTED monthly income — computed BEFORE the agents so the Country
             // narrative can anchor on DOCUMENTED reality instead of the declared CLAIM.
             // Single source of truth: the reconciliation block below reuses these exact values.
-            // Each document is normalized to USD by ITS OWN currency before averaging; origin-country
-            // documents are preferred because declared income is an origin-country monthly figure.
+            // GENERALIZATION (v34.1): must work for ANY origin country/currency, incl. countries
+            // absent from countryRiskProfiles.json and curated entries with no rate (EUR/GBP/CAD…).
+            // Rate resolution per document: USD → 1; curated origin rate; static approx FX table;
+            // document's own model-estimated rate (last resort). NEVER divide currency X by
+            // currency Y's rate — a doc with no resolvable rate is excluded, not garbled.
+            const FX_APPROX_PER_USD: Record<string, number> = {
+                // Approximate local-units-per-USD. Fallback ONLY (curated rate wins). Same
+                // "approx" spirit as currency_usd_rate_approx in countryRiskProfiles.json.
+                EUR: 0.92, GBP: 0.79, CAD: 1.36, AUD: 1.5, CHF: 0.88, JPY: 155, CNY: 7.2,
+                HKD: 7.8, SGD: 1.34, KRW: 1380, TWD: 32, THB: 36, VND: 25400, IDR: 16200,
+                MYR: 4.7, PHP: 57, INR: 83.5, PKR: 278, BDT: 118, NPR: 133, LKR: 300,
+                SYP: 13000, EGP: 48, LBP: 89500, IQD: 1310, IRR: 42000, AFN: 70, JOD: 0.71,
+                ILS: 3.7, SAR: 3.75, AED: 3.67, QAR: 3.64, KWD: 0.31, TRY: 32.5,
+                ETB: 57, KES: 129, NGN: 1580, GHS: 15, ZAR: 18.5, MAD: 10, DZD: 134, TND: 3.1,
+                XOF: 600, XAF: 600, UAH: 41.5, RUB: 90, BYN: 3.3, MDL: 17.7, PLN: 4.0,
+                RON: 4.6, HUF: 360, CZK: 23, RSD: 108, ALL: 93, BAM: 1.8, MKD: 57, GEL: 2.7,
+                AMD: 388, AZN: 1.7, KZT: 450, UZS: 12600, KGS: 87, TJS: 10.9, MNT: 3450,
+                MXN: 17.0, BRL: 5.0, COP: 4000, PEN: 3.7, CLP: 940, ARS: 900, DOP: 59,
+                GTQ: 7.8, HNL: 24.7, HTG: 132, CUP: 24, VES: 36, SEK: 10.5, NOK: 10.6, DKK: 6.9, MMK: 2100, KHR: 4100, LAK: 21000,
+            };
             const originCur = String(originIntelligence?.currency_code || '').toUpperCase();
-            const toUsdByCurrency = (amount: number, currency?: string | null): number | null => {
+            const rateForDoc = (d: any): number | null => {
+                const cur = String(d?.currency_code || '').toUpperCase();
+                if (cur === 'USD') return 1;
+                if (cur && cur === originCur && originRatePre) return originRatePre; // curated origin rate
+                if (cur && FX_APPROX_PER_USD[cur]) return FX_APPROX_PER_USD[cur];    // static approx table
+                const est = Number(d?.usd_rate_estimate);                            // model estimate from the doc itself
+                if (isFinite(est) && est > 0) return est;
+                if (!cur && originRatePre) return originRatePre; // unknown currency on an origin-preferred doc
+                return null; // no resolvable rate → exclude this doc, never mis-convert
+            };
+            const toUsdByCurrency = (amount: number, d: any): number | null => {
                 if (!amount || amount <= 0) return null;
-                const cur = String(currency || '').toUpperCase();
-                if (cur === 'USD') return amount;
-                return originRatePre ? amount / originRatePre : null; // origin currency (or unknown) → origin rate
+                const rate = rateForDoc(d);
+                return rate ? amount / rate : null;
             };
             const usableInflowDocs = extractedDocuments.filter(
                 (d: any) => d.is_usable && d.average_monthly_inflow > 0
@@ -975,7 +1004,7 @@ const App: React.FC = () => {
             );
             const basisDocs = originInflowDocs.length ? originInflowDocs : usableInflowDocs;
             const perDocUsd = basisDocs
-                .map((d: any) => toUsdByCurrency(d.average_monthly_inflow, d.currency_code))
+                .map((d: any) => toUsdByCurrency(d.average_monthly_inflow, d))
                 .filter((v: any): v is number => typeof v === 'number' && v > 0);
             const usableDocCurrency =
                 basisDocs.find((d: any) => d.currency_code)?.currency_code ||
@@ -984,7 +1013,10 @@ const App: React.FC = () => {
                 ? perDocUsd.reduce((s: number, v: number) => s + v, 0) / perDocUsd.length
                 : 0;
             // Documented monthly figure in the origin (local) currency, for "monthly_income_original".
-            const documentedMonthlyLocal = basisDocs.length
+            // Only meaningful when all basis docs share ONE currency — averaging raw amounts across
+            // mixed currencies (possible in the fallback branch) would be nonsense.
+            const basisCurrencies = [...new Set(basisDocs.map((d: any) => String(d.currency_code || '').toUpperCase()).filter(Boolean))];
+            const documentedMonthlyLocal = basisDocs.length && basisCurrencies.length <= 1
                 ? Math.round(
                     basisDocs.reduce((s: number, d: any) => s + (Number(d.average_monthly_inflow) || 0), 0) /
                     basisDocs.length

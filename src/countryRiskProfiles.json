@@ -40,7 +40,8 @@
       "World reserve currency",
       "Deep capital markets",
       "Strong credit bureau system"
-    ]
+    ],
+    "currency_usd_rate_approx": 1.0
   },
   {
     "country": "Canada",
@@ -123,7 +124,8 @@
       "banking_note": "RBC, TD, Scotiabank, BMO, CIBC are major institutions. Canadian bank statements are highly standardised.",
       "income_stability_note": "Regular bi-weekly or monthly payroll deposits are strongest signal.",
       "verification_note": "SIN is primary identifier. Equifax/TransUnion operate in Canada."
-    }
+    },
+    "currency_usd_rate_approx": 1.36
   },
   {
     "country": "Germany",
@@ -212,7 +214,8 @@
       "banking_note": "Deutsche Bank, Commerzbank, Sparkasse, N26 are major institutions. German bank statements are highly standardised.",
       "income_stability_note": "Gehalt (salary) appears monthly like clockwork. Bonus structures common in finance/tech.",
       "verification_note": "Steuer-ID is primary tax identifier. SCHUFA credit system. Documents are among the most reliable globally."
-    }
+    },
+    "currency_usd_rate_approx": 0.92
   },
   {
     "country": "United Kingdom",
@@ -301,7 +304,8 @@
       "banking_note": "Barclays, HSBC, Lloyds, NatWest, Monzo are major institutions. UK bank statements are highly standardised and verifiable.",
       "income_stability_note": "Regular monthly salary (BACS payment) is strongest signal. Payslips (P60, P45) are key supporting documents.",
       "verification_note": "NI number is primary identifier. Experian/Equifax/TransUnion operate in UK."
-    }
+    },
+    "currency_usd_rate_approx": 0.79
   },
   {
     "country": "Ukraine",
@@ -1007,7 +1011,8 @@
       "EU member",
       "Strong social security documentation",
       "Payslips (bulletins de salaire) are highly standardised and verifiable"
-    ]
+    ],
+    "currency_usd_rate_approx": 0.92
   },
   {
     "country": "Turkey",
@@ -1166,5 +1171,301 @@
       "IT sector in Bucharest/Cluj is strong",
       "RON relatively stable"
     ]
+  },
+  {
+    "country": "China",
+    "currency_code": "CNY",
+    "currency_usd_rate_approx": 7.2,
+    "median_monthly_income_local": 6000,
+    "median_monthly_income_usd": 830,
+    "income_context": {
+      "high": "Above CNY 15,000/mo is top 15% — senior professional in tier-1 cities",
+      "note": "Alipay/WeChat Pay dominate daily payments — bank statements may understate real cash flow. Capital controls limit outbound transfers."
+    },
+    "notes": [
+      "Major banks: ICBC, Bank of China, CCB — statements well-structured but usually in Chinese",
+      "Capital controls (USD 50k/yr) are a systemic factor, not an applicant red flag",
+      "High savings-rate culture; property is the primary store of wealth"
+    ],
+    "banking_stability": 78,
+    "currency_volatility": 15,
+    "document_reliability": 70,
+    "inflation_risk": 25,
+    "migration_pressure": 45,
+    "remote_work_viability": 55,
+    "fraud_prevalence_risk": 35,
+    "economic_resilience": 75,
+    "employment_stability": 70,
+    "financial_system_maturity": 75,
+    "cross_border_transferability": 45
+  },
+  {
+    "country": "Vietnam",
+    "currency_code": "VND",
+    "currency_usd_rate_approx": 25400,
+    "median_monthly_income_local": 8000000,
+    "median_monthly_income_usd": 315,
+    "income_context": {
+      "high": "Above VND 25M/mo is top 15% — senior professional in HCMC/Hanoi",
+      "note": "Cash-heavy economy; gold and USD are traditional savings vehicles."
+    },
+    "notes": [
+      "Major banks: Vietcombank, BIDV, Techcombank",
+      "Large informal sector — undocumented side income is common and locally normal",
+      "Fast-growing tech/manufacturing wages in HCMC"
+    ],
+    "banking_stability": 60,
+    "currency_volatility": 20,
+    "document_reliability": 60,
+    "inflation_risk": 35,
+    "migration_pressure": 55,
+    "remote_work_viability": 60,
+    "fraud_prevalence_risk": 35,
+    "economic_resilience": 65,
+    "employment_stability": 62,
+    "financial_system_maturity": 55,
+    "cross_border_transferability": 50
+  },
+  {
+    "country": "South Korea",
+    "currency_code": "KRW",
+    "currency_usd_rate_approx": 1380,
+    "median_monthly_income_local": 3200000,
+    "median_monthly_income_usd": 2300,
+    "income_context": {
+      "high": "Above KRW 6M/mo is top 15% — senior professional",
+      "note": "Jeonse housing system: very large lump-sum deposits are NORMAL housing savings, not suspicious funds."
+    },
+    "notes": [
+      "Major banks: KB Kookmin, Shinhan, Woori — highly reliable statements",
+      "Mature credit system comparable to US",
+      "High household-debt levels are structural, not individual red flags"
+    ],
+    "banking_stability": 88,
+    "currency_volatility": 12,
+    "document_reliability": 90,
+    "inflation_risk": 15,
+    "migration_pressure": 20,
+    "remote_work_viability": 70,
+    "fraud_prevalence_risk": 12,
+    "economic_resilience": 85,
+    "employment_stability": 75,
+    "financial_system_maturity": 90,
+    "cross_border_transferability": 80
+  },
+  {
+    "country": "Colombia",
+    "currency_code": "COP",
+    "currency_usd_rate_approx": 4000,
+    "median_monthly_income_local": 1500000,
+    "median_monthly_income_usd": 375,
+    "income_context": {
+      "high": "Above COP 5M/mo is top 15% — professional in Bogotá/Medellín",
+      "note": "Large informal economy — cash income without formal payroll is locally common."
+    },
+    "notes": [
+      "Major banks: Bancolombia, Davivienda, BBVA Colombia",
+      "Remittances and freelance USD income increasingly common",
+      "Peso volatility — contextualise COP figures against USD at statement time"
+    ],
+    "banking_stability": 62,
+    "currency_volatility": 35,
+    "document_reliability": 62,
+    "inflation_risk": 45,
+    "migration_pressure": 60,
+    "remote_work_viability": 62,
+    "fraud_prevalence_risk": 40,
+    "economic_resilience": 55,
+    "employment_stability": 50,
+    "financial_system_maturity": 60,
+    "cross_border_transferability": 55
+  },
+  {
+    "country": "Venezuela",
+    "currency_code": "VES",
+    "currency_usd_rate_approx": 36,
+    "median_monthly_income_local": 5400,
+    "median_monthly_income_usd": 150,
+    "income_context": {
+      "high": "Stable formal income above USD 300/mo equivalent is upper tier",
+      "note": "Hyperinflation history: the economy is heavily de-facto DOLLARIZED. Statements may be in USD, VES, or mixed; the bolívar rate moves rapidly — prefer the rate at statement date."
+    },
+    "notes": [
+      "VES rate is HIGHLY volatile — curated rate is indicative only; per-document rate estimates are more reliable",
+      "USD cash and Zelle/crypto widely used for daily transactions — absence from bank statements is normal",
+      "Document access may be limited for emigrants; treat gaps with context, not suspicion"
+    ],
+    "banking_stability": 20,
+    "currency_volatility": 95,
+    "document_reliability": 35,
+    "inflation_risk": 95,
+    "migration_pressure": 95,
+    "remote_work_viability": 45,
+    "fraud_prevalence_risk": 55,
+    "economic_resilience": 15,
+    "employment_stability": 25,
+    "financial_system_maturity": 25,
+    "cross_border_transferability": 25
+  },
+  {
+    "country": "Cuba",
+    "currency_code": "CUP",
+    "currency_usd_rate_approx": 24,
+    "median_monthly_income_local": 5000,
+    "median_monthly_income_usd": 40,
+    "income_context": {
+      "high": "Any documented hard-currency income is above-typical",
+      "note": "Dual-rate economy: official CUP rate differs sharply from street rate. Remittances are a central income source."
+    },
+    "notes": [
+      "State banking system — statements scarce and hard to verify; cash claims are common and locally normal",
+      "Remittances (family abroad) are a primary and legitimate income channel",
+      "Official salaries are very low — modest documented amounts are not a red flag"
+    ],
+    "banking_stability": 15,
+    "currency_volatility": 90,
+    "document_reliability": 30,
+    "inflation_risk": 90,
+    "migration_pressure": 90,
+    "remote_work_viability": 20,
+    "fraud_prevalence_risk": 45,
+    "economic_resilience": 15,
+    "employment_stability": 30,
+    "financial_system_maturity": 15,
+    "cross_border_transferability": 15
+  },
+  {
+    "country": "Dominican Republic",
+    "currency_code": "DOP",
+    "currency_usd_rate_approx": 59,
+    "median_monthly_income_local": 25000,
+    "median_monthly_income_usd": 425,
+    "income_context": {
+      "high": "Above DOP 80,000/mo is top 15% — professional in Santo Domingo",
+      "note": "Remittance inflows are common and legitimate; tourism sector income can be seasonal."
+    },
+    "notes": [
+      "Major banks: Banreservas, Banco Popular Dominicano, BHD",
+      "Seasonal income patterns in tourism regions are normal",
+      "USD widely accepted alongside peso"
+    ],
+    "banking_stability": 60,
+    "currency_volatility": 25,
+    "document_reliability": 58,
+    "inflation_risk": 35,
+    "migration_pressure": 55,
+    "remote_work_viability": 55,
+    "fraud_prevalence_risk": 40,
+    "economic_resilience": 55,
+    "employment_stability": 50,
+    "financial_system_maturity": 55,
+    "cross_border_transferability": 55
+  },
+  {
+    "country": "Guatemala",
+    "currency_code": "GTQ",
+    "currency_usd_rate_approx": 7.8,
+    "median_monthly_income_local": 4000,
+    "median_monthly_income_usd": 510,
+    "income_context": {
+      "high": "Above GTQ 12,000/mo is top 15% — professional in Guatemala City",
+      "note": "Remittances ≈ 20% of GDP — family transfers from abroad are a normal, major income channel."
+    },
+    "notes": [
+      "Major banks: Banco Industrial, Banrural, G&T Continental",
+      "Large informal sector — cash income is locally standard",
+      "Quetzal is one of the most stable LatAm currencies"
+    ],
+    "banking_stability": 55,
+    "currency_volatility": 18,
+    "document_reliability": 50,
+    "inflation_risk": 30,
+    "migration_pressure": 70,
+    "remote_work_viability": 45,
+    "fraud_prevalence_risk": 45,
+    "economic_resilience": 50,
+    "employment_stability": 45,
+    "financial_system_maturity": 45,
+    "cross_border_transferability": 50
+  },
+  {
+    "country": "El Salvador",
+    "currency_code": "USD",
+    "currency_usd_rate_approx": 1.0,
+    "median_monthly_income_local": 450,
+    "median_monthly_income_usd": 450,
+    "income_context": {
+      "high": "Above USD 1,200/mo is top 15% — professional in San Salvador",
+      "note": "FULLY DOLLARIZED since 2001 — all local figures are already USD; no currency conversion applies."
+    },
+    "notes": [
+      "Major banks: Banco Agrícola, Banco Cuscatlán",
+      "Remittances ≈ 24% of GDP — a normal primary income channel",
+      "Income already in USD transfers cleanly to US underwriting"
+    ],
+    "banking_stability": 55,
+    "currency_volatility": 8,
+    "document_reliability": 55,
+    "inflation_risk": 20,
+    "migration_pressure": 75,
+    "remote_work_viability": 50,
+    "fraud_prevalence_risk": 45,
+    "economic_resilience": 45,
+    "employment_stability": 45,
+    "financial_system_maturity": 50,
+    "cross_border_transferability": 70
+  },
+  {
+    "country": "Honduras",
+    "currency_code": "HNL",
+    "currency_usd_rate_approx": 24.7,
+    "median_monthly_income_local": 9500,
+    "median_monthly_income_usd": 385,
+    "income_context": {
+      "high": "Above HNL 30,000/mo is top 15% — professional in Tegucigalpa/San Pedro Sula",
+      "note": "Remittances ≈ 25% of GDP — family transfers from abroad are a normal, major income channel."
+    },
+    "notes": [
+      "Major banks: Ficohsa, Banco Atlántida, BAC",
+      "Large informal sector — cash income is locally standard"
+    ],
+    "banking_stability": 50,
+    "currency_volatility": 22,
+    "document_reliability": 48,
+    "inflation_risk": 35,
+    "migration_pressure": 75,
+    "remote_work_viability": 40,
+    "fraud_prevalence_risk": 50,
+    "economic_resilience": 40,
+    "employment_stability": 40,
+    "financial_system_maturity": 42,
+    "cross_border_transferability": 48
+  },
+  {
+    "country": "Haiti",
+    "currency_code": "HTG",
+    "currency_usd_rate_approx": 132,
+    "median_monthly_income_local": 20000,
+    "median_monthly_income_usd": 150,
+    "income_context": {
+      "high": "Any stable documented income is above-typical",
+      "note": "Severe instability: remittances (20%+ of GDP) and remittance apps are primary financial channels; formal statements may be unavailable."
+    },
+    "notes": [
+      "Major banks: Sogebank, Unibank — access disrupted in crisis periods",
+      "Absence of formal banking history reflects systemic conditions, not applicant risk",
+      "Many applicants can best document income via remittance-app history"
+    ],
+    "banking_stability": 25,
+    "currency_volatility": 70,
+    "document_reliability": 30,
+    "inflation_risk": 80,
+    "migration_pressure": 90,
+    "remote_work_viability": 25,
+    "fraud_prevalence_risk": 55,
+    "economic_resilience": 15,
+    "employment_stability": 25,
+    "financial_system_maturity": 20,
+    "cross_border_transferability": 25
   }
 ]

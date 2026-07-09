@@ -32,6 +32,46 @@ const fmt = (n: number | null | undefined, currency?: string) => {
 
 export const generateDossierPDF = async (data: DashboardData) => {
   const doc = new jsPDF() as jsPDFWithAutoTable;
+
+  // v34.1 — SCRIPT-SAFE TEXT. jsPDF standard fonts only render Latin-1: Cyrillic, Arabic,
+  // Chinese, Devanagari etc. become garbage ("20= !02G5=:>"). Since v34 deterministic
+  // document fields put native-script payer names into the PDF, sanitize EVERY string:
+  // Cyrillic is transliterated (common case: UA/RU documents); any other non-Latin-1 run
+  // is replaced with a compact [*] marker (full text remains in the web report).
+  const CYR: Record<string, string> = {
+    'а':'a','б':'b','в':'v','г':'h','ґ':'g','д':'d','е':'e','є':'ie','ж':'zh','з':'z','и':'y',
+    'і':'i','ї':'i','й':'i','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s',
+    'т':'t','у':'u','ф':'f','х':'kh','ц':'ts','ч':'ch','ш':'sh','щ':'shch','ь':'','ю':'iu',
+    'я':'ia','ё':'e','ъ':'','ы':'y','э':'e',
+  };
+  const translitChar = (ch: string): string => {
+    const lower = ch.toLowerCase();
+    const t = CYR[lower];
+    if (t === undefined) return ch;
+    return ch === lower ? t : (t.charAt(0).toUpperCase() + t.slice(1));
+  };
+  const sanitizePdfText = (s: string): string =>
+    s
+      .replace(/[\u0400-\u04FF]/g, translitChar)                 // Cyrillic → Latin transliteration
+      .replace(/[\u0100-\uFFFF]+/g, '[*]');                      // any other non-Latin-1 run → marker
+  const rawText = doc.text.bind(doc);
+  (doc as any).text = (text: any, ...rest: any[]) => {
+    const clean = Array.isArray(text) ? text.map((t: any) => typeof t === 'string' ? sanitizePdfText(t) : t)
+      : typeof text === 'string' ? sanitizePdfText(text) : text;
+    return rawText(clean, ...(rest as [number, number]));
+  };
+  const rawSplit = doc.splitTextToSize.bind(doc);
+  (doc as any).splitTextToSize = (text: any, ...rest: any[]) =>
+    rawSplit(typeof text === 'string' ? sanitizePdfText(text) : text, ...(rest as [number]));
+  // autoTable renders its own text (bypasses doc.text) — sanitize table cells too.
+  const sanitizeCell = (c: any): any => typeof c === 'string' ? sanitizePdfText(c) : c;
+  const sanitizeRows = (rows: any): any => Array.isArray(rows) ? rows.map((r: any) => Array.isArray(r) ? r.map(sanitizeCell) : sanitizeCell(r)) : rows;
+  const safeAutoTable = (docRef: any, options: any) => autoTable(docRef, {
+    ...options,
+    head: sanitizeRows(options?.head),
+    body: sanitizeRows(options?.body),
+  });
+
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 18;
   const contentWidth = pageWidth - margin * 2;
@@ -100,7 +140,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
   };
 
   const infoTable = (rows: [string, string][]) => {
-    autoTable(doc, {
+    safeAutoTable(doc, {
       startY: y,
       body: rows,
       theme: 'plain',
@@ -233,7 +273,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
     if (rdt.income_pattern) rawRows.push(['Income Pattern', rdt.income_pattern]);
 
     if (rawRows.length > 0) {
-      autoTable(doc, {
+      safeAutoTable(doc, {
         startY: y,
         head: [['Original Figure / Metric', 'Translation & Context']],
         body: rawRows,
@@ -315,7 +355,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
 
       docRows.push(['Name Match', docItem.account_holder_name_match || '—']);
 
-      autoTable(doc, {
+      safeAutoTable(doc, {
         startY: y,
         body: docRows,
         theme: 'plain',
@@ -360,7 +400,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
 
   const bd = data.breakdown;
   if (bd) {
-    autoTable(doc, {
+    safeAutoTable(doc, {
       startY: y,
       head: [['Factor', 'Score (0–100)', 'Weight']],
       body: [

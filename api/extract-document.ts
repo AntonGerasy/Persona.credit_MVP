@@ -26,6 +26,7 @@ const extractSchema = {
     account_holder_name:         { type: Type.STRING },
     account_holder_name_match:   { type: Type.STRING },
     currency_code:               { type: Type.STRING },
+    usd_rate_estimate:           { type: Type.NUMBER },
     average_monthly_inflow:      { type: Type.NUMBER },
     ending_balance:              { type: Type.NUMBER },
     income_regularity:           { type: Type.STRING },
@@ -53,18 +54,21 @@ const extractSchema = {
   ],
 };
 
-const PROMPT = (applicantName: string, fieldLabel: string, originCountry: string, destinationCountry: string) =>
+const PROMPT = (applicantName: string, fieldLabel: string, originCountry: string, destinationCountry: string, employerName: string, employmentType: string) =>
 `Extract financial data from this document. Applicant: ${applicantName}. Origin: ${originCountry}. Destination: ${destinationCountry}. Field: ${fieldLabel}.
+Applicant's stated employer/company: ${employerName || 'not provided'}. Employment type: ${employmentType || 'not provided'}.
 TODAY'S DATE IS ${new Date().toISOString().slice(0, 10)} — treat any date on or before today as a normal past date, never as "future".
+LANGUAGE: the document may be in ANY language and script (Cyrillic, Arabic, Chinese, Devanagari, etc.). Read it in its native language. Return issuing_country and issuing_institution in ENGLISH; transliterate person names to Latin script where needed for matching, but keep original payer names in income_sources_detected with a Latin transliteration in parentheses.
 Rules:
-- account_holder_name_match: "Match"/"Partial match"/"No match"/"Cannot determine" vs "${applicantName}"
-- currency_code: ISO 4217 (UAH, USD, INR, BRL etc)
-- average_monthly_inflow: TOTAL third-party credits over the period DIVIDED BY period_months. Do NOT annualize or inflate a partial period. EXCLUDE internal transfers, transfers between the applicant's own accounts, and deposits from the applicant's OWN company/business (self-funding is NOT income). If period_months < 1 or inflow is a single lump sum, base it on what is actually shown and mark income_regularity accordingly.
+- account_holder_name_match: "Match"/"Partial match"/"No match"/"Cannot determine" vs "${applicantName}". Compare ACROSS scripts and transliterations (e.g. Cyrillic "Герасименко Антон" matches Latin "Anton Gerasymenko"; Arabic names likewise).
+- currency_code: ISO 4217 (UAH, USD, SYP, INR, BRL etc)
+- usd_rate_estimate: your best estimate of how many units of currency_code equal 1 USD around the statement period (e.g. UAH → 41.5). Return 0 if the currency is USD or you are not reasonably sure. This is a fallback only.
+- average_monthly_inflow: TOTAL third-party credits over the period DIVIDED BY period_months. Do NOT annualize or inflate a partial period. SELF-FUNDING IS NOT INCOME — EXCLUDE: (a) transfers where the SENDER'S NAME matches the account holder / applicant (any script or transliteration, e.g. a Wise transfer from "${applicantName}" to themselves); (b) internal transfers between the applicant's own accounts (same bank "transfer from SAV/CHK …"); (c) if employment type indicates self-employed/freelance/owner, deposits from "${employerName || 'their own company'}" or any company variant of it (LLC/Inc/Ltd) — that is the applicant moving their own business money. If employment type indicates salaried employment, deposits from the employer ARE salary income.
 - estimated_monthly_obligations: recurring monthly outflows clearly shown (rent, loan/utility autopay). Return 0 if not clearly determinable — do NOT guess. Must not exceed average_monthly_inflow unless the statement clearly shows deficit spending.
 - income_regularity: "Regular" ONLY for recurring similar-sized deposits (e.g. monthly salary). Lump/one-off/self/P2P transfers → "Irregular" or "Single entry".
-- income_sources_detected: name the payers/sources; note if they are individuals (P2P) or the applicant's own company.
+- income_sources_detected: name the payers/sources that COUNTED as income; note if they are individuals (P2P). List excluded self-funding separately in analyst_note if significant.
 - is_usable: false only if blank/unreadable/irrelevant
-- analyst_note: 1 sentence what this proves
+- analyst_note: 1 sentence what this proves (mention excluded self-transfers if any)
 - Return 0 for missing numbers, "" for missing strings
 - JSON only.`;
 
@@ -74,7 +78,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(503).json({ error: 'AI service not configured' });
 
-  const { fileBase64, mimeType, fieldLabel, applicantName, originCountry, destinationCountry } = req.body;
+  const { fileBase64, mimeType, fieldLabel, applicantName, originCountry, destinationCountry, employerName, employmentType } = req.body;
   if (!fileBase64 || !mimeType) return res.status(400).json({ error: 'Missing fileBase64 or mimeType' });
 
   const ai = new GoogleGenAI({ apiKey });
@@ -122,7 +126,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       model: 'gemini-2.5-flash',
       contents: {
         parts: [
-          { text: PROMPT(applicantName || 'Unknown', fieldLabel || 'Financial Document', originCountry || '', destinationCountry || '') },
+          { text: PROMPT(applicantName || 'Unknown', fieldLabel || 'Financial Document', originCountry || '', destinationCountry || '', employerName || '', employmentType || '') },
           filePart,
         ],
       },
