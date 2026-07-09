@@ -166,7 +166,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
       incomeRows.push(['Declared (unverified claim)', `$${fmt(rec.declared_monthly_usd)}/month — ${rec.discrepancy_pct}% vs documented`]);
     }
     incomeRows.push(
-      ['Income Percentile in Origin', ca.origin_income_percentile ? `Top ${100 - ca.origin_income_percentile}% in ${data.origin_country}` : '—'],
+      ['Income Percentile in Origin', (ca.raw_data_table?.income_percentile_label) || (ca.origin_income_percentile ? `${ca.origin_income_percentile}th percentile in ${data.origin_country}` : '—')],
       ['Documents Analysed', `${usableDocs.length} document(s)`],
       ['Coverage Period', fv.document_coverage_months ? `~${fv.document_coverage_months} months` : '—'],
       ['Sector Demand (Destination)', ca.sector_demand_in_destination || '—'],
@@ -224,7 +224,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
 
     const rawRows: [string, string][] = [];
     if (rdt.monthly_income_original) rawRows.push([rdt.monthly_income_original, rdt.monthly_income_usd || '—']);
-    if (rdt.ppp_equivalent_usd) rawRows.push(['PPP Equivalent', rdt.ppp_equivalent_usd]);
+    if (!data.pppContextOnly && rdt.ppp_equivalent_usd) rawRows.push(['PPP Equivalent', rdt.ppp_equivalent_usd]);
     if (rdt.income_percentile_label) rawRows.push([rdt.income_percentile_label, rdt.income_vs_national_median || '—']);
     if (rdt.income_vs_sector_median) rawRows.push(['vs Sector Median', rdt.income_vs_sector_median]);
     if (rdt.sector_benchmark_note) rawRows.push(['Profession Note', rdt.sector_benchmark_note]);

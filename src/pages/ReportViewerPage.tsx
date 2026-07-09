@@ -246,7 +246,7 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
                     <div>
                       <p className="text-[9px] font-bold uppercase text-white/40 tracking-widest mb-1">Income Percentile (Origin)</p>
                       <p className="text-2xl font-black text-white">
-                        {ca.origin_income_percentile ? `Top ${100 - ca.origin_income_percentile}%` : '—'}
+                        {ca.origin_income_percentile ? `${ca.origin_income_percentile}th percentile` : '—'}
                       </p>
                       <p className="text-[10px] text-white/50 mt-1">in {data.origin_country}</p>
                     </div>
@@ -320,7 +320,7 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
                           </td>
                           <td className="px-4 py-3 align-top">
                             <p className="text-[12px] font-bold text-blue-600">{rdt.monthly_income_usd || '—'}</p>
-                            {rdt.ppp_equivalent_usd && (
+                            {!data.pppContextOnly && rdt.ppp_equivalent_usd && (
                               <p className="text-[10px] text-slate-500 mt-1">{rdt.ppp_equivalent_usd}</p>
                             )}
                           </td>

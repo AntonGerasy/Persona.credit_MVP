@@ -1136,6 +1136,24 @@ const App: React.FC = () => {
                 if (node && node.confidence != null) node.confidence = toUnitConfidence(node.confidence);
             });
 
+            // A: DETERMINISTIC DOCUMENT FIELDS. The Country agent has no access to raw documents,
+            // so it can only guess document_institution / document_period / income_pattern — in
+            // practice it wrote "N/A — no income documents" while two documents sat in the report.
+            // These facts already exist in extractedDocuments; overwrite the agent's guesses.
+            if (countryNode && basisDocs.length > 0) {
+                const rdtNode = (countryNode.raw_data_table = countryNode.raw_data_table || {});
+                const institutions = [...new Set(basisDocs.map((d: any) => d.issuing_institution).filter((s: any) => s && s !== 'Unknown'))];
+                if (institutions.length) rdtNode.document_institution = institutions.join('; ');
+                const periods = [...new Set(basisDocs.map((d: any) => d.period_covered).filter(Boolean))];
+                if (periods.length) rdtNode.document_period = periods.join('; ');
+                const regularity = [...new Set(basisDocs.map((d: any) => d.income_regularity).filter(Boolean))].join('/');
+                const sources = [...new Set(basisDocs.flatMap((d: any) => d.income_sources_detected || []))].slice(0, 3);
+                if (regularity || sources.length) {
+                    rdtNode.income_pattern = [regularity, sources.length ? `sources: ${sources.join(', ')}` : '']
+                        .filter(Boolean).join(' — ');
+                }
+            }
+
             // ============================================================
             // DETERMINISTIC INCOME RECONCILIATION — source of truth for score.
             // The LLM produces narrative; the NUMBERS here drive the score.
@@ -1400,7 +1418,7 @@ const App: React.FC = () => {
                         ...(parsedResult.score_explanation.top_negative_drivers.slice(0, 1))
                     ]
                 },
-                strengths: parsedResult.aggregated_strengths.map((s: string) => ({ title: s, description: "Verified analytic strength.", confidence: parsedResult.overall_confidence })),
+                strengths: parsedResult.aggregated_strengths.map((s: string) => ({ title: s, description: reconciliation.income_status === 'contradicted' ? "Analytic strength (profile contested)." : "Verified analytic strength.", confidence: parsedResult.overall_confidence })),
                 risks: parsedResult.aggregated_risks.map((r: string) => ({ title: r, description: "Identified institutional risk factor.", severity: 50, confidence: parsedResult.overall_confidence })),
                 uncertainty_analysis: {
                     high_uncertainty_areas: parsedResult.aggregated_uncertainties,

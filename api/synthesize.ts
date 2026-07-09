@@ -93,7 +93,7 @@ Rules:
         responseMimeType: 'application/json',
         responseSchema: schema,
         thinkingConfig: { thinkingBudget: 0 },
-        maxOutputTokens: 300,
+        maxOutputTokens: 500,
       },
     });
 

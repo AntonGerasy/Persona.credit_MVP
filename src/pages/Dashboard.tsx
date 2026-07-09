@@ -463,7 +463,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
     d.fullName = d.fullName || d.full_name || 'Verified Applicant';
     d.summaryStatement = d.summaryStatement || d.summary_statement || 'Financial profile generated from available data.';
     d.status = d.status || 'Active Analysis';
-    d.destinationCountryFit = d.destinationCountryFit || 'Optimal';
+    d.destinationCountryFit = d.destinationCountryFit || null; // no fake 'Optimal' default — render decides honestly
     d.origin_country = d.origin_country || 'Origin Country';
     // Arrays
     d.reasonCodes = Array.isArray(d.reasonCodes) ? d.reasonCodes : [];
@@ -490,6 +490,15 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
   // reconciliation card already tells the real story; these gates stop the rest of
   // the page from contradicting it.
   const isContradicted = (data as any)?.reconciliation?.income_status === 'contradicted';
+
+  // #3: evidence_quality can arrive malformed (e.g. a tiny float rendered as "0000000000004").
+  // Normalize deterministically to a bounded 0–100 integer for display.
+  const evidenceQualityPct = (() => {
+    const q = Number((data as any)?.dossier_analysis?.evidence_summary?.evidence_quality);
+    if (!Number.isFinite(q)) return 0;
+    const scaled = q > 0 && q <= 1 ? q * 100 : q;
+    return Math.round(Math.max(0, Math.min(100, scaled)));
+  })();
 
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [isDownloading, setIsDownloading] = useState(false);
@@ -693,7 +702,9 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                             <div className="p-4 bg-slate-50 rounded-xl border border-brand-border">
                                                 <p className="text-[8px] font-bold text-brand-gray uppercase tracking-widest mb-2">Verification Note</p>
                                                 <p className="text-[10px] font-medium text-brand-gray italic leading-relaxed">
-                                                    {data.confidence < 0.6 
+                                                    {isContradicted
+                                                        ? "This profile has an unresolved contradiction between declared and documented income. Verification is incomplete pending reconciliation."
+                                                        : data.confidence < 0.6
                                                         ? "CAUTION: This analysis contains significant reasoning limitations due to evidence gaps. Complete certainty cannot be established at this stage."
                                                         : "This profile has achieved professional verification standards with moderate to high reasoning stability."
                                                     }
@@ -1010,10 +1021,10 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                         <Card className="bg-slate-50 border-brand-border">
                                             <CardHeader className="bg-slate-100/50"><CardTitle>Consistency Patterns</CardTitle></CardHeader>
                                             <CardContent className="space-y-4">
-                                                {(data.behavioral_analysis?.consistency_patterns || ["Logical claim sequence established", "Verifiable timeline stability"]).map((pattern, i) => (
+                                                {(data.behavioral_analysis?.consistency_patterns || (isContradicted ? ["Income consistency contested — declared figure not supported by documents"] : ["No consistency issues detected in provided data"])).map((pattern, i) => (
                                                     <div key={i} className="flex gap-3 items-center text-xs text-brand-dark font-black italic p-3 bg-white border border-brand-border rounded-xl">
-                                                        <div className="w-5 h-5 flex items-center justify-center bg-brand-blue/10 text-brand-blue rounded-full border border-brand-blue/20">
-                                                            <Check className="w-2.5 h-2.5" />
+                                                        <div className={`w-5 h-5 flex items-center justify-center rounded-full border ${isContradicted ? 'bg-amber-500/10 text-amber-600 border-amber-500/20' : 'bg-brand-blue/10 text-brand-blue border-brand-blue/20'}`}>
+                                                            {isContradicted ? <AlertTriangle className="w-2.5 h-2.5" /> : <Check className="w-2.5 h-2.5" />}
                                                         </div>
                                                         {pattern}
                                                     </div>
@@ -1110,7 +1121,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                             <CardHeader><CardTitle>Evidence Quality Metrics</CardTitle></CardHeader>
                                             <CardContent className="space-y-8">
                                                 <div className="flex flex-col items-center justify-center p-6 bg-slate-50 rounded-full w-32 h-32 mx-auto border-4 border-brand-blue/10">
-                                                    <span className="text-3xl font-black text-brand-dark leading-none">{data.dossier_analysis?.evidence_summary.evidence_quality}%</span>
+                                                    <span className="text-3xl font-black text-brand-dark leading-none">{evidenceQualityPct}%</span>
                                                     <span className="text-[9px] font-black text-brand-gray uppercase mt-1">Fidelity</span>
                                                 </div>
                                                 <div className="space-y-4">
@@ -1779,12 +1790,12 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                     </div>
                                     <div>
                                         <p className="text-[10px] font-bold text-brand-gray uppercase tracking-widest">Target Territory</p>
-                                        <p className="font-bold text-brand-dark">{data.countryContext?.countryName || data.origin_country || 'Origin Country'}</p>
+                                        <p className="font-bold text-brand-dark">{data.destination_country || data.geo?.destination_country || 'Destination'}</p>
                                     </div>
                                 </div>
                                 <div className="text-right">
                                     <p className="text-[10px] font-bold text-brand-blue uppercase tracking-widest mb-1">Fit Signal</p>
-                                    <p className="text-lg font-bold text-emerald-600 uppercase tracking-tight">{data.destinationCountryFit || 'Optimal'}</p>
+                                    <p className={`text-lg font-bold uppercase tracking-tight ${isContradicted || data.score < 500 ? 'text-amber-600' : 'text-emerald-600'}`}>{isContradicted ? 'Contested' : data.score < 500 ? 'Pending Evidence' : (data.destinationCountryFit || 'Assessed')}</p>
                                 </div>
                             </div>
 
@@ -1835,7 +1846,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                     </td>
                                                     <td className="px-4 py-3 align-top">
                                                         <p className="text-[12px] font-bold text-brand-blue">{rdt.monthly_income_usd || '—'}</p>
-                                                        {rdt.ppp_equivalent_usd && <p className="text-[10px] text-brand-gray mt-1">{rdt.ppp_equivalent_usd}</p>}
+                                                        {!data.pppContextOnly && rdt.ppp_equivalent_usd && <p className="text-[10px] text-brand-gray mt-1">{rdt.ppp_equivalent_usd}</p>}
                                                     </td>
                                                 </tr>
                                             );
