@@ -799,9 +799,9 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                 <ShieldCheck className="w-32 h-32 text-white" />
                                             </div>
                                             <div className="relative z-10 space-y-6">
-                                                <Badge variant="info" className={`shadow-none ${isContradicted || data.score < 500 ? 'bg-white text-amber-600' : 'bg-white text-brand-blue'}`}>{isContradicted || data.score < 500 ? 'Provisional — Needs Review' : 'Global Standard Prime'}</Badge>
-                                                <h4 className="text-2xl font-bold leading-tight">{isContradicted ? 'Documented income does not support the declared profile.' : data.score < 500 ? 'Profile does not yet meet prime verification thresholds.' : 'Subject has cleared multi-region regulatory fidelity checks.'}</h4>
-                                                <p className="text-xs text-white/70 leading-relaxed font-medium">{isContradicted || data.score < 500 ? 'This assessment reflects gaps between declared and documented financials. It is not a prime credit certification.' : 'This document certifies that the subject possesses verified financial integrity equivalent to a Prime US credit profile.'}</p>
+                                                <Badge variant="info" className={`shadow-none ${isContradicted || data.score < 500 ? 'bg-white text-amber-600' : data.score < 650 ? 'bg-white text-brand-gray' : 'bg-white text-brand-blue'}`}>{isContradicted || data.score < 500 ? 'Provisional — Needs Review' : data.score < 650 ? 'Near Prime — Conditional' : 'Global Standard Prime'}</Badge>
+                                                <h4 className="text-2xl font-bold leading-tight">{isContradicted ? 'Documented income does not support the declared profile.' : data.score < 500 ? 'Profile does not yet meet prime verification thresholds.' : data.score < 650 ? 'Profile is partially verified — approaching prime thresholds.' : 'Subject has cleared multi-region regulatory fidelity checks.'}</h4>
+                                                <p className="text-xs text-white/70 leading-relaxed font-medium">{isContradicted || data.score < 500 ? 'This assessment reflects gaps between declared and documented financials. It is not a prime credit certification.' : data.score < 650 ? 'Verification is partial. Additional documentation would be required before any prime-equivalent certification.' : 'This document certifies that the subject possesses verified financial integrity equivalent to a Prime US credit profile.'}</p>
                                             </div>
                                         </div>
                                         <div className="space-y-8">
@@ -810,11 +810,11 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                 <div className="flex items-center gap-3">
                                                     <div className={`w-3 h-3 rounded-full ${data.score < 500 ? 'bg-red-500' : 'bg-emerald-500'} shadow-sm`}></div>
                                                     <p className="text-sm font-bold text-brand-dark uppercase tracking-wide">
-                                                        {data.score < 500 ? "Subprime / High Risk" : data.score > 800 ? "Ultra-Prime Tier" : "Prime Verified Group"}
+                                                        {data.score < 500 ? "Subprime / High Risk" : data.score < 650 ? "Near Prime / Conditional" : data.score < 750 ? "Prime Verified Group" : "Ultra-Prime Tier"}
                                                     </p>
                                                 </div>
                                                 <p className="text-[11px] text-brand-gray font-medium mt-1.5 ml-6">
-                                                    Estimated FICO benchmark: {data.score < 500 ? "< 620" : data.score > 800 ? "760-850 range" : "700-759 range"}
+                                                    Estimated FICO benchmark: {data.score < 500 ? "< 620" : data.score < 650 ? "620-679 range" : data.score < 750 ? "680-759 range" : "760-850 range"}
                                                 </p>
                                             </div>
                                             <div className="p-6 bg-slate-50 rounded-2xl border border-brand-border">

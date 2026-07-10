@@ -50,8 +50,14 @@ export const generateDossierPDF = async (data: DashboardData) => {
     if (t === undefined) return ch;
     return ch === lower ? t : (t.charAt(0).toUpperCase() + t.slice(1));
   };
+  const PUNCT: Record<string, string> = {
+    '\u2014': ' - ', '\u2013': '-', '\u2018': "'", '\u2019': "'", '\u201C': '"', '\u201D': '"',
+    '\u2022': '-', '\u2026': '...', '\u2248': '~', '\u2122': '(TM)', '\u2192': '->', '\u2190': '<-',
+    '\u20B9': 'INR ', '\u20AC': 'EUR ', '\u00A0': ' ',
+  };
   const sanitizePdfText = (s: string): string =>
     s
+      .replace(/[\u2013\u2014\u2018\u2019\u201C\u201D\u2022\u2026\u2248\u2122\u2192\u2190\u20B9\u20AC\u00A0]/g, (ch) => PUNCT[ch] ?? ch) // common typography → ASCII
       .replace(/[\u0400-\u04FF]/g, translitChar)                 // Cyrillic → Latin transliteration
       .replace(/[\u0100-\uFFFF]+/g, '[*]');                      // any other non-Latin-1 run → marker
   const rawText = doc.text.bind(doc);
