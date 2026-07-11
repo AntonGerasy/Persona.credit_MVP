@@ -258,8 +258,8 @@ export const formSchema: FormSchema = {
           "type": "number",
           "min": 0,
           "required": false,
-          "placeholder": "e.g. 82000 (for UAH 82,000)",
-          "tooltip": "Used only if your document upload fails or figures are unreadable. The document is always preferred."
+          "placeholder": "digits only, e.g. 82000 — no commas",
+          "tooltip": "Enter digits only (no commas or spaces — type 41000, not 41,000). Used only if your document upload fails or figures are unreadable. The document is always preferred."
         },
         {
           "id": "ann_income_usd",

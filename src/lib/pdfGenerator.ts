@@ -382,6 +382,49 @@ export const generateDossierPDF = async (data: DashboardData) => {
         y += noteLines.length * 4 + 4;
       }
 
+      // v34.4 — deterministic income audit: which credits counted, which were excluded and why.
+      const audit = docItem.income_audit;
+      if (audit && audit.engine === 'deterministic' && (audit.counted?.length || audit.excluded?.length)) {
+        if (y > 230) { doc.addPage(); y = 20; }
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...C.dark);
+        doc.text('Income Audit — credits counted toward verified income (deterministic engine):', margin + 4, y);
+        y += 4;
+
+        const REASON_LABEL: Record<string, string> = {
+          self_transfer_marker: 'Excluded: self-transfer (own accounts)',
+          sender_is_applicant: 'Excluded: sender matches applicant',
+          own_company: "Excluded: applicant's own company",
+        };
+        const MAX_ROWS = 20;
+        const countedRows = (audit.counted || []).slice(0, MAX_ROWS).map((t: any) =>
+          [t.date || '-', t.counterparty || '-', fmt(t.amount, docItem.currency_code), 'Counted']);
+        const excludedRows = (audit.excluded || []).slice(0, 10).map((t: any) =>
+          [t.date || '-', t.counterparty || '-', fmt(t.amount, docItem.currency_code), REASON_LABEL[t.reason] || 'Excluded']);
+        const overflow = Math.max(0, (audit.counted?.length || 0) - MAX_ROWS);
+
+        safeAutoTable(doc, {
+          startY: y,
+          head: [['Date', 'Payer', 'Amount', 'Status']],
+          body: [...countedRows, ...excludedRows],
+          theme: 'striped',
+          margin: { left: margin + 4, right: margin },
+          styles: { fontSize: 6.5, cellPadding: 1.5, textColor: C.dark },
+          headStyles: { fontSize: 6.5, fontStyle: 'bold', fillColor: [241, 245, 249], textColor: C.slate },
+          columnStyles: { 0: { cellWidth: 22 }, 2: { cellWidth: 30, halign: 'right' } },
+        });
+        y = ((doc as any).lastAutoTable?.finalY ?? y) + 3;
+
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'italic');
+        doc.setTextColor(...C.slate);
+        const totalLine = `Counted ${audit.counted_count} credit(s), ${fmt(audit.counted_total, docItem.currency_code)} over ${audit.period_months_used} month(s); excluded ${audit.excluded_count} non-income credit(s)${overflow > 0 ? `; +${overflow} counted row(s) not shown` : ''}.`;
+        const tLines = doc.splitTextToSize(totalLine, contentWidth - 6);
+        doc.text(tLines, margin + 4, y);
+        y += tLines.length * 4 + 4;
+      }
+
       if (docItem.authenticity_concerns && docItem.authenticity_concerns.length > 0) {
         doc.setFontSize(7);
         doc.setFont('helvetica', 'bold');

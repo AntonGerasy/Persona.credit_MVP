@@ -1906,6 +1906,74 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                     </Card>
                 )}
 
+                {/* ── INCOME AUDIT — WHICH CREDITS COUNTED (v34.4 deterministic engine) ── */}
+                {(data.document_extractions || []).some((d: any) => d.is_usable && d.income_audit?.engine === 'deterministic') && (
+                    <Card className="border-brand-border shadow-md">
+                        <CardHeader>
+                            <CardTitle>Income Audit — Which Credits Counted</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-5">
+                            <p className="text-[11px] text-brand-gray leading-relaxed">
+                                Every incoming credit from your statements, classified by deterministic rules —
+                                not model judgement. This is the exact basis of the verified income figure.
+                            </p>
+                            {(data.document_extractions || [])
+                                .filter((d: any) => d.is_usable && d.income_audit?.engine === 'deterministic')
+                                .map((d: any, di: number) => {
+                                    const audit = d.income_audit;
+                                    const cur = d.currency_code || '';
+                                    const fmtAmt = (n: number) => `${cur} ${Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+                                    const REASON_LABEL: Record<string, string> = {
+                                        self_transfer_marker: 'Self-transfer (own accounts)',
+                                        sender_is_applicant: 'Sender matches applicant',
+                                        own_company: "Applicant's own company",
+                                    };
+                                    return (
+                                        <div key={di} className="space-y-3">
+                                            <div className="flex items-center justify-between gap-3 flex-wrap">
+                                                <p className="text-[12px] font-bold text-brand-dark m-0">{d.issuing_institution || 'Document'}{d.period_covered ? ` — ${d.period_covered}` : ''}</p>
+                                                <span className="text-[9px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-md px-2 py-1">Deterministic engine</span>
+                                            </div>
+                                            <div className="overflow-x-auto rounded-xl border border-brand-border">
+                                                <table className="w-full text-left">
+                                                    <thead>
+                                                        <tr className="bg-slate-50">
+                                                            <th className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-brand-gray">Date</th>
+                                                            <th className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-brand-gray">Payer</th>
+                                                            <th className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-brand-gray text-right">Amount</th>
+                                                            <th className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-brand-gray">Status</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {(audit.counted || []).map((t: any, i: number) => (
+                                                            <tr key={`c${i}`} className="border-t border-brand-border">
+                                                                <td className="px-3 py-2 text-[11px] text-brand-gray whitespace-nowrap">{t.date || '—'}</td>
+                                                                <td className="px-3 py-2 text-[11px] text-brand-dark">{t.counterparty}</td>
+                                                                <td className="px-3 py-2 text-[11px] font-semibold text-brand-dark text-right whitespace-nowrap">{fmtAmt(t.amount)}</td>
+                                                                <td className="px-3 py-2 text-[10px] font-bold text-emerald-700 whitespace-nowrap">Counted</td>
+                                                            </tr>
+                                                        ))}
+                                                        {(audit.excluded || []).map((t: any, i: number) => (
+                                                            <tr key={`e${i}`} className="border-t border-brand-border bg-slate-50/60">
+                                                                <td className="px-3 py-2 text-[11px] text-brand-gray whitespace-nowrap">{t.date || '—'}</td>
+                                                                <td className="px-3 py-2 text-[11px] text-brand-gray line-through decoration-slate-300">{t.counterparty}</td>
+                                                                <td className="px-3 py-2 text-[11px] text-brand-gray text-right whitespace-nowrap">{fmtAmt(t.amount)}</td>
+                                                                <td className="px-3 py-2 text-[10px] font-bold text-amber-700 whitespace-nowrap">Excluded — {REASON_LABEL[t.reason] || t.reason || 'rule'}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            <p className="text-[11px] text-brand-gray">
+                                                Counted {audit.counted_count} credit(s) totalling <span className="font-semibold text-brand-dark">{fmtAmt(audit.counted_total)}</span> over {audit.period_months_used} month(s) → <span className="font-semibold text-brand-dark">{fmtAmt(Math.round((audit.counted_total || 0) / (audit.period_months_used || 1)))}/mo</span>{audit.excluded_count > 0 ? `; excluded ${audit.excluded_count} non-income credit(s).` : '; nothing excluded.'}
+                                            </p>
+                                        </div>
+                                    );
+                                })}
+                        </CardContent>
+                    </Card>
+                )}
+
                 {/* ── FINANCIAL CULTURE CONTEXT ── */}
                 {data.country_analysis?.financial_culture_context && (
                     <Card className="border-brand-border shadow-md">

@@ -714,12 +714,19 @@ const App: React.FC = () => {
             const textData: Partial<FormData> = {};
 
             // --- Core Evaluation Formulas (The Logic Check) ---
-            const monthlyIncome = Number(formData['local_monthly_income']) || 1;
-            const annIncomeUSD = Number(formData['ann_income_usd']) || 0;
-            const originDebts = Number(formData['debts_total_origin']) || 0;
-            const officialShare = Number(formData['official_income_share']) || 1;
-            const tenure = Number(formData['experience_years']) || 0;
-            const liquidReserves = Number(formData['liquid_reserves']) || 0;
+            // v34.4: strip thousands separators/spaces BEFORE Number() — "41,000" must never
+            // silently become 41 (or NaN). Browsers with comma-decimal locales mangle number
+            // inputs; parse defensively.
+            const cleanNum = (v: any): number => {
+                const n = Number(String(v ?? '').replace(/[,\s\u00A0']/g, ''));
+                return isFinite(n) ? n : 0;
+            };
+            const monthlyIncome = cleanNum(formData['local_monthly_income']) || 1;
+            const annIncomeUSD = cleanNum(formData['ann_income_usd']) || 0;
+            const originDebts = cleanNum(formData['debts_total_origin']) || 0;
+            const officialShare = cleanNum(formData['official_income_share']) || 1;
+            const tenure = cleanNum(formData['experience_years']) || 0;
+            const liquidReserves = cleanNum(formData['liquid_reserves']) || 0;
 
             const localDTI = originDebts / (monthlyIncome || 1);
             const reserveMonths = liquidReserves / (annIncomeUSD / 12 || 1);
@@ -855,6 +862,13 @@ const App: React.FC = () => {
                         authenticity_concerns: d.authenticity_concerns,
                         is_usable: d.is_usable,
                         analyst_note: d.analyst_note,
+                        // v34.4: deterministic income engine summary (full counted/excluded
+                        // detail stays in document_extractions for the UI/PDF audit table).
+                        income_engine: d.income_audit ? {
+                            engine: d.income_audit.engine,
+                            counted_count: d.income_audit.counted_count,
+                            excluded_count: d.income_audit.excluded_count,
+                        } : undefined,
                     })),
                 }
                 : {
@@ -1064,7 +1078,14 @@ const App: React.FC = () => {
             // #8: documented-vs-declared income status, computed PRE-agent (same 0.60 ratio
             // threshold the deterministic reconciliation uses below) so the Behavioral agent
             // cannot rubber-stamp "declared income matches" when the documents contradict it.
-            const declaredMonthlyUsdPre = declaredMonthlyUsdNorm || 0;
+            // v34.4: a declared figure 20x+ below DOCUMENTED income is an input typo
+            // (browser number inputs eat "41,000" → 41), not a real claim. Zero it here —
+            // the single pre-agent source — so agents never narrate a garbage "$2/mo declared".
+            const declaredMonthlyUsdPreRaw = declaredMonthlyUsdNorm || 0;
+            const declaredPreSuspect =
+                verifiedMonthlyUsd > 0 && declaredMonthlyUsdPreRaw > 0 &&
+                (verifiedMonthlyUsd / declaredMonthlyUsdPreRaw) > 20;
+            const declaredMonthlyUsdPre = declaredPreSuspect ? 0 : declaredMonthlyUsdPreRaw;
             const incomeContradictedPre =
                 verifiedMonthlyUsd > 0 && declaredMonthlyUsdPre > 0 &&
                 (verifiedMonthlyUsd / declaredMonthlyUsdPre) < 0.60;
@@ -1076,9 +1097,10 @@ const App: React.FC = () => {
             const fraudContext = {
                 document_extractions: documentSummary,
                 self_declared: {
-                    declared_monthly_income_usd: declaredMonthlyUsdNorm,
+                    declared_monthly_income_usd: declaredMonthlyUsdPre || null,
+                    declared_input_suspect: declaredPreSuspect || undefined,
                     declared_annual_income_usd: declaredAnnualUsdNorm,
-                    declared_monthly_local: declaredMonthlyLocalNorm,
+                    declared_monthly_local: declaredPreSuspect ? null : declaredMonthlyLocalNorm,
                     declared_currency: formData.local_currency,
                     employer: formData.employer_name,
                     name: formData.full_name,
@@ -1117,7 +1139,7 @@ const App: React.FC = () => {
                 employment_type: formData.employment_type,
                 experience_years: formData.experience_years,
                 job_sector: formData.job_sector,
-                declared_income: formData.local_monthly_income,
+                declared_income: declaredPreSuspect ? null : formData.local_monthly_income,
                 declared_currency: formData.local_currency,
                 has_documents: documentSummary.usable_documents > 0,
                 doc_count: documentSummary.usable_documents,
@@ -1133,7 +1155,7 @@ const App: React.FC = () => {
                 destination_country: destCountry,
                 origin_intelligence: originIntelligence,
                 applicant_financials: {
-                    declared_monthly_income_usd: declaredMonthlyUsdNorm,
+                    declared_monthly_income_usd: declaredMonthlyUsdPre || null,
                     declared_annual_income_usd: declaredAnnualUsdNorm,
                     liquid_reserves: formData.liquid_reserves,
                     debts_total_origin: formData.debts_total_origin,
@@ -1191,7 +1213,7 @@ const App: React.FC = () => {
             // The LLM produces narrative; the NUMBERS here drive the score.
             // Core product rule: declared income only counts if a document backs it.
             // ============================================================
-            const numOf = (v: any) => { const n = Number(v); return isFinite(n) ? n : 0; };
+            const numOf = (v: any) => { const n = Number(typeof v === 'string' ? v.replace(/[,\s\u00A0']/g, '') : v); return isFinite(n) ? n : 0; };
             // currency_usd_rate_approx is "local units per 1 USD" (e.g. UAH 41.5 = $1) → USD = local / rate
             const originRate = numOf(originIntelligence?.currency_usd_rate_approx) || null;
 
@@ -1236,6 +1258,12 @@ const App: React.FC = () => {
 
             const isProvisional = incomeStatus !== 'verified' && incomeStatus !== 'partial';
 
+            // v34.4: a declared figure 20x+ BELOW documents is almost certainly an input typo
+            // (browser number inputs eat "41,000" → 41), not an honest under-declaration.
+            // Don't punish — but flag it, and don't render an absurd "+84046%" gap as insight.
+            const declaredInputSuspect =
+                hasVerifiedIncome && hasDeclaredIncome && (verifiedMonthlyUsd / declaredMonthlyUsd) > 20;
+
             // Human-readable explanation (deterministic — never invents numbers)
             const fmtUsd = (n: number) => `$${Math.round(n).toLocaleString()}`;
             let reconciliationExplanation = '';
@@ -1244,7 +1272,9 @@ const App: React.FC = () => {
             } else if (incomeStatus === 'partial') {
                 reconciliationExplanation = `Documents confirm ~${fmtUsd(verifiedMonthlyUsd)}/mo against a declared ~${fmtUsd(declaredMonthlyUsd)}/mo (${discrepancyPct}%). Partially verified.`;
             } else if (incomeStatus === 'verified') {
-                reconciliationExplanation = `Documented income (~${fmtUsd(verifiedMonthlyUsd)}/mo) supports the declared figure. Income is document-verified.`;
+                reconciliationExplanation = declaredInputSuspect
+                    ? `Documented income (~${fmtUsd(verifiedMonthlyUsd)}/mo) is verified by bank records. The declared figure (~${fmtUsd(declaredMonthlyUsd)}/mo) appears to be an input typo (e.g. a thousands separator was dropped) and was disregarded — re-enter it as digits only.`
+                    : `Documented income (~${fmtUsd(verifiedMonthlyUsd)}/mo) supports the declared figure. Income is document-verified.`;
             } else if (incomeStatus === 'declared') {
                 reconciliationExplanation = `Income of ~${fmtUsd(declaredMonthlyUsd)}/mo is self-declared with no supporting document. Treated as a provisional claim until a bank statement is uploaded.`;
             } else {
@@ -1253,9 +1283,12 @@ const App: React.FC = () => {
 
             const reconciliation = {
                 income_status: incomeStatus,
-                declared_monthly_usd: Math.round(declaredMonthlyUsd),
+                // A typo'd declared figure must not paint "$2/mo vs $2,029 (+84046%)" on the
+                // dashboard — null the declared side so surfaces render docs-only.
+                declared_monthly_usd: declaredInputSuspect ? null : Math.round(declaredMonthlyUsd),
                 verified_monthly_usd: Math.round(verifiedMonthlyUsd),
-                discrepancy_pct: discrepancyPct,
+                discrepancy_pct: declaredInputSuspect ? null : discrepancyPct,
+                declared_input_suspect: declaredInputSuspect,
                 evidence_factor: incomeEvidenceFactor,
                 is_provisional: isProvisional,
                 has_usable_docs: (documentSummary.usable_documents || 0) > 0,
