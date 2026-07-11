@@ -126,17 +126,64 @@ const senderIsApplicant = (counterpartyNorm: string, applicantTokens: string[]):
 const isOwnCompany = (counterpartyNorm: string, employerTokens: string[]): boolean =>
   employerTokens.length > 0 && employerTokens.some((t) => counterpartyNorm.includes(t));
 
-// Parse statement dates: ISO first, then day-first (top-20 origins are day-first).
+// v34.5: month-name dictionary — statements print "21/ABR", "05-Apr-2026", "5 мая" etc.
+// Keys are lowercase; Latin entries also matched after diacritic-stripping (août → aout).
+const MONTH_ABBR: Record<string, number> = {
+  // English
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12,
+  // Spanish
+  ene: 1, abr: 4, ago: 8, set: 9, dic: 12,
+  // Portuguese
+  fev: 2, mai: 5, out: 10, dez: 12,
+  // French
+  janv: 1, fevr: 2, mars: 3, avr: 4, juin: 6, juil: 7, aout: 8, aou: 8,
+  // German
+  mrz: 3, okt: 10,
+  // Russian (incl. genitive 'мая'; 'маи' = NFD-stripped 'май')
+  'янв': 1, 'фев': 2, 'мар': 3, 'апр': 4, 'май': 5, 'мая': 5, 'маи': 5, 'июн': 6, 'июл': 7, 'авг': 8, 'сен': 9, 'окт': 10, 'ноя': 11, 'дек': 12,
+  // Ukrainian
+  'січ': 1, 'лют': 2, 'бер': 3, 'кві': 4, 'тра': 5, 'чер': 6, 'лип': 7, 'сер': 8, 'вер': 9, 'жов': 10, 'лис': 11, 'гру': 12,
+};
+
+const monthFromWord = (w: string): number | null => {
+  const raw = w.toLowerCase().replace(/\./g, '');
+  const stripped = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  for (const cand of [raw, stripped]) {
+    if (MONTH_ABBR[cand] != null) return MONTH_ABBR[cand];
+    if (MONTH_ABBR[cand.slice(0, 4)] != null) return MONTH_ABBR[cand.slice(0, 4)];
+    if (MONTH_ABBR[cand.slice(0, 3)] != null) return MONTH_ABBR[cand.slice(0, 3)];
+  }
+  return null;
+};
+
+// Parse statement dates: ISO, then day + month NAME (year optional — "21/ABR" gets the
+// placeholder year 2001 so month-bucketing still works), then month name + day, then
+// numeric day-first (top-20 origins are day-first).
 const parseTxDate = (s: string): Date | null => {
   const str = String(s || '').trim();
-  let m = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (m) { const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])); return isNaN(d.getTime()) ? null : d; }
-  m = str.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
-  if (m) {
-    const yr = +m[3] < 100 ? 2000 + +m[3] : +m[3];
-    const d = new Date(Date.UTC(yr, +m[2] - 1, +m[1])); // day-first
+  const mkDate = (yr: number, mo: number, day: number): Date | null => {
+    if (mo < 1 || mo > 12 || day < 1 || day > 31) return null;
+    const d = new Date(Date.UTC(yr, mo - 1, day));
     return isNaN(d.getTime()) ? null : d;
+  };
+  const fixYear = (y: string | undefined): number => (y ? (+y < 100 ? 2000 + +y : +y) : 2001);
+
+  let m = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return mkDate(+m[1], +m[2], +m[3]);
+  // "21/ABR", "05-Apr-2026", "5 мая 2026", "17.MAY.26"
+  m = str.match(/^(\d{1,2})[\/\-.\s]+(\p{L}{3,12})\.?[\/\-.\s,]*(\d{2,4})?$/u);
+  if (m) {
+    const mo = monthFromWord(m[2]);
+    if (mo) return mkDate(fixYear(m[3]), mo, +m[1]);
   }
+  // "Apr 05, 2026", "ABR 21"
+  m = str.match(/^(\p{L}{3,12})\.?[\s.]+(\d{1,2})[,\s]*(\d{2,4})?$/u);
+  if (m) {
+    const mo = monthFromWord(m[1]);
+    if (mo) return mkDate(fixYear(m[3]), mo, +m[2]);
+  }
+  m = str.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+  if (m) return mkDate(fixYear(m[3]), +m[2], +m[1]); // day-first
   return null;
 };
 
@@ -184,9 +231,10 @@ const runIncomeEngine = (
 
   const countedTotal = counted.reduce((s, t) => s + t.amount, 0);
 
-  // Period: trust the statement header (LLM) when present; else derive from tx date span.
+  // Period: trust the statement header (LLM) when present; else derive from tx date span
+  // (ignoring year-less dates that got the 2001 placeholder year).
   let periodMonths = llmPeriodMonths > 0 ? llmPeriodMonths : 0;
-  const dates = txs.map((t) => parseTxDate(t.date)).filter((d): d is Date => !!d);
+  const dates = txs.map((t) => parseTxDate(t.date)).filter((d): d is Date => !!d && d.getUTCFullYear() !== 2001);
   if (periodMonths <= 0 && dates.length >= 2) {
     const span = (Math.max(...dates.map(Number)) - Math.min(...dates.map(Number))) / (30.44 * 86400e3);
     periodMonths = Math.min(36, Math.max(0.25, Math.round(span * 4) / 4));
@@ -198,14 +246,28 @@ const runIncomeEngine = (
     counted.map((t) => { const d = parseTxDate(t.date); return d ? `${d.getUTCFullYear()}-${d.getUTCMonth()}` : ''; }).filter(Boolean),
   );
   const payerCounts = new Map<string, number>();
+  const payerAmts = new Map<string, number[]>();
   for (const t of counted) {
     const k = normTxt(t.counterparty);
     payerCounts.set(k, (payerCounts.get(k) || 0) + 1);
+    const arr = payerAmts.get(k) || [];
+    arr.push(t.amount);
+    payerAmts.set(k, arr);
   }
   const hasRepeatPayer = [...payerCounts.values()].some((n) => n >= 2);
+  // v34.5: salary pattern — the SAME payer, similar-sized amounts (within ±25%), across the
+  // period. That is "Regular" even with only 2 credits (one salary per month), which the
+  // generic ≥3-credits rule would wrongly demote.
+  const salaryLike = [...payerAmts.values()].some(
+    (a) => a.length >= 2 && Math.min(...a) / Math.max(...a) >= 0.75,
+  );
+  // v34.5: month evidence comes from parsed dates when available; if NO dates parsed at all,
+  // fall back to the statement period — unreadable date strings must not silently demote an
+  // otherwise regular income pattern to "Irregular".
+  const monthsEvidence = monthKeys.size >= 2 || (monthKeys.size === 0 && periodMonths >= 2);
   let regularity: string;
   if (counted.length === 1) regularity = 'Single entry';
-  else if (counted.length >= 3 && monthKeys.size >= 2 && (hasRepeatPayer || payerCounts.size >= 2)) regularity = 'Regular';
+  else if (monthsEvidence && (salaryLike || (counted.length >= 3 && (hasRepeatPayer || payerCounts.size >= 2)))) regularity = 'Regular';
   else regularity = 'Irregular';
 
   const uniquePayers = [...new Set(counted.map((t) => t.counterparty))].slice(0, 8);
