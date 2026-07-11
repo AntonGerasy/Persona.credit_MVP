@@ -396,6 +396,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
           self_transfer_marker: 'Excluded: self-transfer (own accounts)',
           sender_is_applicant: 'Excluded: sender matches applicant',
           own_company: "Excluded: applicant's own company",
+          bank_interest: 'Excluded: bank interest (not income)',
         };
         const MAX_ROWS = 20;
         const countedRows = (audit.counted || []).slice(0, MAX_ROWS).map((t: any) =>
@@ -507,6 +508,145 @@ export const generateDossierPDF = async (data: DashboardData) => {
       doc.text(lines, margin + 3, y);
       y += lines.length * 4.5;
     });
+  }
+  y += 6;
+
+  // ═══ v34.6 DASHBOARD PARITY — the lender-facing PDF must carry the full picture, ═══
+  // ═══ not a poor man's excerpt of what the applicant sees in the dashboard.       ═══
+  const ensureRoom = (needed = 40) => { if (y > 285 - needed) { doc.addPage(); y = 20; } };
+  const bullets = (items: any[], max = 5, color: [number, number, number] = C.dark) => {
+    doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(...color);
+    (items || []).filter(Boolean).slice(0, max).forEach((s: any) => {
+      ensureRoom(12);
+      const lines = doc.splitTextToSize(`• ${String(s)}`, contentWidth - 4);
+      doc.text(lines, margin + 3, y);
+      y += lines.length * 4.5;
+    });
+    y += 2;
+  };
+  const subLabel = (t: string, color: [number, number, number] = C.slate) => {
+    ensureRoom(14); doc.setFontSize(7.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...color);
+    doc.text(t, margin, y); y += 5;
+  };
+
+  // ── VII. INCOME RECONCILIATION, GEOGRAPHY & PPP ───────────────────────────
+  ensureRoom(70);
+  sectionHeader('VII. Income Reconciliation, Geography & PPP Context');
+  const rec: any = data.reconciliation || {};
+  const recRows: [string, string][] = [];
+  if (rec.income_status) recRows.push(['Reconciliation Status', String(rec.income_status).toUpperCase()]);
+  if (rec.declared_monthly_usd) recRows.push(['Declared by Applicant', `$${fmt(rec.declared_monthly_usd)}/month`]);
+  if (rec.verified_monthly_usd) recRows.push(['Verified by Documents', `$${fmt(rec.verified_monthly_usd)}/month`]);
+  if (rec.discrepancy_pct !== null && rec.discrepancy_pct !== undefined) recRows.push(['Gap (verified vs declared)', `${rec.discrepancy_pct > 0 ? '+' : ''}${rec.discrepancy_pct}%`]);
+  const geo: any = (data as any).geo || null;
+  if (geo) {
+    recRows.push(['Geography Framing', geo.already_in_destination
+      ? `Already resident in ${geo.destination_country || data.destination_country || 'destination'} — assessed as a current resident, not a prospective mover.`
+      : `Prospective mover to ${geo.destination_country || data.destination_country || 'destination'}.`]);
+    if (Array.isArray(geo.signals) && geo.signals.length) recRows.push(['Geography Signals', geo.signals.slice(0, 3).join('; ')]);
+  }
+  if ((data as any).livePPPMultiplier) {
+    recRows.push(['PPP Multiplier', `x${(data as any).livePPPMultiplier} — origin purchasing-power context only${(data as any).pppContextOnly ? '; underwriting uses documented USD income, not PPP' : ''}`]);
+  }
+  if (recRows.length) {
+    safeAutoTable(doc, {
+      startY: y, body: recRows, theme: 'plain',
+      margin: { left: margin + 2, right: margin },
+      styles: { fontSize: 7.5, cellPadding: 2, textColor: C.dark },
+      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 55, textColor: C.slate } },
+    });
+    y = ((doc as any).lastAutoTable?.finalY ?? y) + 4;
+  }
+  if (rec.explanation) {
+    ensureRoom(16);
+    doc.setFontSize(7.5); doc.setFont('helvetica', 'italic'); doc.setTextColor(...C.slate);
+    const exLines = doc.splitTextToSize(rec.explanation, contentWidth - 4);
+    doc.text(exLines, margin + 2, y); y += exLines.length * 4 + 6;
+  }
+
+  // ── VIII. SCORE DECOMPOSITION & DRIVERS ───────────────────────────────────
+  ensureRoom(70);
+  sectionHeader('VIII. Score Decomposition & Drivers');
+  const sb: any = (data as any).score_breakdown || null;
+  if (sb) {
+    const sbRows: [string, string][] = [
+      ['Base Score (0-100)', `${sb.base_score ?? '—'}`],
+      ['Contradiction Penalty', `${sb.contradiction_penalty ? '-' + sb.contradiction_penalty : '0'}`],
+      ['Confidence Adjustment', `${sb.confidence_adjustment ?? 0}`],
+      ['Evidence Adjustment', `${sb.evidence_adjustment ?? 0}`],
+      ['Final Adjusted (0-100)', `${sb.final_adjusted_score ?? '—'}`],
+    ];
+    safeAutoTable(doc, {
+      startY: y, body: sbRows, theme: 'plain',
+      margin: { left: margin + 2, right: margin },
+      styles: { fontSize: 7.5, cellPadding: 2, textColor: C.dark },
+      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 55, textColor: C.slate } },
+    });
+    y = ((doc as any).lastAutoTable?.finalY ?? y) + 4;
+  }
+  const score = Number(data.score) || 0;
+  const tierLabel = score < 500 ? 'Subprime / High Risk' : score < 650 ? 'Near Prime / Conditional' : score < 750 ? 'Prime Verified Group' : 'Ultra-Prime Tier';
+  const ficoBand = score < 500 ? '< 620' : score < 650 ? '620-679 range' : score < 750 ? '680-759 range' : '760-850 range';
+  ensureRoom(12);
+  doc.setFontSize(7.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.dark);
+  doc.text(`Equivalent Tier: ${tierLabel} (estimated FICO benchmark: ${ficoBand})`, margin, y); y += 7;
+
+  const se: any = (data as any).dossier_analysis?.score_explanation || null;
+  if (se) {
+    if (Array.isArray(se.score_increase_factors) && se.score_increase_factors.length) {
+      subLabel('Positive Catalysts:', C.green); bullets(se.score_increase_factors, 4);
+    }
+    if (Array.isArray(se.score_decrease_factors) && se.score_decrease_factors.length) {
+      subLabel('Pressure Factors:', C.amber); bullets(se.score_decrease_factors, 4);
+    }
+    if (Array.isArray(se.most_influential_factors) && se.most_influential_factors.length) {
+      subLabel('Primary Underwriting Weights:'); bullets(se.most_influential_factors, 3);
+    }
+  }
+  const behSummary: any = (data as any).dossier_analysis?.behavioral_summary;
+  const behConsistency: any = (data as any).behavioral_analysis?.behavioral_consistency;
+  if (behSummary || behConsistency !== undefined) {
+    subLabel('Behavioral Observation:');
+    doc.setFontSize(7.5); doc.setFont('helvetica', 'italic'); doc.setTextColor(...C.dark);
+    const behText = `${behSummary ? `"${behSummary}"` : ''}${behConsistency !== undefined ? ` (interaction stability: ${behConsistency}%)` : ''}`.trim();
+    const behLines = doc.splitTextToSize(behText, contentWidth - 4);
+    ensureRoom(behLines.length * 4 + 6);
+    doc.text(behLines, margin + 2, y); y += behLines.length * 4 + 6;
+  }
+
+  // ── IX. UNCERTAINTY & EVIDENCE QUALITY ────────────────────────────────────
+  const ua: any = (data as any).uncertaintyAnalysis || null;
+  if (ua || data.confidence !== undefined) {
+    ensureRoom(50);
+    sectionHeader('IX. Uncertainty & Evidence Quality');
+    const uaRows: [string, string][] = [];
+    if (data.confidence !== undefined) uaRows.push(['Analysis Confidence', `${Math.round((Number(data.confidence) || 0) * 100)}%`]);
+    if (ua?.overall_uncertainty !== undefined) uaRows.push(['Overall Uncertainty', `${ua.overall_uncertainty}%`]);
+    if (uaRows.length) {
+      safeAutoTable(doc, {
+        startY: y, body: uaRows, theme: 'plain',
+        margin: { left: margin + 2, right: margin },
+        styles: { fontSize: 7.5, cellPadding: 2, textColor: C.dark },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 55, textColor: C.slate } },
+      });
+      y = ((doc as any).lastAutoTable?.finalY ?? y) + 4;
+    }
+    if (Array.isArray(ua?.missing_critical_information) && ua.missing_critical_information.length) {
+      subLabel('Missing Critical Information:', C.amber); bullets(ua.missing_critical_information, 4);
+    }
+    if (Array.isArray(ua?.high_uncertainty_areas) && ua.high_uncertainty_areas.length) {
+      subLabel('High-Uncertainty Areas:', C.amber); bullets(ua.high_uncertainty_areas, 4);
+    }
+  }
+
+  // ── X. RECOMMENDED NEXT STEPS ─────────────────────────────────────────────
+  const nextSteps: string[] = (Array.isArray((data as any).improvements) && (data as any).improvements.length
+    ? (data as any).improvements
+    : (data.recommendations || []).map((r: any) => r?.text)).filter(Boolean);
+  if (nextSteps.length) {
+    ensureRoom(40);
+    sectionHeader('X. Recommended Next Steps (Path to Potential)');
+    bullets(nextSteps, 4);
   }
 
   // ── FOOTER ────────────────────────────────────────────────────────────────

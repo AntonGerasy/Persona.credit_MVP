@@ -1304,6 +1304,15 @@ const App: React.FC = () => {
             if (nameMismatch && fraudNode) {
                 fraudNode.contradiction_score = Math.max(numOf(fraudNode.contradiction_score), 60);
             }
+            // v34.6: SYMMETRIC gate. When the deterministic reconciliation VERIFIES income (or
+            // finds it partial) and the name matches, the LLM cannot impose a contradiction it
+            // cannot substantiate — an agent spooked by e.g. "self-transfer excluded" wording must
+            // not cost a clean profile 17+ points. Deterministic numbers are the source of truth
+            // in BOTH directions.
+            if (!nameMismatch && fraudNode && (incomeStatus === 'verified' || incomeStatus === 'partial')) {
+                const contradictionCap = incomeStatus === 'verified' ? 20 : 40;
+                fraudNode.contradiction_score = Math.min(numOf(fraudNode.contradiction_score), contradictionCap);
+            }
 
             // FINAL SYNTHESIS — Structured Aggregation Engine
             // synthesis is now called inline above — no separate function needed
@@ -1714,6 +1723,26 @@ const App: React.FC = () => {
             
             let hasOutdatedDoc = false;
             let hasIncomeMismatch = false;
+
+            // v34.6: the Evidence Detail tab renders documentAnalysis, which the synthesize LLM
+            // no longer returns — the page was empty. Build it deterministically from the
+            // extractions (in USD, since the UI renders "$"): docs-first, no model judgement.
+            if (!Array.isArray(finalResult.documentAnalysis) || finalResult.documentAnalysis.length === 0) {
+                finalResult.documentAnalysis = extractedDocuments.map((d: any) => {
+                    const inflowUsd = d.is_usable ? toUsdByCurrency(Number(d.average_monthly_inflow) || 0, d) : null;
+                    const balanceUsd = d.is_usable ? toUsdByCurrency(Number(d.ending_balance) || 0, d) : null;
+                    return {
+                        documentType: [d.document_type, d.issuing_institution].filter(Boolean).join(' — ') || 'Document',
+                        trustLevel: Math.max(0, Math.min(100, Number(d.legibility_score) || 0)),
+                        status: d.is_usable ? 'Verified' : (d.rejection_reason ? 'Failed' : 'Unusable'),
+                        notes: d.analyst_note || d.rejection_reason || '',
+                        statementPeriod: d.period_covered || '',
+                        totalInflow: inflowUsd && inflowUsd > 0 ? Math.round(inflowUsd) : undefined,
+                        endingBalance: balanceUsd && balanceUsd > 0 ? Math.round(balanceUsd) : undefined,
+                        consistencyScore: d.income_audit?.engine === 'deterministic' ? 100 : (d.inflow_unverified ? 40 : 70),
+                    };
+                });
+            }
 
             if (finalResult.documentAnalysis) {
                 finalResult.documentAnalysis = finalResult.documentAnalysis.map(doc => {

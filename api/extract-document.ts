@@ -105,6 +105,13 @@ const SELF_TRANSFER_MARKERS = [
   'self imps', 'imps self', 'self neft', 'neft self', 'own a c', 'self a c',
 ].map(normTxt);
 
+// v34.6: bank interest is a real credit but NOT income — it inflated Rahul's inflow by INR 412.
+const INTEREST_MARKERS = [
+  'int pd', 'intpd', 'interest paid', 'interest credit', 'credit interest', 'int cr', 'sb int',
+  'savings interest', 'intereses', 'juros', 'zinsen', 'interet', 'interets',
+  'проценты', 'нарахування відсотків', 'відсотки',
+].map(normTxt);
+
 const GENERIC_COMPANY_TOKENS = new Set([
   'llc', 'inc', 'ltd', 'sa', 'de', 'cv', 'sas', 'srl', 'gmbh', 'ooo', 'tov', 'fop',
   'pvt', 'plc', 'co', 'company', 'corp', 'corporation', 'the', 'and', 'group',
@@ -220,6 +227,8 @@ const runIncomeEngine = (
     const entry: AuditEntry = { date: tx.date, counterparty: tx.counterparty || tx.description.slice(0, 60), amount: tx.amount };
     if (SELF_TRANSFER_MARKERS.some((mk) => allNorm.includes(mk))) {
       excluded.push({ ...entry, reason: 'self_transfer_marker' });
+    } else if (INTEREST_MARKERS.some((mk) => allNorm.includes(mk))) {
+      excluded.push({ ...entry, reason: 'bank_interest' });
     } else if (senderIsApplicant(cpNorm, applicantTokens)) {
       excluded.push({ ...entry, reason: 'sender_is_applicant' });
     } else if (isOwnCompany(cpNorm, employerTokens)) {

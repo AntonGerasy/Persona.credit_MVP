@@ -830,7 +830,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
 
                             <div className="p-10 border-t border-brand-border bg-slate-50/50 flex flex-col sm:flex-row gap-6 justify-between items-center relative z-10">
                                 <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-full border-4 border-brand-blue/10 border-t-brand-blue animate-spin"></div>
+                                    <div className="w-12 h-12 rounded-full bg-emerald-50 border-4 border-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-xl">✓</div>
                                     <p className="text-[10px] font-bold text-brand-gray uppercase tracking-widest">Authentication Validation: SUCCESS</p>
                                 </div>
                                 <div className="flex gap-4">
@@ -1477,6 +1477,21 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                             </button>
                         </div>
 
+                        {/* v34.6: Email to lender — opens the user's mail client with a prefilled
+                            message; the exported PDF is attached by the user (no email backend). */}
+                        <div className="flex items-center gap-4 p-5 bg-white border border-brand-border rounded-2xl">
+                            <div className="flex-1">
+                                <p className="text-[11px] font-bold text-brand-dark">Email to Lender</p>
+                                <p className="text-[10px] text-brand-gray mt-0.5">Opens your mail app with a ready-to-send message. Attach the exported PDF before sending.</p>
+                            </div>
+                            <a
+                                href={`mailto:?subject=${encodeURIComponent(`Persona.Credit Verification Report — ${data.fullName || 'Applicant'} (${data.shareId || ''})`)}&body=${encodeURIComponent(`Hello,\n\nPlease find attached my Persona.Credit cross-border financial verification report.\n\nReport ID: ${data.shareId || '—'}\nTransferScore: ${data.score || '—'} / 850\nVerified monthly income (USD): ${data.reconciliation?.verified_monthly_usd ? '$' + Number(data.reconciliation.verified_monthly_usd).toLocaleString() + '/mo' : 'see report'}\n\nThe PDF report is attached to this email.\n\nBest regards,\n${data.fullName || ''}`)}`}
+                                className="px-5 py-2.5 bg-white border-2 border-brand-blue text-brand-blue text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-brand-blue/5 transition-all shrink-0"
+                            >
+                                Email to Lender
+                            </a>
+                        </div>
+
                         {/* Instructions */}
                         <div className="space-y-3">
                             <p className="text-[10px] font-black uppercase tracking-widest text-brand-gray">How to share with a lender</p>
@@ -1927,6 +1942,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                         self_transfer_marker: 'Self-transfer (own accounts)',
                                         sender_is_applicant: 'Sender matches applicant',
                                         own_company: "Applicant's own company",
+                                        bank_interest: 'Bank interest (not income)',
                                     };
                                     return (
                                         <div key={di} className="space-y-3">
