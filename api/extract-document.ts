@@ -103,6 +103,10 @@ const SELF_TRANSFER_MARKERS = [
   'между своими счетами', 'перевод между своими счетами', 'на свой счет',
   // India-specific self-transfer phrasings
   'self imps', 'imps self', 'self neft', 'neft self', 'own a c', 'self a c',
+  // Chinese (no spaces — substring match works on CJK)
+  '本人账户', '本人帐户', '自转账', '同名账户', '转入本人', '本人互转',
+  // Vietnamese (diacritics stripped by normTxt: 'tài khoản của chính chủ' → 'tai khoan cua chinh chu')
+  'tai khoan cua chinh chu', 'giua tai khoan cua toi', 'chuyen tien noi bo ca nhan', 'cung chu tai khoan',
 ].map(normTxt);
 
 // v34.6: bank interest is a real credit but NOT income — it inflated Rahul's inflow by INR 412.
@@ -110,6 +114,7 @@ const INTEREST_MARKERS = [
   'int pd', 'intpd', 'interest paid', 'interest credit', 'credit interest', 'int cr', 'sb int',
   'savings interest', 'intereses', 'juros', 'zinsen', 'interet', 'interets',
   'проценты', 'нарахування відсотків', 'відсотки',
+  '利息', '结息', 'lai nhap von', 'lai tien gui', // zh interest / vi deposit interest ('tra lai' excluded: collides with 'trả lại' = refund)
 ].map(normTxt);
 
 const GENERIC_COMPANY_TOKENS = new Set([
@@ -176,6 +181,9 @@ const parseTxDate = (s: string): Date | null => {
   const fixYear = (y: string | undefined): number => (y ? (+y < 100 ? 2000 + +y : +y) : 2001);
 
   let m = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return mkDate(+m[1], +m[2], +m[3]);
+  // Chinese/Japanese date format: 2026年4月10日
+  m = str.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日?/);
   if (m) return mkDate(+m[1], +m[2], +m[3]);
   // "21/ABR", "05-Apr-2026", "5 мая 2026", "17.MAY.26"
   m = str.match(/^(\d{1,2})[\/\-.\s]+(\p{L}{3,12})\.?[\/\-.\s,]*(\d{2,4})?$/u);
@@ -307,7 +315,7 @@ Rules:
 - currency_code: ISO 4217 (UAH, USD, SYP, INR, BRL etc)
 - usd_rate_estimate: your best estimate of how many units of currency_code equal 1 USD around the statement period (e.g. UAH → 41.5). Return 0 if the currency is USD or you are not reasonably sure. This is a fallback only.
 - credit_transactions: THE MOST IMPORTANT FIELD. List EVERY single incoming credit (money IN) shown in the statement, up to 120 entries, in document order. Do NOT filter, do NOT judge, do NOT skip anything — include self-transfers, own-account moves, salary, client payments, refunds, everything that increased the balance. The system decides later what counts as income; your job is a faithful transcript. Per entry: date = the posted date, normalized to YYYY-MM-DD when determinable (else as printed); description = the transaction line text VERBATIM (trim to 90 chars, keep original language/script); counterparty = the SENDER name or entity exactly as printed — if non-Latin script, append a Latin transliteration in parentheses; if no sender is identifiable, repeat the key words of the description; amount = positive number in the document currency (no separators). Do NOT include outgoing debits here.
-- average_monthly_inflow: FALLBACK ONLY (the system recomputes from credit_transactions). Your best estimate of monthly THIRD-PARTY income: total credits over the period divided by period_months, excluding self-funding — (a) senders matching the applicant "${applicantName}" in any script, (b) own-account transfers ("TRASPASO ENTRE CUENTAS PROPIAS", "self transfer", "перевод между своими счетами" and equivalents), (c) for self-employed/freelance/owner applicants, deposits from "${employerName || 'their own company'}". For salaried applicants employer deposits ARE income. Repeat payments from the same third-party client are NORMAL income. Do NOT annualize a partial period.
+- average_monthly_inflow: FALLBACK ONLY (the system recomputes from credit_transactions). Your best estimate of monthly THIRD-PARTY income: total credits over the period divided by period_months, excluding self-funding — (a) senders matching the applicant "${applicantName}" in any script, (b) own-account transfers ("TRASPASO ENTRE CUENTAS PROPIAS", "self transfer", "перевод между своими счетами", "转账-本人账户", "chuyển tiền giữa tài khoản của chính chủ" and equivalents), (c) for self-employed/freelance/owner applicants, deposits from "${employerName || 'their own company'}". For salaried applicants employer deposits ARE income. Repeat payments from the same third-party client are NORMAL income. Do NOT annualize a partial period.
 - estimated_monthly_obligations: recurring monthly outflows clearly shown (rent, loan/utility autopay). Return 0 if not clearly determinable — do NOT guess. Must not exceed average_monthly_inflow unless the statement clearly shows deficit spending.
 - income_regularity: "Regular" ONLY for recurring similar-sized deposits (e.g. monthly salary). Lump/one-off/self/P2P transfers → "Irregular" or "Single entry".
 - income_sources_detected: name the payers/sources that COUNTED as income; note if they are individuals (P2P). List excluded self-funding separately in analyst_note if significant.
