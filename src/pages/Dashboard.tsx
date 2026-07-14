@@ -1484,12 +1484,16 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                 <p className="text-[11px] font-bold text-brand-dark">Email to Lender</p>
                                 <p className="text-[10px] text-brand-gray mt-0.5">Opens your mail app with a ready-to-send message. Attach the exported PDF before sending.</p>
                             </div>
-                            <a
-                                href={`mailto:?subject=${encodeURIComponent(`Persona.Credit Verification Report — ${data.fullName || 'Applicant'} (${data.shareId || ''})`)}&body=${encodeURIComponent(`Hello,\n\nPlease find attached my Persona.Credit cross-border financial verification report.\n\nReport ID: ${data.shareId || '—'}\nTransferScore: ${data.score || '—'} / 850\nVerified monthly income (USD): ${data.reconciliation?.verified_monthly_usd ? '$' + Number(data.reconciliation.verified_monthly_usd).toLocaleString() + '/mo' : 'see report'}\n\nThe PDF report is attached to this email.\n\nBest regards,\n${data.fullName || ''}`)}`}
+                            <button
+                                onClick={() => {
+                                    const subject = encodeURIComponent(`Persona.Credit Verification Report — ${data.fullName || 'Applicant'} (${data.shareId || ''})`);
+                                    const body = encodeURIComponent(`Hello,\n\nPlease find attached my Persona.Credit cross-border financial verification report.\n\nReport ID: ${data.shareId || '—'}\nTransferScore: ${data.score || '—'} / 850\nVerified monthly income (USD): ${data.reconciliation?.verified_monthly_usd ? '$' + Number(data.reconciliation.verified_monthly_usd).toLocaleString() + '/mo' : 'see report'}\n\nThe PDF report is attached to this email.\n\nBest regards,\n${data.fullName || ''}`);
+                                    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+                                }}
                                 className="px-5 py-2.5 bg-white border-2 border-brand-blue text-brand-blue text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-brand-blue/5 transition-all shrink-0"
                             >
                                 Email to Lender
-                            </a>
+                            </button>
                         </div>
 
                         {/* Instructions */}
@@ -2257,7 +2261,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
     <div className="min-h-screen bg-slate-50 font-sans text-brand-dark selection:bg-brand-blue/10 selection:text-brand-dark">
       <header className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-brand-border shadow-sm">
         <div className="max-w-7xl mx-auto px-6 sm:px-10 py-5 flex justify-between items-center text-nowrap">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 cursor-pointer" onClick={onExitToLanding} title="Back to home (you stay signed in)">
                 <div className="w-10 h-10 bg-brand-blue rounded-xl flex items-center justify-center text-white shadow-lg">
                     <Shield className="w-5 h-5" />
                 </div>
@@ -2267,6 +2271,9 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                 </div>
             </div>
             <div className="flex items-center gap-6">
+                {userId && (
+                    <span className="hidden md:inline text-[10px] font-bold text-brand-gray tracking-widest" title="Signed in account">{userId}</span>
+                )}
                 <div className="hidden lg:flex items-center gap-2 px-3 py-1 bg-amber-400/10 text-amber-600 rounded-full border border-amber-400/20">
                     <Zap className="w-3 h-3" />
                     <span className="text-[10px] font-black uppercase tracking-widest leading-none">Beta Access Unlocked</span>

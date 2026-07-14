@@ -483,7 +483,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...C.green);
-    doc.text('Strengths:', margin, y);
+    doc.text(`Strengths${data.confidence !== undefined ? ` (analysis confidence ~${Math.round((Number(data.confidence) || 0) * 100)}%)` : ''}:`, margin, y);
     y += 5;
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...C.dark);
@@ -572,7 +572,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
     const sbRows: [string, string][] = [
       ['Base Score (0-100)', `${sb.base_score ?? '—'}`],
       ['Contradiction Penalty', `${sb.contradiction_penalty ? '-' + sb.contradiction_penalty : '0'}`],
-      ['Confidence Adjustment', `${sb.confidence_adjustment ?? 0}`],
+      ['Confidence Adjustment', `-${sb.confidence_adjustment ?? 0}`], // stored positive; applied as a subtraction (mirrors dashboard)
       ['Evidence Adjustment', `${sb.evidence_adjustment ?? 0}`],
       ['Final Adjusted (0-100)', `${sb.final_adjusted_score ?? '—'}`],
     ];
@@ -603,7 +603,8 @@ export const generateDossierPDF = async (data: DashboardData) => {
       subLabel('Primary Underwriting Weights:'); bullets(se.most_influential_factors, 3);
     }
   }
-  const behSummary: any = (data as any).dossier_analysis?.behavioral_summary;
+  const behSummaryRaw: any = (data as any).dossier_analysis?.behavioral_summary;
+  const behSummary: any = typeof behSummaryRaw === 'string' ? behSummaryRaw : (behSummaryRaw?.overall_stability || null);
   const behConsistency: any = (data as any).behavioral_analysis?.behavioral_consistency;
   if (behSummary || behConsistency !== undefined) {
     subLabel('Behavioral Observation:');
@@ -614,11 +615,70 @@ export const generateDossierPDF = async (data: DashboardData) => {
     doc.text(behLines, margin + 2, y); y += behLines.length * 4 + 6;
   }
 
-  // ── IX. UNCERTAINTY & EVIDENCE QUALITY ────────────────────────────────────
+  // ── IX. PROFILE METRICS, EVIDENCE QUALITY & MARKET READINESS (v34.7) ──────
+  {
+    ensureRoom(80);
+    sectionHeader('IX. Profile Metrics, Evidence Quality & Market Readiness');
+    const up: any = (data as any).underwritingPillars || {};
+    const beh: any = (data as any).behavioral_analysis || {};
+    const isContested = String(rec.income_status || '') === 'contradicted';
+    const infOffset = (data as any).realTimeInflationOffset;
+    const fitSignal = isContested ? 'Contested' : score < 500 ? 'Pending Evidence' : ((data as any).destinationCountryFit || 'Assessed');
+    // Same normalization the dashboard uses for the Fidelity circle.
+    const eqRaw = Number((data as any).dossier_analysis?.evidence_summary?.evidence_quality);
+    const evidenceQualityPct = Number.isFinite(eqRaw) ? Math.round(Math.max(0, Math.min(100, eqRaw > 0 && eqRaw <= 1 ? eqRaw * 100 : eqRaw))) : null;
+
+    const pmRows: [string, string][] = [];
+    if (up.stabilityScore !== undefined) pmRows.push(['Stability Index', `${up.stabilityScore}% fidelity`]);
+    if (up.transferabilityIndex !== undefined) pmRows.push(['Transferability', `${up.transferabilityIndex}% mobility`]);
+    if (up.inflationDefenseFactor) pmRows.push(['Inflation Defense', `${up.inflationDefenseFactor}`]);
+    if (infOffset !== undefined && infOffset !== null) pmRows.push(['Inflation Offset', `${Number(infOffset) > 0 ? '+' : ''}${infOffset}%`]);
+    pmRows.push(['Interaction Stability', `${beh.behavioral_consistency || 85}%`]);
+    if (evidenceQualityPct !== null) pmRows.push(['Evidence Quality (Fidelity)', `${evidenceQualityPct}%`]);
+    pmRows.push(['Market Readiness — Target Territory', `${data.destination_country || '—'} (fit signal: ${fitSignal})`]);
+    safeAutoTable(doc, {
+      startY: y, body: pmRows, theme: 'plain',
+      margin: { left: margin + 2, right: margin },
+      styles: { fontSize: 7.5, cellPadding: 2, textColor: C.dark },
+      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 62, textColor: C.slate } },
+    });
+    y = ((doc as any).lastAutoTable?.finalY ?? y) + 4;
+
+    const consistencyPatterns: string[] = Array.isArray(beh.consistency_patterns) && beh.consistency_patterns.length
+      ? beh.consistency_patterns
+      : [isContested ? 'Income consistency contested — declared figure not supported by documents' : 'No consistency issues detected in provided data'];
+    subLabel('Consistency Patterns:'); bullets(consistencyPatterns, 3);
+
+    const strongestEvidence: string[] = (data as any).dossier_analysis?.evidence_summary?.strongest_evidence || [];
+    if (strongestEvidence.length) { subLabel('Prime Evidence Nodes:', C.green); bullets(strongestEvidence, 4); }
+
+    // Verification note — same 3-branch logic as the dashboard.
+    const verificationNote = isContested
+      ? 'This profile has an unresolved contradiction between declared and documented income. Verification is incomplete pending reconciliation.'
+      : (Number(data.confidence) || 0) < 0.6
+        ? 'CAUTION: This analysis contains significant reasoning limitations due to evidence gaps. Complete certainty cannot be established at this stage.'
+        : 'This profile has achieved professional verification standards with moderate to high reasoning stability.';
+    subLabel('Verification Note:');
+    doc.setFontSize(7.5); doc.setFont('helvetica', 'italic'); doc.setTextColor(...C.dark);
+    let vnLines = doc.splitTextToSize(verificationNote, contentWidth - 4);
+    ensureRoom(vnLines.length * 4 + 6);
+    doc.text(vnLines, margin + 2, y); y += vnLines.length * 4 + 4;
+
+    const internalAssessment = score < 500
+      ? 'Current score reflects insufficient evidence. Achieve Prime status via expanded professional documentation.'
+      : `Persona.Credit provides cross-border income contextualisation. Their TransferScore of ${score} represents an established economic integrity pattern.`;
+    subLabel('Internal Assessment:');
+    doc.setFontSize(7.5); doc.setFont('helvetica', 'italic'); doc.setTextColor(...C.dark);
+    vnLines = doc.splitTextToSize(`"${internalAssessment}"`, contentWidth - 4);
+    ensureRoom(vnLines.length * 4 + 6);
+    doc.text(vnLines, margin + 2, y); y += vnLines.length * 4 + 6;
+  }
+
+  // ── X. UNCERTAINTY & EVIDENCE QUALITY ────────────────────────────────────
   const ua: any = (data as any).uncertaintyAnalysis || null;
   if (ua || data.confidence !== undefined) {
     ensureRoom(50);
-    sectionHeader('IX. Uncertainty & Evidence Quality');
+    sectionHeader('X. Uncertainty & Evidence Gaps');
     const uaRows: [string, string][] = [];
     if (data.confidence !== undefined) uaRows.push(['Analysis Confidence', `${Math.round((Number(data.confidence) || 0) * 100)}%`]);
     if (ua?.overall_uncertainty !== undefined) uaRows.push(['Overall Uncertainty', `${ua.overall_uncertainty}%`]);
@@ -639,13 +699,18 @@ export const generateDossierPDF = async (data: DashboardData) => {
     }
   }
 
-  // ── X. RECOMMENDED NEXT STEPS ─────────────────────────────────────────────
-  const nextSteps: string[] = (Array.isArray((data as any).improvements) && (data as any).improvements.length
+  // ── XI. RECOMMENDED NEXT STEPS ────────────────────────────────────────────
+  // Fallback chain: improvements → recommendations → deterministic mapping of the
+  // missing-critical-information list, so this section can never silently vanish.
+  let nextSteps: string[] = (Array.isArray((data as any).improvements) && (data as any).improvements.length
     ? (data as any).improvements
     : (data.recommendations || []).map((r: any) => r?.text)).filter(Boolean);
+  if (!nextSteps.length && Array.isArray(ua?.missing_critical_information)) {
+    nextSteps = ua.missing_critical_information.slice(0, 4).map((m: any) => `Provide: ${m}`);
+  }
   if (nextSteps.length) {
     ensureRoom(40);
-    sectionHeader('X. Recommended Next Steps (Path to Potential)');
+    sectionHeader('XI. Recommended Next Steps (Path to Potential)');
     bullets(nextSteps, 4);
   }
 

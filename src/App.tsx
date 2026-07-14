@@ -122,7 +122,7 @@ const App: React.FC = () => {
         }
 
         if (currentDB.currentUser) {
-            await loginUser(currentDB.currentUser);
+            await loginUser(currentDB.currentUser, { navigate: false }); // land on the landing page, session preserved
             const userData = currentDB.users[currentDB.currentUser];
             setIsPaid(true); // MVP: all features open
             setPlan(userData?.plan || null);
@@ -139,7 +139,12 @@ const App: React.FC = () => {
             });
     }, []);
 
-    const loginUser = async (email: string) => {
+    // v34.8: `navigate:false` restores the session (result, form state) WITHOUT changing the
+    // view — used by the init auto-login so a deploy/reload always opens the landing page
+    // instead of force-pushing whoever-was-last-logged-in into their old dashboard (§9.5).
+    // Explicit logins (password form) keep the default and navigate as before.
+    const loginUser = async (email: string, opts: { navigate?: boolean } = {}) => {
+        const navigate = opts.navigate !== false;
         const currentDB = await db.loadAsync();
         const userData = currentDB.users[email];
         setUserSession(email);
@@ -160,13 +165,13 @@ const App: React.FC = () => {
                 scores: userData.dashboardResult,
                 issuedReports: []
             });
-            setView('dashboard');
+            if (navigate) setView('dashboard');
         } else {
             setFormData(userData?.formData || getInitialFormData(formSchema));
             setCurrentStep(userData?.currentStep || 0);
             setResult(null);
             setUserProfile(null);
-            setView('form');
+            if (navigate) setView('form');
         }
     }
     
@@ -1739,7 +1744,7 @@ const App: React.FC = () => {
                         statementPeriod: d.period_covered || '',
                         totalInflow: inflowUsd && inflowUsd > 0 ? Math.round(inflowUsd) : undefined,
                         endingBalance: balanceUsd && balanceUsd > 0 ? Math.round(balanceUsd) : undefined,
-                        consistencyScore: d.income_audit?.engine === 'deterministic' ? 100 : (d.inflow_unverified ? 40 : 70),
+                        consistencyScore: d.income_audit?.engine === 'deterministic' ? 1 : (d.inflow_unverified ? 0.4 : 0.7), // 0-1 scale — the UI multiplies by 100
                     };
                 });
             }
@@ -2000,7 +2005,18 @@ const App: React.FC = () => {
     };
 
     if (view === 'landing') {
-        return <LandingPage 
+        return <>
+            {/* v34.8: session banner — a deploy/reload now lands here even when signed in,
+                so the account identity and the way back into the dossier must be explicit. */}
+            {userSession && (
+                <div className="w-full bg-brand-dark text-white px-4 sm:px-8 py-2.5 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-6 text-[11px]">
+                    <span className="font-bold uppercase tracking-widest opacity-80">Signed in as</span>
+                    <span className="font-black tracking-wide">{userSession}{isAdmin ? ' (admin)' : ''}</span>
+                    <button onClick={handleGoHome} className="px-4 py-1.5 bg-white text-brand-dark rounded-lg font-black uppercase tracking-widest text-[10px] hover:bg-slate-200 transition-all">Continue to Dashboard</button>
+                    <button onClick={handleLogout} className="px-4 py-1.5 border border-white/40 rounded-lg font-bold uppercase tracking-widest text-[10px] hover:bg-white/10 transition-all">Sign Out</button>
+                </div>
+            )}
+            <LandingPage 
             onStartApplication={handleStartNewApplication} 
             onGoToProvider={() => { setAuthMode('provider'); setView('auth'); }} 
             onGoToHelp={handleGoToHelp}
@@ -2012,7 +2028,8 @@ const App: React.FC = () => {
                     setView('partnerLanding');
                 }
             }}
-        />;
+        />
+        </>;
     }
     
     if (view === 'auth') {
@@ -2089,7 +2106,7 @@ const App: React.FC = () => {
             onLogout={handleLogout} 
             onGoToPartner={() => setView('partner')}
             onGoToPricing={handleGoToPricing}
-            onExitToLanding={handleGoHome}
+            onExitToLanding={() => setView('landing')} // v34.8: actually go to the landing page (session preserved); handleGoHome loops back into the dashboard when a result exists
             onShareDossier={handleShareDossier} 
             onGoToHelp={handleGoToHelp} 
             isAdmin={isAdmin}
@@ -2125,6 +2142,9 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="flex items-center space-x-6">
+                    {userSession && (
+                        <span className="hidden sm:inline text-[10px] font-bold text-brand-gray tracking-widest" title="Signed in account">{userSession}{isAdmin ? ' (ADMIN)' : ''}</span>
+                    )}
                     <button 
                         onClick={handleLogout}
                         className="text-[10px] font-bold text-brand-gray hover:text-brand-dark uppercase tracking-widest transition-colors"
