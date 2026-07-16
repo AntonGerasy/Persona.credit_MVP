@@ -3,7 +3,7 @@
  *
  * Designed for Vercel Hobby (10s hard limit).
  * - thinkingBudget: 0  (no reasoning chain)
- * - maxOutputTokens: 400 (strict cap)
+ * - maxOutputTokens: 2048 (cap; raised from 1024 in v34.11 — Country agent truncation)
  * - No retries — fail fast, client handles fallback
  * - Schemas and ultra-short prompts live here
  */
@@ -285,7 +285,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             responseMimeType: 'application/json',
             responseSchema: schema,
             thinkingConfig: { thinkingBudget: 0 },
-            maxOutputTokens: 1024,
+            // v34.11: 1024 truncated the Country agent's JSON mid-output on verbose runs
+            // ("Unexpected end of JSON input" → fallback). 2048 gives headroom; schemas
+            // still keep responses compact.
+            maxOutputTokens: 2048,
           },
         });
       } catch (err) {
