@@ -426,6 +426,55 @@ export const generateDossierPDF = async (data: DashboardData) => {
         y += tLines.length * 4 + 4;
       }
 
+      // v34.10 — deterministic obligations audit: which debits counted as recurring
+      // obligations, which were excluded and why.
+      const oblAudit = docItem.obligations_audit;
+      if (oblAudit && oblAudit.engine === 'deterministic' && (oblAudit.counted?.length || oblAudit.excluded?.length)) {
+        if (y > 230) { doc.addPage(); y = 20; }
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...C.dark);
+        doc.text('Obligations Audit — debits counted toward monthly obligations (deterministic engine):', margin + 4, y);
+        y += 4;
+
+        const OBL_REASON_LABEL: Record<string, string> = {
+          rent_housing: 'Counted: rent / housing',
+          utilities: 'Counted: utilities',
+          loan_or_credit: 'Counted: loan / credit card',
+          insurance: 'Counted: insurance',
+          tuition: 'Counted: tuition',
+          recurring_payment: 'Counted: recurring payment',
+          own_transfer: 'Excluded: own-account transfer',
+          one_off_or_discretionary: 'Excluded: one-off / discretionary',
+        };
+        const OBL_MAX_ROWS = 20;
+        const oblCountedRows = (oblAudit.counted || []).slice(0, OBL_MAX_ROWS).map((t: any) =>
+          [t.date || '-', t.counterparty || '-', fmt(t.amount, docItem.currency_code), OBL_REASON_LABEL[t.reason] || 'Counted']);
+        const oblExcludedRows = (oblAudit.excluded || []).slice(0, 10).map((t: any) =>
+          [t.date || '-', t.counterparty || '-', fmt(t.amount, docItem.currency_code), OBL_REASON_LABEL[t.reason] || 'Excluded']);
+        const oblOverflow = Math.max(0, (oblAudit.counted?.length || 0) - OBL_MAX_ROWS);
+
+        safeAutoTable(doc, {
+          startY: y,
+          head: [['Date', 'Payee', 'Amount', 'Status']],
+          body: [...oblCountedRows, ...oblExcludedRows],
+          theme: 'striped',
+          margin: { left: margin + 4, right: margin },
+          styles: { fontSize: 6.5, cellPadding: 1.5, textColor: C.dark },
+          headStyles: { fontSize: 6.5, fontStyle: 'bold', fillColor: [241, 245, 249], textColor: C.slate },
+          columnStyles: { 0: { cellWidth: 22 }, 2: { cellWidth: 30, halign: 'right' } },
+        });
+        y = ((doc as any).lastAutoTable?.finalY ?? y) + 3;
+
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'italic');
+        doc.setTextColor(...C.slate);
+        const oblTotalLine = `Counted ${oblAudit.counted_count} debit(s), ${fmt(oblAudit.counted_total, docItem.currency_code)} over ${oblAudit.period_months_used} month(s); excluded ${oblAudit.excluded_count} debit(s) as non-obligations${oblOverflow > 0 ? `; +${oblOverflow} counted row(s) not shown` : ''}.`;
+        const oblTLines = doc.splitTextToSize(oblTotalLine, contentWidth - 6);
+        doc.text(oblTLines, margin + 4, y);
+        y += oblTLines.length * 4 + 4;
+      }
+
       if (docItem.authenticity_concerns && docItem.authenticity_concerns.length > 0) {
         doc.setFontSize(7);
         doc.setFont('helvetica', 'bold');

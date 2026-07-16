@@ -874,6 +874,13 @@ const App: React.FC = () => {
                             counted_count: d.income_audit.counted_count,
                             excluded_count: d.income_audit.excluded_count,
                         } : undefined,
+                        // v34.10: deterministic obligations engine summary (full counted/excluded
+                        // detail stays in document_extractions for the UI/PDF audit table).
+                        obligations_engine: d.obligations_audit ? {
+                            engine: d.obligations_audit.engine,
+                            counted_count: d.obligations_audit.counted_count,
+                            excluded_count: d.obligations_audit.excluded_count,
+                        } : undefined,
                     })),
                 }
                 : {

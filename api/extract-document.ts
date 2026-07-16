@@ -41,6 +41,21 @@ const extractSchema = {
         required: ['date', 'description', 'counterparty', 'amount'],
       },
     },
+    // v34.10 deterministic obligations engine: the model LISTS debits; the CODE decides what
+    // is a recurring obligation. Same thesis as credit_transactions.
+    debit_transactions: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          date:         { type: Type.STRING },
+          description:  { type: Type.STRING },
+          counterparty: { type: Type.STRING },
+          amount:       { type: Type.NUMBER },
+        },
+        required: ['date', 'description', 'counterparty', 'amount'],
+      },
+    },
     average_monthly_inflow:      { type: Type.NUMBER },
     ending_balance:              { type: Type.NUMBER },
     income_regularity:           { type: Type.STRING },
@@ -60,7 +75,7 @@ const extractSchema = {
   required: [
     'document_type','issuing_institution','issuing_country','detected_language',
     'period_covered','period_months','account_holder_name','account_holder_name_match',
-    'currency_code','credit_transactions','average_monthly_inflow','ending_balance','income_regularity',
+    'currency_code','credit_transactions','debit_transactions','average_monthly_inflow','ending_balance','income_regularity',
     'income_sources_detected','salary_deposits_detected','salary_deposit_count',
     'estimated_monthly_obligations','asset_type','asset_estimated_value_local',
     'asset_ownership_confirmed','legibility_score','authenticity_concerns',
@@ -305,6 +320,148 @@ const runIncomeEngine = (
   };
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// v34.10 DETERMINISTIC OBLIGATIONS ENGINE
+// The LLM transcribes debits; THIS code decides what is a recurring monthly
+// obligation. Motivated by the Vietnam run: LLM estimated 7M VND/mo against a
+// ledger showing ~15M/mo of rent+utilities+card payments — a 2x drift in the
+// second-most-important figure for a landlord.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Category keyword dictionaries, multilingual, matched after normTxt (diacritics
+// stripped, lowercased). CJK entries match as substrings — no word boundaries needed.
+const OBLIGATION_MARKERS: Array<{ reason: string; markers: string[] }> = [
+  {
+    reason: 'rent_housing',
+    markers: [
+      'rent', 'house rent', 'alquiler', 'renta depto', 'renta casa', 'aluguel', 'loyer', 'miete',
+      'аренда', 'оренда', 'квартплата',
+      '房租', '租金',
+      'tien thue nha', 'thue nha', 'thue can ho', // vi: tiền thuê nhà (NFD-stripped)
+      'mortgage', 'hipoteca', 'ипотека', '房贷', 'tra gop nha',
+    ].map(normTxt),
+  },
+  {
+    reason: 'utilities',
+    markers: [
+      'utility', 'utilities', 'electric', 'electricity', 'water bill', 'gas bill', 'internet',
+      'broadband', 'phone bill', 'mobile bill', 'telecom',
+      'luz', 'energia', 'recibo agua', 'servicio agua',
+      'strom', 'wasser',
+      'электроэнерг', 'коммунал', 'комуналь',
+      '水电', '电费', '水费', '燃气', '物业费', '物业管理',
+      'tien dien', 'tien nuoc', 'hoa don dien', 'hoa don nuoc', 'cuoc internet', // vi utilities
+    ].map(normTxt),
+  },
+  {
+    reason: 'loan_or_credit',
+    markers: [
+      'loan', 'emi', 'credit card', 'card payment', 'creditcard',
+      'tarjeta de credito', 'pago tarjeta', 'cartao de credito',
+      'кредит', 'погашение',
+      '贷款', '还款', '信用卡',
+      'the tin dung', 'thanh toan the', 'khoan vay', 'tra no', // vi: thẻ tín dụng / khoản vay / trả nợ
+    ].map(normTxt),
+  },
+  {
+    reason: 'insurance',
+    markers: ['insurance', 'seguro', 'versicherung', 'assurance', 'страхов', '保险', 'bao hiem'].map(normTxt),
+  },
+  {
+    reason: 'tuition',
+    markers: ['tuition', 'school fee', 'colegiatura', '学费', 'hoc phi'].map(normTxt),
+  },
+];
+
+const runObligationsEngine = (
+  rawTxs: any[],
+  applicantName: string,
+  llmPeriodMonths: number,
+) => {
+  const txs: CreditTx[] = (Array.isArray(rawTxs) ? rawTxs : [])
+    .slice(0, 150)
+    .map((t: any) => ({
+      date: String(t?.date || ''),
+      description: String(t?.description || ''),
+      counterparty: String(t?.counterparty || ''),
+      amount: Number(t?.amount) || 0,
+    }))
+    .filter((t) => t.amount > 0);
+
+  if (txs.length === 0) return null;
+
+  const applicantTokens = nameTokensOf(applicantName);
+
+  // Period: same policy as the income engine — trust the statement header, else date span.
+  let periodMonths = llmPeriodMonths > 0 ? llmPeriodMonths : 0;
+  const dates = txs.map((t) => parseTxDate(t.date)).filter((d): d is Date => !!d && d.getUTCFullYear() !== 2001);
+  if (periodMonths <= 0 && dates.length >= 2) {
+    const span = (Math.max(...dates.map(Number)) - Math.min(...dates.map(Number))) / (30.44 * 86400e3);
+    periodMonths = Math.min(36, Math.max(0.25, Math.round(span * 4) / 4));
+  }
+  if (periodMonths <= 0) periodMonths = 1;
+
+  // Pass 1 — per-payee stats for the recurring-payment rule (keyword-less landlords etc.):
+  // same payee, ≥2 debits, similar amounts (min/max ≥ 0.7), evidence of ≥2 distinct months.
+  const payeeAmts = new Map<string, number[]>();
+  const payeeMonths = new Map<string, Set<string>>();
+  for (const tx of txs) {
+    const k = normTxt(tx.counterparty);
+    if (!k) continue;
+    (payeeAmts.get(k) || payeeAmts.set(k, []).get(k)!).push(tx.amount);
+    const d = parseTxDate(tx.date);
+    const mk = d ? `${d.getUTCFullYear()}-${d.getUTCMonth()}` : '';
+    if (mk) (payeeMonths.get(k) || payeeMonths.set(k, new Set()).get(k)!).add(mk);
+  }
+  const isRecurringPayee = (k: string): boolean => {
+    const a = payeeAmts.get(k) || [];
+    if (a.length < 2 || Math.min(...a) / Math.max(...a) < 0.7) return false;
+    const months = payeeMonths.get(k)?.size || 0;
+    // If no dates parsed for this payee at all, fall back to statement period (mirrors
+    // the income engine's months-evidence fallback: unreadable dates must not demote).
+    return months >= 2 || (months === 0 && periodMonths >= 2);
+  };
+
+  // Pass 2 — classify. KNOWN LIMITATION (accepted): a habitual same-amount merchant
+  // (e.g. identical grocery runs across months) can slip into recurring_payment; the
+  // ±30% similarity + multi-month gates keep this rare, and the audit table exposes it.
+  const counted: AuditEntry[] = [];
+  const excluded: AuditEntry[] = [];
+  for (const tx of txs) {
+    const cpNorm = normTxt(tx.counterparty);
+    const allNorm = `${normTxt(tx.description)} ${cpNorm}`;
+    const entry: AuditEntry = { date: tx.date, counterparty: tx.counterparty || tx.description.slice(0, 60), amount: tx.amount };
+    if (SELF_TRANSFER_MARKERS.some((mk) => allNorm.includes(mk)) || senderIsApplicant(cpNorm, applicantTokens)) {
+      // Moving money between own accounts is not spending.
+      excluded.push({ ...entry, reason: 'own_transfer' });
+      continue;
+    }
+    const cat = OBLIGATION_MARKERS.find((c) => c.markers.some((mk) => allNorm.includes(mk)));
+    if (cat) {
+      counted.push({ ...entry, reason: cat.reason });
+    } else if (isRecurringPayee(cpNorm)) {
+      counted.push({ ...entry, reason: 'recurring_payment' });
+    } else {
+      excluded.push({ ...entry, reason: 'one_off_or_discretionary' });
+    }
+  }
+
+  const countedTotal = counted.reduce((s, t) => s + t.amount, 0);
+
+  return {
+    estimated_monthly_obligations: Math.round(countedTotal / periodMonths),
+    obligations_audit: {
+      engine: 'deterministic' as const,
+      period_months_used: periodMonths,
+      counted_total: Math.round(countedTotal),
+      counted_count: counted.length,
+      excluded_count: excluded.length,
+      counted: counted.slice(0, 60),
+      excluded: excluded.slice(0, 30),
+    },
+  };
+};
+
 const PROMPT = (applicantName: string, fieldLabel: string, originCountry: string, destinationCountry: string, employerName: string, employmentType: string) =>
 `Extract financial data from this document. Applicant: ${applicantName}. Origin: ${originCountry}. Destination: ${destinationCountry}. Field: ${fieldLabel}.
 Applicant's stated employer/company: ${employerName || 'not provided'}. Employment type: ${employmentType || 'not provided'}.
@@ -316,7 +473,8 @@ Rules:
 - usd_rate_estimate: your best estimate of how many units of currency_code equal 1 USD around the statement period (e.g. UAH → 41.5). Return 0 if the currency is USD or you are not reasonably sure. This is a fallback only.
 - credit_transactions: THE MOST IMPORTANT FIELD. List EVERY single incoming credit (money IN) shown in the statement, up to 120 entries, in document order. Do NOT filter, do NOT judge, do NOT skip anything — include self-transfers, own-account moves, salary, client payments, refunds, everything that increased the balance. The system decides later what counts as income; your job is a faithful transcript. Per entry: date = the posted date, normalized to YYYY-MM-DD when determinable (else as printed); description = the transaction line text VERBATIM (trim to 90 chars, keep original language/script); counterparty = the SENDER name or entity exactly as printed — if non-Latin script, append a Latin transliteration in parentheses; if no sender is identifiable, repeat the key words of the description; amount = positive number in the document currency (no separators). Do NOT include outgoing debits here.
 - average_monthly_inflow: FALLBACK ONLY (the system recomputes from credit_transactions). Your best estimate of monthly THIRD-PARTY income: total credits over the period divided by period_months, excluding self-funding — (a) senders matching the applicant "${applicantName}" in any script, (b) own-account transfers ("TRASPASO ENTRE CUENTAS PROPIAS", "self transfer", "перевод между своими счетами", "转账-本人账户", "chuyển tiền giữa tài khoản của chính chủ" and equivalents), (c) for self-employed/freelance/owner applicants, deposits from "${employerName || 'their own company'}". For salaried applicants employer deposits ARE income. Repeat payments from the same third-party client are NORMAL income. Do NOT annualize a partial period.
-- estimated_monthly_obligations: recurring monthly outflows clearly shown (rent, loan/utility autopay). Return 0 if not clearly determinable — do NOT guess. Must not exceed average_monthly_inflow unless the statement clearly shows deficit spending.
+- debit_transactions: SECOND MOST IMPORTANT FIELD. List EVERY single outgoing debit (money OUT) shown in the statement, up to 120 entries, in document order. Do NOT filter, do NOT judge, do NOT skip anything — include rent, utilities, card payments, own-account transfers out, shopping, everything that decreased the balance. The system decides later what counts as a recurring obligation; your job is a faithful transcript. Per entry: date = the posted date, normalized to YYYY-MM-DD when determinable (else as printed); description = the transaction line text VERBATIM (trim to 90 chars, keep original language/script); counterparty = the RECIPIENT name or entity exactly as printed — if non-Latin script, append a Latin transliteration in parentheses; if no recipient is identifiable, repeat the key words of the description; amount = positive number in the document currency (no separators). Do NOT include incoming credits here.
+- estimated_monthly_obligations: FALLBACK ONLY (the system recomputes from debit_transactions). Recurring monthly outflows clearly shown (rent, loan/utility autopay). Return 0 if not clearly determinable — do NOT guess. Must not exceed average_monthly_inflow unless the statement clearly shows deficit spending.
 - income_regularity: "Regular" ONLY for recurring similar-sized deposits (e.g. monthly salary). Lump/one-off/self/P2P transfers → "Irregular" or "Single entry".
 - income_sources_detected: name the payers/sources that COUNTED as income; note if they are individuals (P2P). List excluded self-funding separately in analyst_note if significant.
 - is_usable: false only if blank/unreadable/irrelevant
@@ -387,7 +545,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         responseSchema: extractSchema,
         thinkingConfig: { thinkingBudget: 0 },
         // v34.4: the credit_transactions transcript needs room (up to 120 entries).
-        maxOutputTokens: 8000,
+        // v34.10: debit_transactions doubles the transcript volume — budget raised accordingly.
+        maxOutputTokens: 14000,
       },
     });
 
@@ -423,6 +582,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       };
     }
     delete result.credit_transactions; // audit carries the counted/excluded detail; keep payload lean
+
+    // v34.10 — DETERMINISTIC OBLIGATIONS ENGINE: recompute monthly obligations from the
+    // debit transcript. The LLM's own estimated_monthly_obligations survives only as a
+    // fallback when no transcript came back.
+    const oblOut = runObligationsEngine(
+      result.debit_transactions,
+      applicantName || '',
+      Number(result.period_months) || 0,
+    );
+    if (oblOut) {
+      result.estimated_monthly_obligations = oblOut.estimated_monthly_obligations;
+      result.obligations_audit = oblOut.obligations_audit;
+    } else {
+      result.obligations_audit = {
+        engine: 'llm_fallback',
+        note: 'No debit transcript returned; obligations figure is a model estimate.',
+      };
+    }
+    delete result.debit_transactions;
 
     // #7 — deterministic sanity guards (do not trust raw LLM magnitudes blindly):
     const inflow = Number(result.average_monthly_inflow) || 0;
@@ -464,6 +642,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       salary_deposits_detected: false,
       salary_deposit_count: 0,
       estimated_monthly_obligations: 0,
+      obligations_audit: { engine: 'llm_fallback', note: 'Document processing failed.' },
       asset_type: 'N/A',
       asset_estimated_value_local: 0,
       asset_ownership_confirmed: false,
