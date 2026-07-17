@@ -1739,6 +1739,12 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                     </div>
                                 </div>
                                 <p className="text-xs text-brand-dark/70 leading-relaxed mt-6 mb-0 italic">{rec.explanation}</p>
+                                {rec.savings_source === 'statement_balance' && (
+                                    <p className="text-xs text-brand-dark/60 leading-relaxed mt-2 mb-0">Savings buffer taken from the statement ending balance (no declared figure — docs-first).</p>
+                                )}
+                                {rec.savings_source === 'self_declared_unverified' && (
+                                    <p className="text-xs font-semibold mt-2 mb-0" style={{ color: '#B45309' }}>Savings figure is self-declared and unverified — no supporting statement.</p>
+                                )}
                                 {rec.name_mismatch && (
                                     <p className="text-xs font-bold mt-3 mb-0" style={{ color: '#B91C1C' }}>⚠ Name on documents does not match the applicant name on file.</p>
                                 )}

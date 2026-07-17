@@ -293,7 +293,7 @@ export const formSchema: FormSchema = {
           "label": "Total Outstanding Debts in Origin Country (USD Equivalent)",
           "type": "number",
           "min": 0,
-          "required": true,
+          "required": false,
           "placeholder": "Enter 0 if none",
           "tooltip": "Sum of all loans, credit cards, mortgages, and other obligations."
         },
@@ -302,7 +302,7 @@ export const formSchema: FormSchema = {
           "label": "Missed or Late Payments in the Last 24 Months",
           "type": "number",
           "min": 0,
-          "required": true,
+          "required": false,
           "placeholder": "Enter 0 if none",
           "tooltip": "Number of times you missed or were significantly late on a payment. Does not disqualify — context matters."
         },

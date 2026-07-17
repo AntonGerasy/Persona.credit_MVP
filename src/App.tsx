@@ -739,16 +739,19 @@ const App: React.FC = () => {
             // Formulaic Adjustments
             const rationalWarnings: string[] = [];
 
+            // v34.12 — manual-input reduction: these formulaic warnings are only meaningful
+            // when the underlying figure was actually declared. With optional inputs, an empty
+            // field must not manufacture "High DTI" (debts / 1) or "no liquidity buffer".
             if (officialShare < 0.5) {
                 rationalWarnings.push("Low Verifiable Income Ratio detected. Risk adjusted for informal economy exposure.");
             }
             if (tenure < 2) {
                 rationalWarnings.push("Limited professional tenure in current sector.");
             }
-            if (localDTI > 0.45) {
+            if (monthlyIncome > 1 && localDTI > 0.45) {
                 rationalWarnings.push("High Debt-to-Income ratio detected in origin jurisdiction.");
             }
-            if (reserveMonths < 3) {
+            if (annIncomeUSD > 0 && reserveMonths < 3) {
                 rationalWarnings.push("Limited liquid liquidity buffer for cross-border transition.");
             }
 
@@ -1050,6 +1053,26 @@ const App: React.FC = () => {
                 : null;
             const hasDocumentedIncome = verifiedMonthlyUsd > 0;
 
+            // ── v34.12 MANUAL-INPUT REDUCTION phase 1: SAVINGS ─────────────────────────
+            // Declared liquid reserves are optional. Docs-first: when absent, the statement's
+            // ending balance stands in as the liquidity figure. A cash claim without documents
+            // is carried but explicitly marked unverified. Max (not sum) across basis docs —
+            // two statements of the same account must not double-count.
+            const declaredReservesUsd = cleanNum(formData['liquid_reserves']) || 0;
+            const docBalanceUsd = Math.round(Math.max(0, ...basisDocs
+                .map((d: any) => toUsdByCurrency(Number(d.ending_balance) || 0, d))
+                .filter((v: any): v is number => typeof v === 'number' && v > 0)));
+            const savingsSource: string =
+                declaredReservesUsd > 0 && docBalanceUsd > 0 ? 'declared_and_documented'
+                : docBalanceUsd > 0 ? 'statement_balance'
+                : declaredReservesUsd > 0 ? 'self_declared_unverified'
+                : 'none';
+            const liquidReservesEffectiveUsd = declaredReservesUsd > 0 ? declaredReservesUsd : docBalanceUsd;
+            // finContext is declared above and consumed later (callAgent) — enrich in place so
+            // the Financial agent sees the effective figure and its provenance, never a blank.
+            (finContext as any).self_declared.financials.liquid_reserves_effective_usd = liquidReservesEffectiveUsd || null;
+            (finContext as any).self_declared.financials.savings_source = savingsSource;
+
             // ── #9: Deterministic GEOGRAPHY signal ─────────────────────────────────────
             // Form answers + destination-issued documents can prove the applicant is ALREADY
             // RESIDING in the destination (not "planning to move"). Without this, the narrative
@@ -1170,6 +1193,8 @@ const App: React.FC = () => {
                     declared_monthly_income_usd: declaredMonthlyUsdPre || null,
                     declared_annual_income_usd: declaredAnnualUsdNorm,
                     liquid_reserves: formData.liquid_reserves,
+                    liquid_reserves_effective_usd: liquidReservesEffectiveUsd || null,
+                    savings_source: savingsSource,
                     debts_total_origin: formData.debts_total_origin,
                     official_income_share: formData.official_income_share,
                     job_sector: formData.job_sector,
@@ -1286,7 +1311,9 @@ const App: React.FC = () => {
             } else if (incomeStatus === 'verified') {
                 reconciliationExplanation = declaredInputSuspect
                     ? `Documented income (~${fmtUsd(verifiedMonthlyUsd)}/mo) is verified by bank records. The declared figure (~${fmtUsd(declaredMonthlyUsd)}/mo) appears to be an input typo (e.g. a thousands separator was dropped) and was disregarded — re-enter it as digits only.`
-                    : `Documented income (~${fmtUsd(verifiedMonthlyUsd)}/mo) supports the declared figure. Income is document-verified.`;
+                    : hasDeclaredIncome
+                        ? `Documented income (~${fmtUsd(verifiedMonthlyUsd)}/mo) supports the declared figure. Income is document-verified.`
+                        : `Documented income (~${fmtUsd(verifiedMonthlyUsd)}/mo) is verified by bank records. No self-declared figure was provided — the documents are the sole source (docs-only assessment).`;
             } else if (incomeStatus === 'declared') {
                 reconciliationExplanation = `Income of ~${fmtUsd(declaredMonthlyUsd)}/mo is self-declared with no supporting document. Treated as a provisional claim until a bank statement is uploaded.`;
             } else {
@@ -1304,6 +1331,10 @@ const App: React.FC = () => {
                 evidence_factor: incomeEvidenceFactor,
                 is_provisional: isProvisional,
                 has_usable_docs: (documentSummary.usable_documents || 0) > 0,
+                // v34.12 — manual-input reduction: surfaces render provenance, not blanks.
+                docs_only: hasVerifiedIncome && !hasDeclaredIncome,
+                savings_source: savingsSource,
+                liquid_reserves_effective_usd: liquidReservesEffectiveUsd || null,
                 doc_currency: usableDocCurrency,
                 name_mismatch: nameMismatch,
                 explanation: reconciliationExplanation,

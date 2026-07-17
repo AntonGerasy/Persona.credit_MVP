@@ -55,11 +55,22 @@ export const generateDossierPDF = async (data: DashboardData) => {
     '\u2022': '-', '\u2026': '...', '\u2248': '~', '\u2122': '(TM)', '\u2192': '->', '\u2190': '<-',
     '\u20B9': 'INR ', '\u20AC': 'EUR ', '\u00A0': ' ',
   };
+  // v34.12: Vietnamese (and Polish/Czech/Turkish…) names are LATIN with diacritics —
+  // 'NGUYỄN' was falling into the non-Latin-1 catch-all and printing 'NGUY[*]N'.
+  // Strip to the ASCII base letter instead (Nguyễn → Nguyen). đ/Đ decompose specially.
+  const stripLatinDiacritic = (ch: string): string => {
+    // Stroke/dotless letters do not NFD-decompose — map explicitly.
+    const STROKE: Record<string, string> = { '\u0111': 'd', '\u0110': 'D', '\u0141': 'L', '\u0142': 'l', '\u0131': 'i' };
+    if (STROKE[ch]) return STROKE[ch];
+    const base = ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return /^[\x00-\x7F]+$/.test(base) ? base : ch;
+  };
   const sanitizePdfText = (s: string): string =>
     s
       .replace(/[\u2013\u2014\u2018\u2019\u201C\u201D\u2022\u2026\u2248\u2122\u2192\u2190\u20B9\u20AC\u00A0]/g, (ch) => PUNCT[ch] ?? ch) // common typography → ASCII
       .replace(/[\u0400-\u04FF]/g, translitChar)                 // Cyrillic → Latin transliteration
-      .replace(/[\u0100-\uFFFF]+/g, '[*]');                      // any other non-Latin-1 run → marker
+      .replace(/[\u0100-\u024F\u1E00-\u1EFF]/g, stripLatinDiacritic) // Latin extended (vi/pl/cz/tr…) → ASCII base
+      .replace(/[\u0100-\uFFFF]+/g, '[*]');                      // any other non-Latin-1 run (CJK etc.) → marker
   const rawText = doc.text.bind(doc);
   (doc as any).text = (text: any, ...rest: any[]) => {
     const clean = Array.isArray(text) ? text.map((t: any) => typeof t === 'string' ? sanitizePdfText(t) : t)
@@ -583,10 +594,14 @@ export const generateDossierPDF = async (data: DashboardData) => {
   sectionHeader('VII. Income Reconciliation, Geography & PPP Context');
   const rec: any = data.reconciliation || {};
   const recRows: [string, string][] = [];
-  if (rec.income_status) recRows.push(['Reconciliation Status', String(rec.income_status).toUpperCase()]);
+  if (rec.income_status) recRows.push(['Reconciliation Status', String(rec.income_status).toUpperCase() + (rec.docs_only ? ' (docs-only)' : '')]);
   if (rec.declared_monthly_usd) recRows.push(['Declared by Applicant', `$${fmt(rec.declared_monthly_usd)}/month`]);
+  else if (rec.docs_only) recRows.push(['Declared by Applicant', 'Not provided — documents are the sole source']);
   if (rec.verified_monthly_usd) recRows.push(['Verified by Documents', `$${fmt(rec.verified_monthly_usd)}/month`]);
   if (rec.discrepancy_pct !== null && rec.discrepancy_pct !== undefined) recRows.push(['Gap (verified vs declared)', `${rec.discrepancy_pct > 0 ? '+' : ''}${rec.discrepancy_pct}%`]);
+  // v34.12 — savings provenance: docs-first fallback or unverified cash claim.
+  if (rec.savings_source === 'statement_balance') recRows.push(['Savings Basis', `Statement ending balance${rec.liquid_reserves_effective_usd ? ` (~$${fmt(rec.liquid_reserves_effective_usd)})` : ''} — no declared figure; docs-first.`]);
+  else if (rec.savings_source === 'self_declared_unverified') recRows.push(['Savings Basis', `Self-declared${rec.liquid_reserves_effective_usd ? ` (~$${fmt(rec.liquid_reserves_effective_usd)})` : ''} — UNVERIFIED, no supporting statement.`]);
   const geo: any = (data as any).geo || null;
   if (geo) {
     recRows.push(['Geography Framing', geo.already_in_destination
