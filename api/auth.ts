@@ -13,6 +13,14 @@
  *   provider_login  { action, email, password } → { token, email, role:'provider', providerId }
  *   logout          { action, token }           → { ok: true }
  *   verify          { action, token }           → { valid, kind, email, role, providerId? }
+ *   change_password { action, token, currentPassword, newPassword }
+ *                                               → { token (NEW), email, role, providerId? }
+ *
+ * v34.14 session revocation: every auth record carries a sessionVersion; each
+ * issued session token embeds the version it was minted with. change_password
+ * bumps the version, which instantly invalidates ALL previously issued tokens
+ * for that account (checked in verify here AND on every /api/kv call) — critical
+ * because the pre-v34.13 admin password was exposed in the public JS bundle.
  *
  * KV keys (server-only — the /api/kv proxy refuses these prefixes):
  *   pc:auth:user:{email}      { passwordHash, role, createdAt }        (no TTL)
@@ -57,6 +65,7 @@ type SessionPayload = {
   email: string;
   role: 'user' | 'admin' | 'provider';
   providerId?: string;
+  v?: number; // sessionVersion the token was minted with (v34.14); absent = 1
 };
 
 const createSession = async (payload: SessionPayload): Promise<string> => {
@@ -64,6 +73,9 @@ const createSession = async (payload: SessionPayload): Promise<string> => {
   await kv.set(`pc:session:${token}`, payload, { ex: SESSION_TTL });
   return token;
 };
+
+// Auth-record session version, defaulting to 1 for records created before v34.14.
+const versionOf = (auth: any): number => (typeof auth?.sessionVersion === 'number' ? auth.sessionVersion : 1);
 
 // ── Legacy pc:fulldb migration helpers ──────────────────────────────────────
 
@@ -143,9 +155,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         await kv.set(`pc:auth:user:${email}`, {
           passwordHash: bcrypt.hashSync(password, 10),
           role,
+          sessionVersion: 1,
           createdAt: Date.now(),
         });
-        const token = await createSession({ kind: 'user', email, role });
+        const token = await createSession({ kind: 'user', email, role, v: 1 });
         return res.status(200).json({ token, email, role });
       }
 
@@ -165,7 +178,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(401).json({ error: 'Invalid email or password.' });
           }
           // Migrate: auth record (server-only) + app data (client-scoped key).
-          auth = { passwordHash: legacyUser.password, role: 'user', createdAt: Date.now(), migratedFromLegacy: true };
+          auth = { passwordHash: legacyUser.password, role: 'user', sessionVersion: 1, createdAt: Date.now(), migratedFromLegacy: true };
           await kv.set(`pc:auth:user:${email}`, auth);
           const alreadyMigrated = await kv.get(`pc:user:${email}`);
           if (!alreadyMigrated) {
@@ -178,7 +191,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const role: SessionPayload['role'] = isAdminEmail(email) ? 'admin' : (auth.role === 'admin' ? 'admin' : 'user');
-        const token = await createSession({ kind: 'user', email, role });
+        const token = await createSession({ kind: 'user', email, role, v: versionOf(auth) });
         return res.status(200).json({ token, email, role });
       }
 
@@ -200,9 +213,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         await kv.set(`pc:auth:provider:${email}`, {
           passwordHash: bcrypt.hashSync(password, 10),
           providerId,
+          sessionVersion: 1,
           createdAt: Date.now(),
         });
-        const token = await createSession({ kind: 'provider', email, role: 'provider', providerId });
+        const token = await createSession({ kind: 'provider', email, role: 'provider', providerId, v: 1 });
         return res.status(200).json({ token, email, role: 'provider', providerId });
       }
 
@@ -221,7 +235,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(401).json({ error: 'Invalid provider email or password.' });
           }
           const providerId = String(legacyPU.providerId || `prov_${Date.now()}_${randomBytes(4).toString('hex')}`);
-          auth = { passwordHash: legacyPU.password, providerId, createdAt: Date.now(), migratedFromLegacy: true };
+          auth = { passwordHash: legacyPU.password, providerId, sessionVersion: 1, createdAt: Date.now(), migratedFromLegacy: true };
           await kv.set(`pc:auth:provider:${email}`, auth);
           const alreadyPU = await kv.get(`pc:provideruser:${email}`);
           if (!alreadyPU) {
@@ -238,7 +252,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const providerId = String(auth.providerId || '');
-        const token = await createSession({ kind: 'provider', email, role: 'provider', providerId });
+        const token = await createSession({ kind: 'provider', email, role: 'provider', providerId, v: versionOf(auth) });
         return res.status(200).json({ token, email, role: 'provider', providerId });
       }
 
@@ -257,6 +271,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!/^[a-f0-9]{64}$/.test(token)) return res.status(401).json({ valid: false });
         const session = (await kv.get(`pc:session:${token}`)) as SessionPayload | null;
         if (!session || !session.email) return res.status(401).json({ valid: false });
+        // v34.14: a password change bumps sessionVersion — tokens minted before
+        // the change no longer match and are refused here (and in /api/kv).
+        const authKey = session.kind === 'provider' ? `pc:auth:provider:${session.email}` : `pc:auth:user:${session.email}`;
+        const auth = await kv.get(authKey);
+        if (!auth || (session.v ?? 1) !== versionOf(auth)) {
+          await kv.del(`pc:session:${token}`);
+          return res.status(401).json({ valid: false });
+        }
         // Re-evaluate admin role from env on every verify (rotation-friendly).
         const role = session.kind === 'user'
           ? (isAdminEmail(session.email) ? 'admin' : 'user')
@@ -268,6 +290,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           role,
           providerId: session.providerId,
         });
+      }
+
+      // ── Change password (revokes ALL other sessions) ──────────────────────
+      case 'change_password': {
+        const token = String(req.body.token || '');
+        const currentPassword = String(req.body.currentPassword || '');
+        const newPassword = String(req.body.newPassword || '');
+        if (!/^[a-f0-9]{64}$/.test(token)) return res.status(401).json({ error: 'Not signed in.' });
+        if (newPassword.length < 8) return res.status(400).json({ error: 'New password must be at least 8 characters.' });
+
+        const session = (await kv.get(`pc:session:${token}`)) as SessionPayload | null;
+        if (!session || !session.email) return res.status(401).json({ error: 'Session invalid or expired.' });
+
+        const authKey = session.kind === 'provider' ? `pc:auth:provider:${session.email}` : `pc:auth:user:${session.email}`;
+        const auth: any = await kv.get(authKey);
+        if (!auth || (session.v ?? 1) !== versionOf(auth)) {
+          await kv.del(`pc:session:${token}`);
+          return res.status(401).json({ error: 'Session invalid or expired.' });
+        }
+        if (!bcrypt.compareSync(currentPassword, String(auth.passwordHash || ''))) {
+          return res.status(401).json({ error: 'Current password is incorrect.' });
+        }
+
+        const newVersion = versionOf(auth) + 1;
+        await kv.set(authKey, {
+          ...auth,
+          passwordHash: bcrypt.hashSync(newPassword, 10),
+          sessionVersion: newVersion,
+          pwdChangedAt: Date.now(),
+        });
+        await kv.del(`pc:session:${token}`); // old token gone; every other token is dead via version bump
+        const role: SessionPayload['role'] = session.kind === 'provider'
+          ? 'provider'
+          : (isAdminEmail(session.email) ? 'admin' : (auth.role === 'admin' ? 'admin' : 'user'));
+        const freshToken = await createSession({
+          kind: session.kind,
+          email: session.email,
+          role,
+          providerId: session.providerId,
+          v: newVersion,
+        });
+        return res.status(200).json({ token: freshToken, email: session.email, role, providerId: session.providerId });
       }
 
       default:

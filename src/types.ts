@@ -375,6 +375,7 @@ export interface DashboardProps {
   onShareDossier: (offerId: string, providerId: string) => void;
   onGoToHelp: () => void;
   isAdmin?: boolean;
+  onChangePassword?: () => void; // v34.14
 }
 
 

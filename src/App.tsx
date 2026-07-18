@@ -16,7 +16,7 @@ import { ExtractedDocument } from './lib/agents/documentExtractor';
 // synthesis prompt/schema no longer imported — logic moved to api/synthesize.ts and inline agent aggregation
 import { countries } from './countries';
 import countryIntelligence from './countryRiskProfiles.json';
-import { saveToHistory } from './lib/historyUtils';
+import { saveToHistory, hydrateHistory } from './lib/historyUtils';
 import type { FormSchema, Section as SectionType, FormData, FileData, RepeaterData, ValidationErrors, DashboardData, RepeaterItem, ProviderFormData, ProviderDashboardData, Field, Offer, Provider, ProviderUser, PartnerOffer, Applicant, SupportTicket, UserDossier } from './types';
 import Section from './components/Section';
 import ProgressBar from './components/ProgressBar';
@@ -32,6 +32,57 @@ import PartnerLanding from './pages/PartnerLanding';
 import PricingPage from './pages/PricingPage';
 import ReportViewerPage from './pages/ReportViewerPage';
 
+// v34.14: styled password-change modal (no window.prompt/confirm). Self-contained:
+// talks to authClient directly; on success the server revokes every other session.
+function ChangePasswordModal({ onClose }: { onClose: () => void }) {
+    const [current, setCurrent] = useState('');
+    const [next, setNext] = useState('');
+    const [confirm, setConfirm] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+    const submit = async () => {
+        if (next.length < 8) { setMsg({ ok: false, text: 'New password must be at least 8 characters.' }); return; }
+        if (next !== confirm) { setMsg({ ok: false, text: 'New passwords do not match.' }); return; }
+        setBusy(true);
+        setMsg(null);
+        const res = await authClient.changePassword(current, next);
+        setBusy(false);
+        setMsg({ ok: res.success, text: res.message });
+        if (res.success) { setCurrent(''); setNext(''); setConfirm(''); }
+    };
+
+    const field = "w-full px-4 py-3 rounded-xl border border-brand-border bg-white text-sm text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-blue/40";
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-brand-dark/60 p-4" onClick={onClose}>
+            <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8" onClick={(e) => e.stopPropagation()}>
+                <h3 className="text-lg font-black text-brand-dark uppercase tracking-widest mb-1">Change Password</h3>
+                <p className="text-xs text-slate-500 mb-6">After the change, all other signed-in devices are signed out automatically.</p>
+                <div className="space-y-4">
+                    <input type="password" placeholder="Current password" value={current} onChange={(e) => setCurrent(e.target.value)} className={field} autoComplete="current-password" />
+                    <input type="password" placeholder="New password (min 8 characters)" value={next} onChange={(e) => setNext(e.target.value)} className={field} autoComplete="new-password" />
+                    <input type="password" placeholder="Repeat new password" value={confirm} onChange={(e) => setConfirm(e.target.value)} className={field} autoComplete="new-password" />
+                </div>
+                {msg && (
+                    <div className={`mt-4 text-xs font-bold rounded-lg px-4 py-3 ${msg.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+                        {msg.text}
+                    </div>
+                )}
+                <div className="mt-6 flex gap-3">
+                    <button onClick={submit} disabled={busy || !current || !next || !confirm}
+                        className="flex-1 px-4 py-3 bg-brand-dark text-white rounded-xl font-black uppercase tracking-widest text-[11px] disabled:opacity-40 hover:bg-brand-dark/90 transition-all">
+                        {busy ? 'Updating…' : 'Update Password'}
+                    </button>
+                    <button onClick={onClose}
+                        className="px-6 py-3 border border-brand-border rounded-xl font-bold uppercase tracking-widest text-[11px] text-brand-dark hover:bg-slate-50 transition-all">
+                        {msg?.ok ? 'Done' : 'Cancel'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 const App: React.FC = () => {
     const [userSession, setUserSession] = useState<string | null>(null);
     const [userProfile, setUserProfile] = useState<UserDossier | null>(null);
@@ -46,6 +97,7 @@ const App: React.FC = () => {
     const [authMode, setAuthMode] = useState<'user' | 'provider'>('user');
     const [isAdmin, setIsAdmin] = useState<boolean>(false);
     const [reportToken, setReportToken] = useState<string | null>(null);
+    const [showChangePassword, setShowChangePassword] = useState(false); // v34.14
     const [reportData, setReportData] = useState<DashboardData | null>(null);
 
     const [formData, setFormData] = useState<FormData>(getInitialFormData(formSchema));
@@ -160,6 +212,7 @@ const App: React.FC = () => {
         setUserSession(email);
         setIsPaid(true); // MVP: all features open
         setPlan(userData?.plan || null);
+        hydrateHistory().catch(() => { /* non-fatal: device-local history still works */ }); // v34.14
         
         if (userData?.dashboardResult) {
             setResult(userData.dashboardResult);
@@ -2055,9 +2108,11 @@ const App: React.FC = () => {
                     <span className="font-bold uppercase tracking-widest opacity-80">Signed in as</span>
                     <span className="font-black tracking-wide">{userSession}{isAdmin ? ' (admin)' : ''}</span>
                     <button onClick={handleGoHome} className="px-4 py-1.5 bg-white text-brand-dark rounded-lg font-black uppercase tracking-widest text-[10px] hover:bg-slate-200 transition-all">Continue to Dashboard</button>
+                    <button onClick={() => setShowChangePassword(true)} className="px-4 py-1.5 border border-white/40 rounded-lg font-bold uppercase tracking-widest text-[10px] hover:bg-white/10 transition-all">Password</button>
                     <button onClick={handleLogout} className="px-4 py-1.5 border border-white/40 rounded-lg font-bold uppercase tracking-widest text-[10px] hover:bg-white/10 transition-all">Sign Out</button>
                 </div>
             )}
+            {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
             <LandingPage 
             onStartApplication={handleStartNewApplication} 
             onGoToProvider={() => { setAuthMode('provider'); setView('auth'); }} 
@@ -2137,7 +2192,8 @@ const App: React.FC = () => {
     }
 
     if (view === 'dashboard') {
-        return <Dashboard 
+        return <>
+        <Dashboard 
             userId={userSession!} 
             data={result!} 
             profile={userProfile || undefined} 
@@ -2152,7 +2208,10 @@ const App: React.FC = () => {
             onShareDossier={handleShareDossier} 
             onGoToHelp={handleGoToHelp} 
             isAdmin={isAdmin}
-        />;
+            onChangePassword={() => setShowChangePassword(true)}
+        />
+        {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
+        </>;
     }
     
     if (isLoading || (view === 'form' && result) || (view === 'providerOnboarding' && isLoading)) {

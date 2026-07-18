@@ -45,8 +45,11 @@ async function credentialAction(
   password: string,
 ): Promise<AuthResult> {
   try {
-    const { ok, data } = await callAuth({ action, email, password });
+    const { ok, status, data } = await callAuth({ action, email, password });
     if (!ok) {
+      if (status === 503) {
+        return failure('Account storage is not configured on the server yet. Please contact support (or connect Vercel KV if you are the operator).');
+      }
       return failure(String(data?.error || data?.message || 'Authentication failed. Please try again.'));
     }
     const session: PcSession = {
@@ -69,6 +72,30 @@ export const authClient = {
   logIn: (email: string, password: string) => credentialAction('login', 'user', email, password),
   providerSignUp: (email: string, password: string) => credentialAction('provider_signup', 'provider', email, password),
   providerLogIn: (email: string, password: string) => credentialAction('provider_login', 'provider', email, password),
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    const session = getSession();
+    if (!session) return { success: false, message: 'You are not signed in.' };
+    try {
+      const { ok, status, data } = await callAuth({
+        action: 'change_password',
+        token: session.token,
+        currentPassword,
+        newPassword,
+      });
+      if (!ok) {
+        if (status === 503) return { success: false, message: 'Account storage is not configured on the server.' };
+        return { success: false, message: String(data?.error || 'Password change failed. Please try again.') };
+      }
+      // Server revoked every existing token (session-version bump) and issued a
+      // fresh one for THIS device — store it so the user stays signed in here.
+      setSession({ ...session, token: String(data.token), role: data.role ?? session.role });
+      return { success: true, message: 'Password updated. Other devices have been signed out.' };
+    } catch (err) {
+      console.error('authClient.changePassword error:', err);
+      return { success: false, message: 'Authentication service unreachable. Please try again.' };
+    }
+  },
 
   async logOut(): Promise<void> {
     const session = getSession();

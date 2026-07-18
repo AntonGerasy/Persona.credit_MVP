@@ -69,7 +69,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // unguessable token in the URL is the access credential.
   const isPublicShareGet = op === 'get' && typeof key === 'string' && key.startsWith('pc:share:');
 
-  let session: { kind: string; email: string; providerId?: string } | null = null;
+  let session: { kind: string; email: string; providerId?: string; v?: number } | null = null;
   if (!isPublicShareGet) {
     const token = req.headers['x-pc-session'];
     if (typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token)) {
@@ -79,7 +79,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!sessionData || typeof sessionData !== 'object' || !(sessionData as any).email) {
       return res.status(401).json({ error: 'Session invalid or expired' });
     }
-    session = sessionData as { kind: string; email: string; providerId?: string };
+    session = sessionData as { kind: string; email: string; providerId?: string; v?: number };
+    // v34.14: refuse tokens minted before the account's last password change.
+    const authKey = session.kind === 'provider'
+      ? `pc:auth:provider:${session.email}`
+      : `pc:auth:user:${session.email}`;
+    const auth: any = await kv.get(authKey);
+    const currentVersion = typeof auth?.sessionVersion === 'number' ? auth.sessionVersion : 1;
+    if (!auth || (session.v ?? 1) !== currentVersion) {
+      await kv.del(`pc:session:${token}`);
+      return res.status(401).json({ error: 'Session invalid or expired' });
+    }
   }
 
   const canAccessKey = (k: string): boolean => {

@@ -448,7 +448,7 @@ const PaywallOverlay: React.FC<{ onUnlock: () => void }> = ({ onUnlock }) => (
     </div>
 );
 
-const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, referralCode, isPaid, plan, onReset, onLogout, onGoToPricing, onExitToLanding, isAdmin }) => {
+const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, referralCode, isPaid, plan, onReset, onLogout, onGoToPricing, onExitToLanding, isAdmin, onChangePassword }) => {
   const rawData = useMemo(() => propData || profile?.scores || SOPHISTICATED_DEMO_DATA, [propData, profile]);
 
   // NORMALIZATION LAYER — guarantees all fields the render path touches always exist.
@@ -2379,6 +2379,9 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                     >
                         Generate Full Dossier
                     </button>
+                )}
+                {onChangePassword && (
+                    <button onClick={onChangePassword} className="bg-slate-100 hover:bg-slate-200 text-brand-dark text-[10px] font-bold px-6 py-2.5 rounded-lg uppercase tracking-widest transition-all border border-brand-border">Password</button>
                 )}
                 <button onClick={onLogout} className="bg-slate-100 hover:bg-slate-200 text-brand-dark text-[10px] font-bold px-6 py-2.5 rounded-lg uppercase tracking-widest transition-all border border-brand-border">Sign Out</button>
             </div>
