@@ -4,18 +4,24 @@
  * Primary:  Vercel KV via /api/kv (server-side Redis, 90-day TTL)
  * Fallback: localStorage (used if KV not configured or offline)
  *
- * Data is stored as plain JSON — no more btoa() pseudo-encryption.
- * Sensitive fields (passwords) are hashed with bcrypt before storage,
- * which this layer does not handle — that's the auth layer's job.
+ * v34.13 hardening: the single shared 'pc:fulldb' blob is GONE. The db facade
+ * below keeps the old AppDB shape (so App.tsx call sites keep working), but it
+ * is now assembled from session-scoped keys — a session can only ever load and
+ * save ITS OWN slice; isolation is enforced server-side in /api/kv. Passwords
+ * never reach this layer anymore (auth lives in /api/auth).
  *
  * Key schema:
- *   pc:user:{uid}            → user record (auth + profile)
- *   pc:dashboard:{uid}       → latest dashboard result
- *   pc:history:{uid}:{ts}    → historical analysis entry
- *   pc:session:{uid}         → active session token
- *   pc:provider:{pid}        → provider record
- *   pc:permission:{uid}:{oid}→ share permission
+ *   pc:user:{email}          → user app record (formData, dashboardResult, plan)
+ *   pc:history:{email}:{ts}  → historical analysis entry (step 2/4-B)
+ *   pc:provideruser:{email}  → provider login record (email, providerId)
+ *   pc:provider:{pid}        → provider record (formData, kybData)
+ *   pc:shared                → marketplace blob (offers, permissions,
+ *                              support_tickets, providersPublic)
+ *   pc:share:{token}         → public report capability record
+ *   pc:auth:* / pc:session:* → server-only (refused by /api/kv)
  */
+
+import { getSession } from './session';
 
 const LS_KEY = 'persona_credit_db_v1';
 const KV_ENDPOINT = '/api/kv';
@@ -25,9 +31,13 @@ const KV_ENDPOINT = '/api/kv';
 type KVOp = 'get' | 'set' | 'delete' | 'keys';
 
 async function kvCall(op: KVOp, params: Record<string, any>): Promise<any> {
+  const session = getSession();
   const response = await fetch(KV_ENDPOINT, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(session ? { 'x-pc-session': session.token } : {}),
+    },
     body: JSON.stringify({ op, ...params }),
   });
 
@@ -130,8 +140,12 @@ export const storage = {
   },
 };
 
-// ─── High-level DB API (mirrors old db interface) ─────────────────────────────
-// This preserves compatibility with existing App.tsx call sites.
+// ─── High-level DB API (v34.13: assembled from session-scoped keys) ──────────
+// The AppDB SHAPE is preserved so existing App.tsx call sites keep working, but
+// the content is now strictly session-scoped: a user session sees only its own
+// user record; a provider session sees only its own provider records. The
+// marketplace slice (offers / permissions / support_tickets) plus a public
+// provider directory live in a shared blob readable by any authenticated session.
 
 export type AppDB = {
   users: Record<string, any>;
@@ -144,7 +158,18 @@ export type AppDB = {
   support_tickets: Record<string, any>;
 };
 
-const FULL_DB_KEY = 'pc:fulldb';
+type SharedBlob = {
+  offers: Record<string, any>;
+  permissions: any[];
+  support_tickets: Record<string, any>;
+  // Public projection of providers for offer matching: { [pid]: { id, kybData: { companyName } } }
+  providersPublic: Record<string, any>;
+};
+
+const CACHE_KEY = 'pc_cache_v2'; // per-device cache of the assembled, session-scoped AppDB
+const SHARED_KEY = 'pc:shared';
+
+const emptyShared = (): SharedBlob => ({ offers: {}, permissions: [], support_tickets: {}, providersPublic: {} });
 
 const emptyDB = (): AppDB => ({
   users: {},
@@ -157,71 +182,144 @@ const emptyDB = (): AppDB => ({
   support_tickets: {},
 });
 
+// Snapshot of the shared blob as last loaded. Used to (a) carry providersPublic
+// through saves and (b) skip the shared write when nothing in it changed —
+// otherwise a stale cached copy could clobber another session's marketplace
+// writes (last-write-wins on the blob is a documented MVP limitation).
+let loadedShared: SharedBlob = emptyShared();
+let loadedSharedJson: string = JSON.stringify(loadedShared);
+
+const cacheWrite = (data: AppDB): void => {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(data)); } catch { /* ignore */ }
+};
+
+const cacheRead = (): AppDB | null => {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    return raw ? (JSON.parse(raw) as AppDB) : null;
+  } catch {
+    return null;
+  }
+};
+
+// Project the shared slice out of an AppDB for persistence. For a provider
+// session, refresh that provider's PUBLIC entry (companyName only — full KYB
+// data stays in the provider's own key).
+const sharedFromDB = (data: AppDB): SharedBlob => {
+  const s = getSession();
+  const providersPublic: Record<string, any> = { ...loadedShared.providersPublic };
+  if (s?.kind === 'provider' && s.providerId && data.providers[s.providerId]) {
+    const kyb = data.providers[s.providerId].kybData;
+    providersPublic[s.providerId] = { id: s.providerId, kybData: { companyName: kyb?.companyName ?? null } };
+  }
+  return {
+    offers: data.offers || {},
+    permissions: data.permissions || [],
+    support_tickets: data.support_tickets || {},
+    providersPublic,
+  };
+};
+
+// Persist ONLY the keys this session owns (plus shared, if it changed).
+async function persistScoped(data: AppDB): Promise<void> {
+  const s = getSession();
+  if (!s) return; // no session — nothing may be persisted server-side
+
+  const writes: Promise<void>[] = [];
+  if (s.kind === 'user') {
+    const me = data.users[s.email];
+    if (me !== undefined) writes.push(storage.set(`pc:user:${s.email}`, me));
+  } else if (s.kind === 'provider' && s.providerId) {
+    const pu = data.providerUsers[s.email];
+    if (pu !== undefined) writes.push(storage.set(`pc:provideruser:${s.email}`, pu));
+    const prov = data.providers[s.providerId];
+    if (prov !== undefined) writes.push(storage.set(`pc:provider:${s.providerId}`, prov));
+  }
+
+  const shared = sharedFromDB(data);
+  const sharedJson = JSON.stringify(shared);
+  if (sharedJson !== loadedSharedJson) {
+    writes.push(storage.set(SHARED_KEY, shared));
+    loadedShared = shared;
+    loadedSharedJson = sharedJson;
+  }
+
+  await Promise.all(writes);
+}
+
 export const db = {
   /**
-   * Load the full DB object.
-   * Async version preferred; sync version available for legacy call sites.
+   * Synchronous read from the per-device cache of the last assembled scoped DB.
+   * Kept for legacy call sites (render bodies, sync handlers).
    */
   load(): AppDB {
-    // Synchronous fallback for legacy call sites — reads from localStorage only
-    try {
-      const raw = localStorage.getItem(LS_KEY);
-      if (raw) {
-        const store = JSON.parse(raw);
-        const full = store[FULL_DB_KEY];
-        if (full) return full;
-      }
-    } catch { /* ignore */ }
-    return emptyDB();
+    return cacheRead() ?? emptyDB();
   },
 
   async loadAsync(): Promise<AppDB> {
+    const s = getSession();
+    const out = emptyDB();
+    if (!s) {
+      cacheWrite(out);
+      return out;
+    }
     try {
-      // Race KV against a 5s timeout — never let a hanging KV block startup.
-      const data = await Promise.race([
-        storage.get(FULL_DB_KEY),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
+      // Race each KV read against a 5s timeout — never let a hanging KV block startup.
+      const withTimeout = <T>(p: Promise<T>): Promise<T | null> =>
+        Promise.race([p, new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000))]);
+
+      const [own, ownProviderPair, sharedRaw] = await Promise.all([
+        s.kind === 'user' ? withTimeout(storage.get(`pc:user:${s.email}`)) : Promise.resolve(null),
+        s.kind === 'provider' && s.providerId
+          ? withTimeout(Promise.all([storage.get(`pc:provideruser:${s.email}`), storage.get(`pc:provider:${s.providerId}`)]))
+          : Promise.resolve(null),
+        withTimeout(storage.get(SHARED_KEY)),
       ]);
-      if (data && typeof data === 'object') return data as AppDB;
-    } catch { /* ignore — fall through to localStorage */ }
-    // Try legacy localStorage format
-    const legacy = db.load();
-    if (Object.keys(legacy.users).length > 0) return legacy;
-    return emptyDB();
+
+      const shared: SharedBlob = sharedRaw && typeof sharedRaw === 'object'
+        ? { ...emptyShared(), ...(sharedRaw as Partial<SharedBlob>) }
+        : emptyShared();
+      loadedShared = shared;
+      loadedSharedJson = JSON.stringify(shared);
+
+      out.offers = shared.offers;
+      out.permissions = shared.permissions;
+      out.support_tickets = shared.support_tickets;
+
+      if (s.kind === 'user') {
+        out.currentUser = s.email;
+        out.users[s.email] = own && typeof own === 'object' ? own : {};
+        // Read-only public provider directory — enough for offer matching (companyName).
+        out.providers = { ...shared.providersPublic };
+      } else if (s.kind === 'provider' && s.providerId) {
+        out.currentProvider = s.email;
+        const pu = Array.isArray(ownProviderPair) ? ownProviderPair[0] : null;
+        const prov = Array.isArray(ownProviderPair) ? ownProviderPair[1] : null;
+        out.providerUsers[s.email] = pu && typeof pu === 'object' ? pu : { email: s.email, providerId: s.providerId };
+        out.providers[s.providerId] = prov && typeof prov === 'object' ? prov : { id: s.providerId, formData: null, kybData: null };
+      }
+    } catch (err) {
+      console.error('db.loadAsync error (serving empty scoped DB):', err);
+    }
+    cacheWrite(out);
+    return out;
   },
 
   save(data: AppDB): void {
-    // Sync write to localStorage immediately (for legacy compatibility)
-    const store = lsLoad();
-    store[FULL_DB_KEY] = data;
-    lsSave(store);
-
-    // Async write to KV in background — don't block UI
-    storage.set(FULL_DB_KEY, data).catch(err => {
-      // KV failure is non-fatal — localStorage already saved
-      console.warn('KV background save failed (localStorage fallback active):', err);
+    // Sync write to the device cache immediately; KV writes go in the background.
+    cacheWrite(data);
+    persistScoped(data).catch((err) => {
+      console.warn('KV background save failed (device cache retained):', err);
     });
   },
 
   async saveAsync(data: AppDB): Promise<void> {
-    // Sync write to localStorage first — this ALWAYS succeeds and is the
-    // source of truth for the current browser. Never let KV failure break this.
+    cacheWrite(data);
+    // NEVER throw on KV failure — the device cache already has the data.
     try {
-      const store = lsLoad();
-      store[FULL_DB_KEY] = data;
-      lsSave(store);
-    } catch (lsErr) {
-      console.warn('localStorage write failed:', lsErr);
-    }
-
-    // Then attempt KV write — but NEVER throw if it fails.
-    // KV is a nice-to-have for cross-device sync, not a hard requirement.
-    try {
-      await storage.set(FULL_DB_KEY, data);
-    } catch (kvErr) {
-      // Non-fatal: localStorage already has the data. Cross-device sync
-      // just won't work until KV is reachable again.
-      console.warn('KV save failed (localStorage fallback active):', kvErr);
+      await persistScoped(data);
+    } catch (err) {
+      console.warn('KV save failed (device cache retained):', err);
     }
   },
 };

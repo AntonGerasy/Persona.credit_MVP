@@ -3,10 +3,13 @@ import { Shield, ChevronLeft, AlertCircle } from 'lucide-react';
 // GoogleGenAI is now server-side only (Vercel Functions in /api/)
 // All AI calls go through fetch('/api/...') — API key never in browser bundle
 import { Type } from '@google/genai';
-import bcrypt from 'bcryptjs';
+// v34.13: bcrypt removed from the client — password hashing/verification is
+// server-side only (/api/auth). The client holds an opaque session token.
+import { authClient } from './lib/authClient';
+import { getSession } from './lib/session';
 import { formSchema, PROFESSIONAL_LOADING_MESSAGES, PROVIDER_LOADING_MESSAGES } from './constants';
 import { calculateTransferScore } from './scoreEngine';
-import { db } from './lib/storage';
+import { db, storage } from './lib/storage';
 import { getInitialFormData } from './lib/formUtils';
 import { ExtractedDocument } from './lib/agents/documentExtractor';
 // Agent schemas and prompts live server-side in api/run-agent.ts
@@ -66,22 +69,23 @@ const App: React.FC = () => {
 
     useEffect(() => {
         const initApp = async () => {
-        // Load from KV first (cross-device), falls back to localStorage automatically
-        const currentDB = await db.loadAsync();
+        // v34.13: session identity comes from the server-issued token (verified
+        // below), not from a shared KV blob readable by everyone.
 
-        // Check for report route
+        // Check for report route — a public capability URL: the unguessable token
+        // in the path is the credential, no login required.
         const path = window.location.pathname;
         if (path.startsWith('/report/')) {
             const token = path.replace('/report/', '');
             if (token) {
                 setReportToken(token);
-                // Find report data in mock DB
                 let foundData: DashboardData | null = null;
-                Object.values(currentDB.users).forEach((user: any) => {
-                    if (user.dashboardResult && user.dashboardResult.shareId === token) {
-                        foundData = user.dashboardResult;
+                try {
+                    const shared = await storage.get(`pc:share:${token}`);
+                    if (shared && typeof shared === 'object') {
+                        foundData = shared as DashboardData;
                     }
-                });
+                } catch { /* fall through to demo fallback */ }
                 
                 // Demo fallback if no token found in mock db
                 if (!foundData) {
@@ -121,13 +125,19 @@ const App: React.FC = () => {
             if (storedRef) setReferralCode(storedRef);
         }
 
-        if (currentDB.currentUser) {
-            await loginUser(currentDB.currentUser, { navigate: false }); // land on the landing page, session preserved
-            const userData = currentDB.users[currentDB.currentUser];
-            setIsPaid(true); // MVP: all features open
-            setPlan(userData?.plan || null);
-        } else if (currentDB.currentProvider) {
-            loginProvider(currentDB.currentProvider);
+        // Restore the session from the server-verified token. loginUser/loginProvider
+        // set plan/isPaid internally; the admin flag comes from the verify response
+        // (ADMIN_EMAIL env is re-evaluated server-side on every verify).
+        const session = getSession();
+        if (session) {
+            const verified = await authClient.verify();
+            if (verified.valid && verified.kind === 'user' && verified.email) {
+                setIsAdmin(verified.role === 'admin');
+                await loginUser(verified.email, { navigate: false }); // land on the landing page, session preserved
+            } else if (verified.valid && verified.kind === 'provider' && verified.email) {
+                await loginProvider(verified.email);
+            }
+            // invalid/expired token: authClient.verify() has already cleared it
         }
         };
         initApp()
@@ -175,9 +185,13 @@ const App: React.FC = () => {
         }
     }
     
-    const loginProvider = (email: string) => {
-        const currentDB = db.load();
+    const loginProvider = async (email: string) => {
+        const currentDB = await db.loadAsync();
         const providerUser = currentDB.providerUsers[email];
+        if (!providerUser) {
+            console.error('Provider record not found for session:', email);
+            return;
+        }
         const provider = currentDB.providers[providerUser.providerId];
         setCurrentProviderUser(providerUser);
         setProviderData(provider);
@@ -516,46 +530,27 @@ const App: React.FC = () => {
         setView('form');
     };
     
-    // --- Auth Handlers ---
+    // --- Auth Handlers (v34.13: server-side auth via /api/auth) ---
+    // Credentials are verified ONLY server-side; the hardcoded admin backdoor is
+    // removed. Admin role is granted server-side to the ADMIN_EMAIL env account.
     const handleSignUp = async (email: string, pass: string): Promise<{ success: boolean, message: string }> => {
-        const currentDB = await db.loadAsync();
-        if (currentDB.users[email]) {
-            return { success: false, message: "An account with this email already exists." };
-        }
-        const hashedPassword = bcrypt.hashSync(pass, 10);
-        currentDB.users[email] = { password: hashedPassword }; 
-        currentDB.currentUser = email;
-        await db.saveAsync(currentDB);
-        await loginUser(email);
+        const res = await authClient.signUp(email, pass);
+        if (!res.success) return { success: false, message: res.message };
+        setIsAdmin(res.role === 'admin');
+        await loginUser(res.email); // res.email is the server-normalized (lowercase) address
         return { success: true, message: "" };
     };
 
     const handleLogin = async (email: string, pass: string): Promise<{ success: boolean, message: string }> => {
-        // --- Admin Authentication Flow (MVP) ---
-        if (email === 'kapucinov@gmail.com' && pass === 'FuckFico666##') {
-            const currentDB = await db.loadAsync();
-            currentDB.currentUser = email;
-            await db.saveAsync(currentDB);
-            setIsAdmin(true);
-            await loginUser(email);
-            return { success: true, message: "" };
-        }
-
-        const currentDB = await db.loadAsync();
-        const user = currentDB.users[email];
-        if (!user || !bcrypt.compareSync(pass, user.password)) {
-            return { success: false, message: "Invalid email or password." };
-        }
-        currentDB.currentUser = email;
-        await db.saveAsync(currentDB);
-        await loginUser(email);
+        const res = await authClient.logIn(email, pass);
+        if (!res.success) return { success: false, message: res.message };
+        setIsAdmin(res.role === 'admin');
+        await loginUser(res.email);
         return { success: true, message: "" };
     };
 
     const handleLogout = async () => {
-        const currentDB = await db.loadAsync();
-        currentDB.currentUser = null;
-        await db.saveAsync(currentDB);
+        await authClient.logOut(); // deletes the server session and clears the local token
         setUserSession(null);
         setUserProfile(null);
         setFormData(getInitialFormData(formSchema));
@@ -565,37 +560,28 @@ const App: React.FC = () => {
         setView('landing');
     };
      // --- Provider Auth Handlers ---
-    const handleProviderSignUp = (email: string, pass: string): { success: boolean, message: string } => {
-        const currentDB = db.load();
-        if (currentDB.providerUsers[email]) {
-            return { success: false, message: "A provider account with this email already exists." };
-        }
-        const providerId = `prov_${new Date().getTime()}`;
-        const hashedPassword = bcrypt.hashSync(pass, 10);
-        currentDB.providerUsers[email] = { email, password: hashedPassword, providerId };
-        currentDB.providers[providerId] = { id: providerId, formData: null, kybData: null };
-        currentDB.currentProvider = email;
-        db.save(currentDB);
-        loginProvider(email);
+    const handleProviderSignUp = async (email: string, pass: string): Promise<{ success: boolean, message: string }> => {
+        const res = await authClient.providerSignUp(email, pass);
+        if (!res.success) return { success: false, message: res.message };
+        if (!res.providerId) return { success: false, message: "Provider registration failed. Please try again." };
+        // Create the provider's app-data records under the server-issued providerId.
+        const currentDB = await db.loadAsync();
+        currentDB.providerUsers[res.email] = { email: res.email, providerId: res.providerId };
+        currentDB.providers[res.providerId] = { id: res.providerId, formData: null, kybData: null };
+        await db.saveAsync(currentDB);
+        await loginProvider(res.email);
         return { success: true, message: "" };
     };
 
-    const handleProviderLogin = (email: string, pass: string): { success: boolean, message: string } => {
-        const currentDB = db.load();
-        const providerUser = currentDB.providerUsers[email];
-        if (!providerUser || !bcrypt.compareSync(pass, providerUser.password)) {
-            return { success: false, message: "Invalid provider email or password." };
-        }
-        currentDB.currentProvider = email;
-        db.save(currentDB);
-        loginProvider(email);
+    const handleProviderLogin = async (email: string, pass: string): Promise<{ success: boolean, message: string }> => {
+        const res = await authClient.providerLogIn(email, pass);
+        if (!res.success) return { success: false, message: res.message };
+        await loginProvider(res.email);
         return { success: true, message: "" };
     };
     
-    const handleProviderLogout = () => {
-        const currentDB = db.load();
-        currentDB.currentProvider = null;
-        db.save(currentDB);
+    const handleProviderLogout = async () => {
+        await authClient.logOut();
         setCurrentProviderUser(null);
         setProviderData(null);
         setView('landing');
@@ -675,7 +661,7 @@ const App: React.FC = () => {
         }
     };
     
-    const handleOfferAction = (action: 'create' | 'update' | 'delete', offer: Offer) => {
+    const handleOfferAction = async (action: 'create' | 'update' | 'delete', offer: Offer) => {
         if (!currentProviderUser) return;
         const currentDB = db.load();
         
@@ -688,8 +674,10 @@ const App: React.FC = () => {
                 delete currentDB.offers[offer.id];
                 break;
         }
-        db.save(currentDB);
-        loginProvider(currentProviderUser.email);
+        // v34.13: await the KV write BEFORE reloading — loginProvider re-reads from
+        // KV, so a background save here would race it and show a stale offer list.
+        await db.saveAsync(currentDB);
+        await loginProvider(currentProviderUser.email);
     };
 
     const getApplicantsForProvider = (providerId: string): Applicant[] => {
@@ -697,13 +685,16 @@ const App: React.FC = () => {
         return currentDB.permissions
             .filter((p: any) => p.providerId === providerId)
             .map((p: any) => {
-                const user = currentDB.users[p.userId];
+                // v34.13: providers can no longer read other users' records — the
+                // applicant's data comes from the snapshot the user explicitly
+                // shared inside the permission entry (see handleShareDossier).
+                const snap = p.snapshot || {};
                 const offer = currentDB.offers[p.offerId];
                 return {
                     id: p.userId,
                     offerTitle: offer?.title || 'N/A',
-                    dossier: user?.dashboardResult?.dossier || 'No dossier available.',
-                    score: user?.dashboardResult?.score || 0,
+                    dossier: snap.dossier || 'No dossier available.',
+                    score: snap.score || 0,
                 };
             });
     };
@@ -1903,7 +1894,20 @@ const App: React.FC = () => {
         );
         
         if (!permissionExists) {
-            currentDB.permissions.push({ userId: userSession, providerId, offerId, timestamp: Date.now() });
+            // v34.13: the user's dossier snapshot travels WITH the permission —
+            // providers can no longer read other users' records directly, so
+            // sharing means the user writes an explicit copy of what they share.
+            const myRecord = currentDB.users[userSession] || {};
+            currentDB.permissions.push({
+                userId: userSession,
+                providerId,
+                offerId,
+                timestamp: Date.now(),
+                snapshot: {
+                    score: myRecord.dashboardResult?.score || 0,
+                    dossier: myRecord.dashboardResult?.dossier || 'No dossier available.',
+                },
+            });
             db.save(currentDB);
             
             // Re-fetch the user's result to update the UI
