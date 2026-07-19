@@ -97,6 +97,28 @@ export const authClient = {
     }
   },
 
+  async deleteAccount(password: string): Promise<{ success: boolean; message: string }> {
+    const session = getSession();
+    if (!session) return { success: false, message: 'You are not signed in.' };
+    try {
+      const { ok, status, data } = await callAuth({ action: 'delete_account', token: session.token, password });
+      if (!ok) {
+        if (status === 503) return { success: false, message: 'Account storage is not configured on the server.' };
+        return { success: false, message: String(data?.error || 'Account deletion failed. Please try again.') };
+      }
+      clearSession();
+      // Wipe device-local traces of the deleted account
+      try {
+        localStorage.removeItem('pc_cache_v2');
+        localStorage.removeItem('transferscore_history');
+      } catch { /* ignore */ }
+      return { success: true, message: 'Your account and data have been deleted.' };
+    } catch (err) {
+      console.error('authClient.deleteAccount error:', err);
+      return { success: false, message: 'Authentication service unreachable. Please try again.' };
+    }
+  },
+
   async logOut(): Promise<void> {
     const session = getSession();
     clearSession(); // clear locally first — logout must never strand the UI

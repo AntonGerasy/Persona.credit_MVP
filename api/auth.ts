@@ -15,6 +15,9 @@
  *   verify          { action, token }           → { valid, kind, email, role, providerId? }
  *   change_password { action, token, currentPassword, newPassword }
  *                                               → { token (NEW), email, role, providerId? }
+ *   delete_account  { action, token, password } → { ok: true }  (permanent; removes
+ *                     auth record, app data, history, share link, permissions; all
+ *                     sessions die because the auth record they validate against is gone)
  *
  * v34.14 session revocation: every auth record carries a sessionVersion; each
  * issued session token embeds the version it was minted with. change_password
@@ -332,6 +335,73 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           v: newVersion,
         });
         return res.status(200).json({ token: freshToken, email: session.email, role, providerId: session.providerId });
+      }
+
+      // ── Delete account (permanent; password-confirmed) ────────────────────
+      case 'delete_account': {
+        const token = String(req.body.token || '');
+        const password = String(req.body.password || '');
+        if (!/^[a-f0-9]{64}$/.test(token)) return res.status(401).json({ error: 'Not signed in.' });
+
+        const session = (await kv.get(`pc:session:${token}`)) as SessionPayload | null;
+        if (!session || !session.email) return res.status(401).json({ error: 'Session invalid or expired.' });
+
+        const isProvider = session.kind === 'provider';
+        const authKey = isProvider ? `pc:auth:provider:${session.email}` : `pc:auth:user:${session.email}`;
+        const auth: any = await kv.get(authKey);
+        if (!auth || (session.v ?? 1) !== versionOf(auth)) {
+          await kv.del(`pc:session:${token}`);
+          return res.status(401).json({ error: 'Session invalid or expired.' });
+        }
+        if (!bcrypt.compareSync(password, String(auth.passwordHash || ''))) {
+          return res.status(401).json({ error: 'Password is incorrect.' });
+        }
+
+        try {
+          if (isProvider) {
+            const pid = String(auth.providerId || session.providerId || '');
+            await kv.del(`pc:provideruser:${session.email}`);
+            if (pid) await kv.del(`pc:provider:${pid}`);
+            // Remove the provider's offers and public directory entry from the shared blob
+            const shared: any = await kv.get('pc:shared');
+            if (shared && typeof shared === 'object') {
+              const offers = shared.offers && typeof shared.offers === 'object' ? shared.offers : {};
+              for (const oid of Object.keys(offers)) {
+                if (offers[oid]?.providerId === pid) delete offers[oid];
+              }
+              if (shared.providersPublic && typeof shared.providersPublic === 'object') delete shared.providersPublic[pid];
+              await kv.set('pc:shared', shared);
+            }
+          } else {
+            // Capture the share link before deleting the user record, then remove both
+            const userRecord: any = await kv.get(`pc:user:${session.email}`);
+            const shareId = userRecord?.dashboardResult?.shareId;
+            await kv.del(`pc:user:${session.email}`);
+            if (shareId) await kv.del(`pc:share:${shareId}`);
+            // Assessment history
+            const historyKeys = await kv.keys(`pc:history:${session.email}:*`);
+            for (const hk of historyKeys) await kv.del(hk);
+            // Permissions/tickets referencing this user in the shared blob
+            const shared: any = await kv.get('pc:shared');
+            if (shared && typeof shared === 'object') {
+              if (Array.isArray(shared.permissions)) {
+                shared.permissions = shared.permissions.filter((perm: any) => perm?.userId !== session.email);
+              }
+              if (shared.support_tickets && typeof shared.support_tickets === 'object') {
+                for (const tid of Object.keys(shared.support_tickets)) {
+                  if (shared.support_tickets[tid]?.userId === session.email) delete shared.support_tickets[tid];
+                }
+              }
+              await kv.set('pc:shared', shared);
+            }
+          }
+        } catch (cleanupErr) {
+          console.warn('Account cleanup partial failure (auth record will still be removed):', cleanupErr);
+        }
+
+        await kv.del(authKey);            // kills the login itself
+        await kv.del(`pc:session:${token}`); // other tokens die on their next check (auth record gone)
+        return res.status(200).json({ ok: true });
       }
 
       default:

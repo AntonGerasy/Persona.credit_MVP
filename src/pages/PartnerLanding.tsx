@@ -109,6 +109,14 @@ const PartnerLanding: React.FC<PartnerLandingProps> = ({ onBack, onSignUp }) => 
                                         Apply to Join Network
                                         <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                                     </button>
+                                    {/* v34.17 (FIX-8): visible entry for EXISTING providers — the portal
+                                        page has both Sign In and Create Account tabs. */}
+                                    <button
+                                        onClick={onSignUp}
+                                        className="text-[11px] font-bold uppercase tracking-widest text-emerald-400 hover:text-emerald-300 underline underline-offset-4 transition-colors"
+                                    >
+                                        Already a partner? Sign in
+                                    </button>
                                     <div className="flex items-center gap-3 pl-2">
                                         <div className="flex -space-x-3">
                                             {[1,2,3].map(i => (

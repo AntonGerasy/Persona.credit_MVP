@@ -34,12 +34,30 @@ import ReportViewerPage from './pages/ReportViewerPage';
 
 // v34.14: styled password-change modal (no window.prompt/confirm). Self-contained:
 // talks to authClient directly; on success the server revokes every other session.
-function ChangePasswordModal({ onClose }: { onClose: () => void }) {
+// v34.18: extended into an Account modal — adds a danger zone with permanent,
+// password-confirmed account deletion (GDPR-style right to erasure).
+function ChangePasswordModal({ onClose, onDeleted }: { onClose: () => void; onDeleted?: () => void }) {
     const [current, setCurrent] = useState('');
     const [next, setNext] = useState('');
     const [confirm, setConfirm] = useState('');
     const [busy, setBusy] = useState(false);
     const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+    const [delOpen, setDelOpen] = useState(false);
+    const [delPassword, setDelPassword] = useState('');
+    const [delBusy, setDelBusy] = useState(false);
+    const [delMsg, setDelMsg] = useState<string | null>(null);
+
+    const submitDelete = async () => {
+        setDelBusy(true);
+        setDelMsg(null);
+        const res = await authClient.deleteAccount(delPassword);
+        setDelBusy(false);
+        if (res.success) {
+            if (onDeleted) onDeleted();
+        } else {
+            setDelMsg(res.message);
+        }
+    };
 
     const submit = async () => {
         if (next.length < 8) { setMsg({ ok: false, text: 'New password must be at least 8 characters.' }); return; }
@@ -56,8 +74,8 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-brand-dark/60 p-4" onClick={onClose}>
             <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8" onClick={(e) => e.stopPropagation()}>
-                <h3 className="text-lg font-black text-brand-dark uppercase tracking-widest mb-1">Change Password</h3>
-                <p className="text-xs text-slate-500 mb-6">After the change, all other signed-in devices are signed out automatically.</p>
+                <h3 className="text-lg font-black text-brand-dark uppercase tracking-widest mb-1">Account</h3>
+                <p className="text-xs text-slate-500 mb-6">Change your password (all other signed-in devices are signed out automatically) or delete your account below.</p>
                 <div className="space-y-4">
                     <input type="password" placeholder="Current password" value={current} onChange={(e) => setCurrent(e.target.value)} className={field} autoComplete="current-password" />
                     <input type="password" placeholder="New password (min 8 characters)" value={next} onChange={(e) => setNext(e.target.value)} className={field} autoComplete="new-password" />
@@ -77,6 +95,32 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
                         className="px-6 py-3 border border-brand-border rounded-xl font-bold uppercase tracking-widest text-[11px] text-brand-dark hover:bg-slate-50 transition-all">
                         {msg?.ok ? 'Done' : 'Cancel'}
                     </button>
+                </div>
+                {/* v34.18: danger zone — permanent account deletion */}
+                <div className="mt-8 pt-6 border-t border-brand-border">
+                    {!delOpen ? (
+                        <button onClick={() => setDelOpen(true)}
+                            className="text-[10px] font-bold uppercase tracking-widest text-red-600 hover:text-red-700 underline underline-offset-4 transition-colors">
+                            Delete account permanently…
+                        </button>
+                    ) : (
+                        <div className="space-y-3">
+                            <p className="text-xs text-red-600 font-bold leading-relaxed">This permanently deletes your account, report, share link, and history. It cannot be undone. Enter your password to confirm.</p>
+                            <input type="password" placeholder="Your password" value={delPassword} onChange={(e) => setDelPassword(e.target.value)} autoComplete="current-password"
+                                className="w-full px-4 py-3 rounded-xl border border-red-200 bg-white text-sm text-brand-dark focus:outline-none focus:ring-2 focus:ring-red-400/40" />
+                            {delMsg && <div className="text-xs font-bold rounded-lg px-4 py-3 bg-red-50 text-red-600">{delMsg}</div>}
+                            <div className="flex gap-3">
+                                <button onClick={submitDelete} disabled={delBusy || !delPassword}
+                                    className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl font-black uppercase tracking-widest text-[11px] disabled:opacity-40 hover:bg-red-700 transition-all">
+                                    {delBusy ? 'Deleting…' : 'Delete My Account'}
+                                </button>
+                                <button onClick={() => { setDelOpen(false); setDelPassword(''); setDelMsg(null); }}
+                                    className="px-6 py-3 border border-brand-border rounded-xl font-bold uppercase tracking-widest text-[11px] text-brand-dark hover:bg-slate-50 transition-all">
+                                    Keep Account
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
@@ -137,10 +181,12 @@ const App: React.FC = () => {
                     if (shared && typeof shared === 'object') {
                         foundData = shared as DashboardData;
                     }
-                } catch { /* fall through to demo fallback */ }
+                } catch { /* fall through */ }
                 
-                // Demo fallback if no token found in mock db
-                if (!foundData) {
+                // v34.18: the sample report renders ONLY for explicit demo tokens.
+                // A real token that is missing/revoked shows "unavailable" instead
+                // of another person's demo data.
+                if (!foundData && token.startsWith('demo')) {
                     foundData = {
                         score: 842,
                         level: 'Excellent',
@@ -571,7 +617,9 @@ const App: React.FC = () => {
             if (currentDB.users[userSession]) {
                 delete currentDB.users[userSession].formData;
                 delete currentDB.users[userSession].currentStep;
-                delete currentDB.users[userSession].dashboardResult;
+                // v34.17 (FIX-2): the previous dashboardResult is KEPT — it stays
+                // available (Continue to Dashboard, share links) until the new
+                // assessment completes and overwrites it. History keeps everything.
                 await db.saveAsync(currentDB);
             }
         }
@@ -600,6 +648,18 @@ const App: React.FC = () => {
         setIsAdmin(res.role === 'admin');
         await loginUser(res.email);
         return { success: true, message: "" };
+    };
+
+    // v34.18: full local teardown after permanent account deletion
+    const handleAccountDeleted = () => {
+        setShowChangePassword(false);
+        setUserSession(null);
+        setUserProfile(null);
+        setFormData(getInitialFormData(formSchema));
+        setCurrentStep(0);
+        setResult(null);
+        setIsAdmin(false);
+        setView('landing');
     };
 
     const handleLogout = async () => {
@@ -2048,14 +2108,17 @@ const App: React.FC = () => {
     };
 
 
-    const handleGoHome = async () => {
+    // v34.17 (FIX-3): never a silent no-op. `fallback` controls where a signed-in
+    // user WITHOUT a saved report goes: the banner button sends them to the form
+    // (they need an assessment to have a dashboard); the logo keeps landing.
+    const handleGoHome = async (fallback: 'form' | 'landing' = 'landing') => {
         if (userSession) {
             const currentDB = await db.loadAsync();
             if (currentDB.users[userSession]?.dashboardResult) {
                 setResult(currentDB.users[userSession].dashboardResult);
                 setView('dashboard');
             } else {
-                setView('landing');
+                setView(fallback);
             }
         } else {
             setView('landing');
@@ -2116,12 +2179,12 @@ const App: React.FC = () => {
                 <div className="w-full bg-brand-dark text-white px-4 sm:px-8 py-2.5 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-6 text-[11px]">
                     <span className="font-bold uppercase tracking-widest opacity-80">Signed in as</span>
                     <span className="font-black tracking-wide">{userSession}{isAdmin ? ' (admin)' : ''}</span>
-                    <button onClick={handleGoHome} className="px-4 py-1.5 bg-white text-brand-dark rounded-lg font-black uppercase tracking-widest text-[10px] hover:bg-slate-200 transition-all">Continue to Dashboard</button>
-                    <button onClick={() => setShowChangePassword(true)} className="px-4 py-1.5 border border-white/40 rounded-lg font-bold uppercase tracking-widest text-[10px] hover:bg-white/10 transition-all">Password</button>
+                    <button onClick={() => handleGoHome('form')} className="px-4 py-1.5 bg-white text-brand-dark rounded-lg font-black uppercase tracking-widest text-[10px] hover:bg-slate-200 transition-all">Continue to Dashboard</button>
+                    <button onClick={() => setShowChangePassword(true)} className="px-4 py-1.5 border border-white/40 rounded-lg font-bold uppercase tracking-widest text-[10px] hover:bg-white/10 transition-all">Account</button>
                     <button onClick={handleLogout} className="px-4 py-1.5 border border-white/40 rounded-lg font-bold uppercase tracking-widest text-[10px] hover:bg-white/10 transition-all">Sign Out</button>
                 </div>
             )}
-            {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
+            {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} onDeleted={handleAccountDeleted} />}
             <LandingPage 
             onStartApplication={handleStartNewApplication} 
             onGoToProvider={() => { setAuthMode('provider'); setView('auth'); }} 
@@ -2178,7 +2241,7 @@ const App: React.FC = () => {
     if (view === 'partnerLanding') {
         return <PartnerLanding 
             onBack={() => setView('landing')}
-            onSignUp={() => { setAuthMode('user'); setView('auth'); }}
+            onSignUp={() => { setAuthMode('provider'); setView('auth'); }} // v34.17 (FIX-7): partner CTA leads to the Service Provider Portal, not the applicant one
         />
     }
 
@@ -2196,7 +2259,21 @@ const App: React.FC = () => {
         />
     }
 
-    if (view === 'report' && reportData && reportToken) {
+    if (view === 'report' && reportToken) {
+        if (!reportData) {
+            // v34.18: revoked or unknown share link
+            return (
+                <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 font-sans">
+                    <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-brand-border p-10 text-center">
+                        <div className="w-12 h-12 bg-brand-dark rounded-xl flex items-center justify-center text-white mx-auto mb-6">
+                            <Shield className="w-6 h-6" />
+                        </div>
+                        <h1 className="text-xl font-black text-brand-dark uppercase tracking-widest mb-3">Report Unavailable</h1>
+                        <p className="text-sm text-slate-500 leading-relaxed">This report link is invalid or has been revoked by its owner. Please ask the applicant for a new link.</p>
+                    </div>
+                </div>
+            );
+        }
         return <ReportViewerPage data={reportData} token={reportToken} />;
     }
 
@@ -2219,7 +2296,7 @@ const App: React.FC = () => {
             isAdmin={isAdmin}
             onChangePassword={() => setShowChangePassword(true)}
         />
-        {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
+        {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} onDeleted={handleAccountDeleted} />}
         </>;
     }
     

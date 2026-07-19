@@ -138,6 +138,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case 'delete': {
         if (!isValidKey(key)) return res.status(400).json({ error: 'Invalid key' });
         if (!canAccessKey(key)) return res.status(403).json({ error: 'Access denied for this key' });
+        // v34.18: a published share record may be revoked ONLY by its owner
+        // (records published from v34.18 carry ownerEmail; older ones don't).
+        if (key.startsWith('pc:share:')) {
+          const existing: any = await kv.get(key);
+          if (existing && typeof existing === 'object' && existing.ownerEmail &&
+              (!session || session.email !== existing.ownerEmail)) {
+            return res.status(403).json({ error: 'Only the owner can revoke this link' });
+          }
+        }
         await kv.del(key);
         return res.status(200).json({ ok: true });
       }

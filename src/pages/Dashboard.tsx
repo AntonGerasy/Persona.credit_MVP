@@ -505,6 +505,9 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [isDownloading, setIsDownloading] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);   // v34.15: styled confirm for New Assessment
+  const [linkCopied, setLinkCopied] = useState(false);       // v34.16: Copy Link feedback
+  const [revokeConfirm, setRevokeConfirm] = useState(false); // v34.18: Revoke Link confirm
+  const [linkRevoked, setLinkRevoked] = useState(false);     // v34.18: Revoke Link feedback
   const [pdfError, setPdfError] = useState(false);           // v34.15: styled notice instead of alert()
   const isAlphaBuildView = false;
   
@@ -1489,17 +1492,17 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                 <p className="text-[10px] text-brand-gray mt-0.5">Opens your mail app with a ready-to-send message including a secure online report link. Attach the exported PDF before sending.</p>
                             </div>
                             <button
-                                onClick={async () => {
-                                    // v34.15: publish the report at its capability URL first, so the
-                                    // email can carry a WORKING "view online" link (infra from v34.13).
+                                onClick={() => {
+                                    // v34.16 FIX: mailto must launch SYNCHRONOUSLY inside the click —
+                                    // any await before it expires the user gesture and the browser
+                                    // silently blocks the external mail protocol. The share record is
+                                    // published in the background; the lender opens the link later.
                                     let reportLink = '';
                                     if (data.shareId) {
-                                        try {
-                                            await storage.set(`pc:share:${data.shareId}`, data);
-                                            reportLink = `${window.location.origin}/report/${data.shareId}`;
-                                        } catch (err) {
-                                            console.warn('Share record publish failed — sending email without link:', err);
-                                        }
+                                        reportLink = `${window.location.origin}/report/${data.shareId}`;
+                                        storage.set(`pc:share:${data.shareId}`, { ...data, ownerEmail: userId }).catch((err) => {
+                                            console.warn('Share record publish failed:', err);
+                                        });
                                     }
                                     const subject = encodeURIComponent(`Persona.Credit Verification Report — ${data.fullName || 'Applicant'} (${data.shareId || ''})`);
                                     const body = encodeURIComponent(`Hello,\n\nPlease find attached my Persona.Credit cross-border financial verification report.\n\nReport ID: ${data.shareId || '—'}\nTransferScore: ${data.score || '—'} / 850\nVerified monthly income (USD): ${data.reconciliation?.verified_monthly_usd ? '$' + Number(data.reconciliation.verified_monthly_usd).toLocaleString() + '/mo' : 'see report'}${reportLink ? `\nView the report online: ${reportLink}` : ''}\n\nThe PDF report is attached to this email.\n\nBest regards,\n${data.fullName || ''}`);
@@ -1509,7 +1512,59 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                             >
                                 Email to Lender
                             </button>
+                            {/* v34.16: Copy Link — mail-client-independent sharing path. Clipboard
+                                write goes FIRST (still inside the user gesture); publish runs in
+                                the background. */}
+                            {data.shareId && (
+                                <button
+                                    onClick={() => {
+                                        const reportLink = `${window.location.origin}/report/${data.shareId}`;
+                                        navigator.clipboard.writeText(reportLink).then(() => {
+                                            setLinkCopied(true);
+                                            setTimeout(() => setLinkCopied(false), 2500);
+                                        }).catch((err) => console.warn('Clipboard write failed:', err));
+                                        setLinkRevoked(false);
+                                        storage.set(`pc:share:${data.shareId}`, { ...data, ownerEmail: userId }).catch((err) => {
+                                            console.warn('Share record publish failed:', err);
+                                        });
+                                    }}
+                                    className={`px-5 py-2.5 border-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shrink-0 ${linkCopied ? 'border-brand-success text-brand-success bg-brand-success/5' : 'border-brand-border text-brand-dark bg-white hover:bg-slate-50'}`}
+                                >
+                                    {linkCopied ? 'Copied ✓' : 'Copy Link'}
+                                </button>
+                            )}
                         </div>
+                        {/* v34.18: revoke the published link (right to change your mind).
+                            Copy Link / Email to Lender publish it again on demand. */}
+                        {data.shareId && (
+                            <div className="flex items-center justify-end px-1">
+                                {linkRevoked ? (
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-brand-gray">Link revoked — Copy Link publishes it again</span>
+                                ) : (
+                                    <button
+                                        onClick={() => setRevokeConfirm(true)}
+                                        className="text-[10px] font-bold uppercase tracking-widest text-red-600 hover:text-red-700 underline underline-offset-4 transition-colors"
+                                    >
+                                        Revoke shared link
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                        {revokeConfirm && (
+                            <ConfirmModal
+                                title="Revoke Shared Link?"
+                                message="Anyone holding the current link will see 'Report Unavailable' instead of your report. You can publish the same link again anytime with Copy Link or Email to Lender."
+                                confirmLabel="Revoke"
+                                cancelLabel="Keep Link"
+                                danger
+                                onConfirm={() => {
+                                    storage.delete(`pc:share:${data.shareId}`)
+                                        .then(() => setLinkRevoked(true))
+                                        .catch((err) => console.warn('Revoke failed:', err));
+                                }}
+                                onClose={() => setRevokeConfirm(false)}
+                            />
+                        )}
 
                         {/* Instructions */}
                         <div className="space-y-3">
@@ -2173,8 +2228,8 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                 <Breadcrumbs activeTab={activeTab} onNavigate={setActiveTab} onHome={onExitToLanding} />
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
                     <div>
-                        <h2 className="text-3xl font-black text-brand-dark tracking-tighter uppercase italic leading-none mb-2">Integrity Timeline</h2>
-                        <p className="text-xs font-bold text-brand-gray uppercase tracking-widest">Tracking your evolving financial reputation</p>
+                        <h2 className="text-3xl font-black text-brand-dark tracking-tighter uppercase italic leading-none mb-2">History</h2>
+                        <p className="text-xs font-bold text-brand-gray uppercase tracking-widest">Your past assessments — every run is kept, nothing is overwritten</p>
                     </div>
                 </div>
 
@@ -2356,7 +2411,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
       {confirmReset && (
         <ConfirmModal
           title="Start a New Assessment?"
-          message="This clears the current dossier and re-runs the analysis from a fresh form. Your account and past assessments in History are kept."
+          message="You'll fill a fresh form and run a new analysis. Your current report stays available until the new one completes, and every past assessment is kept in History."
           confirmLabel="Start New"
           cancelLabel="Cancel"
           onConfirm={onReset}
@@ -2410,7 +2465,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                     </button>
                 )}
                 {onChangePassword && (
-                    <button onClick={onChangePassword} className="bg-slate-100 hover:bg-slate-200 text-brand-dark text-[10px] font-bold px-6 py-2.5 rounded-lg uppercase tracking-widest transition-all border border-brand-border">Password</button>
+                    <button onClick={onChangePassword} className="bg-slate-100 hover:bg-slate-200 text-brand-dark text-[10px] font-bold px-6 py-2.5 rounded-lg uppercase tracking-widest transition-all border border-brand-border">Account</button>
                 )}
                 <button onClick={onLogout} className="bg-slate-100 hover:bg-slate-200 text-brand-dark text-[10px] font-bold px-6 py-2.5 rounded-lg uppercase tracking-widest transition-all border border-brand-border">Sign Out</button>
             </div>
@@ -2517,7 +2572,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                  { id: 'report', label: 'Audit report', icon: FileText, sub: 'Institutional Dossier' },
                                  { id: 'dossier', label: 'Evidence Packet', icon: ShieldCheck, sub: 'Verified evidence vault' },
                                  { id: 'simulator', label: 'Underwriting Engine', icon: TrendingUp, sub: 'Simulate score impact' },
-                                 { id: 'history', label: 'Integrity Timeline', icon: Clock, sub: 'Analysis history' },
+                                 { id: 'history', label: 'History', icon: Clock, sub: 'Past assessments' },
                                  { id: 'share', label: 'Direct Delivery', icon: Mail, sub: 'Secure institutional issue' }
                              ].map(item => (
                                  <button 

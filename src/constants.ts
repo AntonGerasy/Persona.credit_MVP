@@ -172,7 +172,7 @@ export const formSchema: FormSchema = {
             { "id": "Creative & Media",         "label": "Creative & Media" },
             { "id": "Other",                    "label": "Other" }
           ],
-          "required": true
+          "required": false
         },
         {
           "id": "job_title_specific",
