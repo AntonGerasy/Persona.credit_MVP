@@ -1885,6 +1885,15 @@ const App: React.FC = () => {
                 finalResult.summaryStatement = "Current score reflects insufficient evidence. To achieve Prime status, please provide professional contracts or utility history.";
             }
 
+            // v34.15: persistent share/report ID — one ID across the PDF header,
+            // the lender email, and the public /report/{id} capability URL.
+            // Crypto-random (72 bits): the ID itself is the access credential.
+            if (!finalResult.shareId) {
+                const rnd = Array.from(crypto.getRandomValues(new Uint8Array(9)))
+                    .map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+                finalResult.shareId = `PC-${rnd}`;
+            }
+
             currentDB.users[userSession!].dashboardResult = finalResult;
             // Keep formData so user can re-run or edit without re-entering everything
             // (only clear currentStep — they've completed the flow)

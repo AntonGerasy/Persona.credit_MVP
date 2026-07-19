@@ -79,6 +79,7 @@ Facts: ${JSON.stringify(ctx)}
 Rules:
 - Tailor the summary, strengths, and risks to what THIS product's decision-maker evaluates — not a generic verification.
 - Be specific. Use actual numbers — and for income use the DOCUMENTED figure (documented_monthly_usd), never the declared claim.
+- PROFESSION RULE (STRICT): mention a profession/sector ONLY if it is explicitly present in Facts. If absent, describe the applicant without a profession — NEVER guess one from payer names, country, or income level.
 - summary_statement: plain English, for the specific recipient (e.g. landlord for a rental, bank officer for a mortgage). No jargon.
 - top_strengths: 3 short bullet facts relevant to this product (e.g. "Income covers typical rent ~3x" for a rental).
 - top_risks: 2 short bullet facts relevant to this product (e.g. "No 2-year income history for mortgage underwriting").${contradictionRule}${ppp_context_only ? `

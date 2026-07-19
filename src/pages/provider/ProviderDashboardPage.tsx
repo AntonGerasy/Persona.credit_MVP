@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { Offer, Applicant, ProviderDashboardPageProps } from '../../types';
+import ConfirmModal from '../../components/ConfirmModal';
 
 // --- Internal components ---
 const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
@@ -141,6 +142,7 @@ const ProviderDashboardPage: React.FC<ProviderDashboardPageProps> = ({ data, for
     const [isOfferModalOpen, setIsOfferModalOpen] = useState(false);
     const [editingOffer, setEditingOffer] = useState<Offer | null>(null);
     const [viewingApplicant, setViewingApplicant] = useState<Applicant | null>(null);
+    const [offerToDelete, setOfferToDelete] = useState<Offer | null>(null); // v34.15: styled confirm
     
     const handleCreateOffer = () => {
         setEditingOffer(null);
@@ -157,9 +159,7 @@ const ProviderDashboardPage: React.FC<ProviderDashboardPageProps> = ({ data, for
     };
     
     const handleDeleteOffer = (offer: Offer) => {
-        if(window.confirm(`Are you sure you want to delete the offer "${offer.title}"?`)) {
-            onOfferAction('delete', offer);
-        }
+        setOfferToDelete(offer); // v34.15: styled confirm modal instead of window.confirm
     };
     
     const toggleOfferStatus = (offer: Offer) => {
@@ -268,6 +268,17 @@ const ProviderDashboardPage: React.FC<ProviderDashboardPageProps> = ({ data, for
                 defaultMinScore={Number(formData.minScore)}
             />
             <DossierModal applicant={viewingApplicant} onClose={() => setViewingApplicant(null)} />
+            {offerToDelete && (
+                <ConfirmModal
+                    title="Delete This Offer?"
+                    message={`"${offerToDelete.title}" will be removed permanently. Applicants who already shared their dossier for this offer keep their share history.`}
+                    confirmLabel="Delete"
+                    cancelLabel="Cancel"
+                    danger
+                    onConfirm={() => onOfferAction('delete', offerToDelete)}
+                    onClose={() => setOfferToDelete(null)}
+                />
+            )}
             <header className="bg-white dark:bg-slate-800 shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
                     <h1 className="text-xl font-bold text-slate-800 dark:text-white">{data.companyName} - Partner Portal</h1>

@@ -191,10 +191,10 @@ FILL raw_data_table FIRST — all income figures come from the DOCUMENTED values
 - monthly_income_original: documented MONTHLY amount + currency from documented_monthly_income_local / documented_currency (e.g. "UAH 35,689/month"). If has_documented_income is false: "N/A — declared only, unverified".
 - monthly_income_usd: documented_monthly_income_usd (e.g. "≈ $860 USD/month"). NEVER the declared claim.
 - income_vs_national_median: % above/below median, based on the DOCUMENTED figure (e.g. "78% above Ukraine median of UAH 20,000/mo")
-- income_vs_sector_median: % vs sector benchmark, based on the DOCUMENTED figure
+- income_vs_sector_median: % vs sector benchmark, based on the DOCUMENTED figure. ONLY if a sector is stated in the data (job_sector / employment fields); otherwise "N/A — sector not stated".
 - income_percentile_label: percentile based on the DOCUMENTED figure (e.g. "Top 40% of earners in Ukraine")
 - ppp_equivalent_usd: realistic purchasing power of the MONTHLY USD figure (SANITY CHECK: same order of magnitude as monthly_income_usd — never 10x larger)
-- sector_benchmark_note: US salary range for this profession (e.g. "IT engineers from Ukraine earn $65k-130k/yr in US")
+- sector_benchmark_note: US salary range for the applicant's STATED profession/sector taken from the application data. PROFESSION RULE (STRICT): if NO profession or sector is stated in the data, write "Sector not stated by applicant" — NEVER guess, infer, or invent a profession from transaction counterparties, payer names, country, income level, or anything else. An invented profession is a fabrication that can mislead a lender.
 - document_institution: bank name from documents (or "N/A — no income documents" if none)
 - document_period: statement period
 - income_pattern: regularity AND source type from the documents (e.g. "Irregular — P2P transfers from individuals, not salary")
@@ -202,7 +202,7 @@ ${ctx.ppp_context_only ? `
 PPP RULE (this is a USD-obligation product — rent/loan/mortgage): ppp_equivalent_usd is ORIGIN CONTEXT ONLY. Do NOT headline it and do NOT put PPP or "purchasing-power equivalent" in the strengths array. The recipient collects in USD, so the figure that matters is the documented USD income (monthly_income_usd), never a PPP-inflated number. If income looks strong only in PPP terms, that is NOT a strength for this product.` : ''}
 
 THEN write:
-- origin_income_context: 2-3 sentences. What does this income mean IN the origin country? Reference sector.
+- origin_income_context: 2-3 sentences. What does this income mean IN the origin country? Reference the STATED sector only; if no sector is stated, describe the income without attributing a profession.
 - income_transfer_narrative: 2-3 sentences FOR THE RECIPIENT OF THIS DOSSIER. The applicant is applying for: ${ctx.verification_purpose || 'financial verification'}. Underwriting lens for this product: ${ctx.purpose_lens || 'general financial picture'}. Frame the narrative around what THIS product's decision-maker actually evaluates — do not give a generic answer.
 
 Data: ${JSON.stringify(ctx)}

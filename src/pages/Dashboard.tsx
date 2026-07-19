@@ -33,6 +33,8 @@ import RealmSwitcher from '../components/RealmSwitcher';
 import type { DashboardProps, SimulationResult, DashboardData, HistoryEntry } from '../types';
 import { generateDossierPDF } from '../lib/pdfGenerator';
 import { getHistory, compareEntries } from '../lib/historyUtils';
+import { storage } from '../lib/storage';
+import ConfirmModal from '../components/ConfirmModal';
 
 const SOPHISTICATED_DEMO_DATA: DashboardData = {
     score: 842,
@@ -282,7 +284,7 @@ const AlphaBuildView: React.FC<{ data: any }> = ({ data }) => {
                         </p>
                         <div className="pt-4 flex flex-wrap gap-4 justify-center md:justify-start">
                             <Badge variant="positive" className="py-2 px-6">{data.level} Risk Profile</Badge>
-                            <Badge variant="info" className="py-2 px-6">Integrity: {(data.confidence * 100).toFixed(0)}%</Badge>
+                            <Badge variant="info" className="py-2 px-6">Confidence: {(data.confidence * 100).toFixed(0)}%</Badge>
                         </div>
                     </div>
                 </div>
@@ -502,6 +504,8 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
 
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [isDownloading, setIsDownloading] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);   // v34.15: styled confirm for New Assessment
+  const [pdfError, setPdfError] = useState(false);           // v34.15: styled notice instead of alert()
   const isAlphaBuildView = false;
   
   // Simulator State
@@ -565,7 +569,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
           await generateDossierPDF(data);
       } catch (error) {
           console.error("PDF Generation failed:", error);
-          alert("Failed to generate PDF. Please try again.");
+          setPdfError(true); // v34.15: styled notice instead of alert()
       } finally {
           setIsDownloading(false);
       }
@@ -959,7 +963,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                     <div key={i} className="p-6 bg-white border border-brand-border rounded-2xl shadow-sm hover:shadow-md transition-all group">
                                                         <div className="flex justify-between items-start mb-2">
                                                             <h4 className="text-sm font-black text-brand-dark uppercase">{s.title}</h4>
-                                                            <span className="text-[9px] font-bold text-brand-success uppercase">{(s.confidence * 100).toFixed(0)}% Conf</span>
+                                                            <span className="text-[9px] font-bold text-brand-success uppercase">{(s.confidence * 100).toFixed(0)}% Confidence</span>
                                                         </div>
                                                         <p className="text-xs text-brand-gray/80 font-medium leading-relaxed italic">"{s.description}"</p>
                                                     </div>
@@ -1482,12 +1486,23 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                         <div className="flex items-center gap-4 p-5 bg-white border border-brand-border rounded-2xl">
                             <div className="flex-1">
                                 <p className="text-[11px] font-bold text-brand-dark">Email to Lender</p>
-                                <p className="text-[10px] text-brand-gray mt-0.5">Opens your mail app with a ready-to-send message. Attach the exported PDF before sending.</p>
+                                <p className="text-[10px] text-brand-gray mt-0.5">Opens your mail app with a ready-to-send message including a secure online report link. Attach the exported PDF before sending.</p>
                             </div>
                             <button
-                                onClick={() => {
+                                onClick={async () => {
+                                    // v34.15: publish the report at its capability URL first, so the
+                                    // email can carry a WORKING "view online" link (infra from v34.13).
+                                    let reportLink = '';
+                                    if (data.shareId) {
+                                        try {
+                                            await storage.set(`pc:share:${data.shareId}`, data);
+                                            reportLink = `${window.location.origin}/report/${data.shareId}`;
+                                        } catch (err) {
+                                            console.warn('Share record publish failed — sending email without link:', err);
+                                        }
+                                    }
                                     const subject = encodeURIComponent(`Persona.Credit Verification Report — ${data.fullName || 'Applicant'} (${data.shareId || ''})`);
-                                    const body = encodeURIComponent(`Hello,\n\nPlease find attached my Persona.Credit cross-border financial verification report.\n\nReport ID: ${data.shareId || '—'}\nTransferScore: ${data.score || '—'} / 850\nVerified monthly income (USD): ${data.reconciliation?.verified_monthly_usd ? '$' + Number(data.reconciliation.verified_monthly_usd).toLocaleString() + '/mo' : 'see report'}\n\nThe PDF report is attached to this email.\n\nBest regards,\n${data.fullName || ''}`);
+                                    const body = encodeURIComponent(`Hello,\n\nPlease find attached my Persona.Credit cross-border financial verification report.\n\nReport ID: ${data.shareId || '—'}\nTransferScore: ${data.score || '—'} / 850\nVerified monthly income (USD): ${data.reconciliation?.verified_monthly_usd ? '$' + Number(data.reconciliation.verified_monthly_usd).toLocaleString() + '/mo' : 'see report'}${reportLink ? `\nView the report online: ${reportLink}` : ''}\n\nThe PDF report is attached to this email.\n\nBest regards,\n${data.fullName || ''}`);
                                     window.location.href = `mailto:?subject=${subject}&body=${body}`;
                                 }}
                                 className="px-5 py-2.5 bg-white border-2 border-brand-blue text-brand-blue text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-brand-blue/5 transition-all shrink-0"
@@ -1793,7 +1808,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                 <div className="flex items-center gap-6 pt-6 border-t border-brand-border">
                                     <div className="flex flex-col">
                                         <p className="text-[10px] font-bold text-brand-gray uppercase tracking-widest">Evidence Fidelity</p>
-                                        <p className="text-sm font-bold text-brand-dark italic">{(data.confidence * 100).toFixed(0)}% Certainty</p>
+                                        <p className="text-sm font-bold text-brand-dark italic">{(data.confidence * 100).toFixed(0)}% Confidence</p>
                                     </div>
                                     <div className="w-px h-8 bg-brand-border"></div>
                                     <div className="flex flex-col">
@@ -2197,7 +2212,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                 <p className="text-[9px] font-bold text-brand-gray uppercase tracking-widest mt-1">TransferScore</p>
                                             </div>
                                             <div className="text-right">
-                                                <p className="text-xs font-bold text-brand-blue">{(entry.confidence * 100).toFixed(0)}% Faith</p>
+                                                <p className="text-xs font-bold text-brand-blue">{(entry.confidence * 100).toFixed(0)}% Confidence</p>
                                                 <p className="text-[9px] font-bold text-brand-gray uppercase tracking-widest mt-1">{entry.id}</p>
                                             </div>
                                         </div>
@@ -2338,6 +2353,24 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
   
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-brand-dark selection:bg-brand-blue/10 selection:text-brand-dark">
+      {confirmReset && (
+        <ConfirmModal
+          title="Start a New Assessment?"
+          message="This clears the current dossier and re-runs the analysis from a fresh form. Your account and past assessments in History are kept."
+          confirmLabel="Start New"
+          cancelLabel="Cancel"
+          onConfirm={onReset}
+          onClose={() => setConfirmReset(false)}
+        />
+      )}
+      {pdfError && (
+        <ConfirmModal
+          title="PDF Export Failed"
+          message="The PDF could not be generated. Please try again; if the problem persists, use the web report link instead."
+          confirmLabel="OK"
+          onClose={() => setPdfError(false)}
+        />
+      )}
       <header className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-brand-border shadow-sm">
         <div className="max-w-7xl mx-auto px-6 sm:px-10 py-5 flex justify-between items-center text-nowrap">
             <div className="flex items-center gap-3 cursor-pointer" onClick={onExitToLanding} title="Back to home (you stay signed in)">
@@ -2363,11 +2396,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                 </div>
                 <div className="h-4 w-px bg-brand-border"></div>
                 <button
-                    onClick={() => {
-                        if (window.confirm('Start a new assessment? This clears the current dossier and re-runs the analysis from a fresh form.')) {
-                            onReset();
-                        }
-                    }}
+                    onClick={() => setConfirmReset(true)}
                     className="px-6 py-2.5 bg-brand-dark text-white text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all shadow-lg hover:opacity-90 active:scale-95"
                 >
                     New Assessment
