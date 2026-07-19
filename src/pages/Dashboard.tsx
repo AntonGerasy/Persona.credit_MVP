@@ -35,6 +35,7 @@ import { generateDossierPDF } from '../lib/pdfGenerator';
 import { getHistory, compareEntries } from '../lib/historyUtils';
 import { storage } from '../lib/storage';
 import ConfirmModal from '../components/ConfirmModal';
+import AdminRegistry from '../components/AdminRegistry';
 
 const SOPHISTICATED_DEMO_DATA: DashboardData = {
     score: 842,
@@ -508,6 +509,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
   const [linkCopied, setLinkCopied] = useState(false);       // v34.16: Copy Link feedback
   const [revokeConfirm, setRevokeConfirm] = useState(false); // v34.18: Revoke Link confirm
   const [linkRevoked, setLinkRevoked] = useState(false);     // v34.18: Revoke Link feedback
+  const [showRegistry, setShowRegistry] = useState(false);   // v34.20: admin traction panel
   const [pdfError, setPdfError] = useState(false);           // v34.15: styled notice instead of alert()
   const isAlphaBuildView = false;
   
@@ -1713,7 +1715,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                 </div>
                             </div>
                             <div className="flex flex-wrap gap-4">
-                                <button className="px-5 py-2 bg-red-600 text-white rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-red-700 transition-all shadow-md active:scale-95">User Registry</button>
+                                <button onClick={() => setShowRegistry(true)} className="px-5 py-2 bg-red-600 text-white rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-red-700 transition-all shadow-md active:scale-95">User Registry</button>
                                 <button className="px-5 py-2 bg-white text-red-600 border border-red-200 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-all active:scale-95">Manual Override</button>
                                 <button className="px-5 py-2 bg-white text-red-600 border border-red-200 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-all active:scale-95">Service Health</button>
                             </div>
@@ -2426,6 +2428,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
           onClose={() => setPdfError(false)}
         />
       )}
+      {showRegistry && <AdminRegistry onClose={() => setShowRegistry(false)} />}
       <header className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-brand-border shadow-sm">
         <div className="max-w-7xl mx-auto px-6 sm:px-10 py-5 flex justify-between items-center text-nowrap">
             <div className="flex items-center gap-3 cursor-pointer" onClick={onExitToLanding} title="Back to home (you stay signed in)">

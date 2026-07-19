@@ -178,7 +178,7 @@ export const formSchema: FormSchema = {
           "id": "job_title_specific",
           "label": "Current Job Title",
           "type": "text",
-          "required": true,
+          "required": false,
           "placeholder": "e.g. Senior Software Engineer, Operations Manager"
         },
         {

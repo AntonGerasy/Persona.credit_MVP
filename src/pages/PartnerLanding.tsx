@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import ConfirmModal from '../components/ConfirmModal';
 import { 
     Users, 
     TrendingUp, 
@@ -15,7 +16,11 @@ interface PartnerLandingProps {
     onSignUp: () => void;
 }
 
-const PartnerLanding: React.FC<PartnerLandingProps> = ({ onBack, onSignUp }) => {
+const PartnerLanding: React.FC<PartnerLandingProps> = ({ onBack, onSignUp: _onSignUp }) => {
+    // v34.20: provider onboarding is deferred to the backlog — the page stays as a
+    // showcase for SERVICE PROVIDERS (lenders/landlords/banks), and every CTA
+    // shows a "not available yet" notice instead of opening registration.
+    const [showNotAvailable, setShowNotAvailable] = useState(false);
     return (
         <div className="min-h-screen bg-[#FDFDFD] font-sans selection:bg-emerald-50 selection:text-emerald-900">
             {/* Nav */}
@@ -34,7 +39,7 @@ const PartnerLanding: React.FC<PartnerLandingProps> = ({ onBack, onSignUp }) => 
                     <h1 className="text-xl font-bold tracking-tight text-slate-900 uppercase">Institutional Partner Network</h1>
                 </div>
                 <button 
-                    onClick={onSignUp}
+                    onClick={() => setShowNotAvailable(true)}
                     className="bg-emerald-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all hover:-translate-y-0.5"
                 >
                     Join Network
@@ -52,7 +57,7 @@ const PartnerLanding: React.FC<PartnerLandingProps> = ({ onBack, onSignUp }) => 
                             <span className="text-emerald-600 underline decoration-8 decoration-emerald-100">Monetize Integrity.</span>
                         </h1>
                         <p className="text-xl text-slate-500 font-medium max-w-2xl mx-auto leading-relaxed">
-                            Relocation experts, influencers, and consultants: leverage the Persona.Credit infrastructure to provide your audience with verified economic dossiers.
+                            For service providers — lenders, landlords, property managers, banks, and fintechs. Receive applicant-consented, document-verified cross-border dossiers and publish offers targeted by TransferScore.
                         </p>
                     </div>
 
@@ -61,9 +66,9 @@ const PartnerLanding: React.FC<PartnerLandingProps> = ({ onBack, onSignUp }) => 
                             <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
                                 <DollarSign className="w-6 h-6" />
                             </div>
-                            <h3 className="text-lg font-black text-slate-950 tracking-tight">Transparent Revenue</h3>
+                            <h3 className="text-lg font-black text-slate-950 tracking-tight">Verified Applicants</h3>
                             <p className="text-sm text-slate-400 font-medium leading-relaxed">
-                                High-margin revenue split. Earn <span className="text-emerald-600 font-bold">$2.00</span> for every verified TransferScore report generated through your node.
+                                Every dossier is built from origin-country bank statements with a deterministic, line-by-line income audit — not self-reported numbers.
                             </p>
                         </div>
                         <div className="p-8 bg-white border border-slate-100 rounded-[2.5rem] text-left space-y-4 shadow-sm hover:shadow-xl transition-shadow">
@@ -72,16 +77,16 @@ const PartnerLanding: React.FC<PartnerLandingProps> = ({ onBack, onSignUp }) => 
                             </div>
                             <h3 className="text-lg font-black text-slate-950 tracking-tight">Institutional Trust</h3>
                             <p className="text-sm text-slate-400 font-medium leading-relaxed">
-                                Join a network of certified economic integrity nodes. Not an ad network — a professional utility for financial mobility.
+                                Applicants explicitly choose to share their dossier with you. You see verified income, obligations, and the full analysis — with their consent on record.
                             </p>
                         </div>
                         <div className="p-8 bg-white border border-slate-100 rounded-[2.5rem] text-left space-y-4 shadow-sm hover:shadow-xl transition-shadow">
                             <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
                                 <Globe className="w-6 h-6" />
                             </div>
-                            <h3 className="text-lg font-black text-slate-950 tracking-tight">Global Impact</h3>
+                            <h3 className="text-lg font-black text-slate-950 tracking-tight">Targeted Offers</h3>
                             <p className="text-sm text-slate-400 font-medium leading-relaxed">
-                                Help bridge the credit gap for international talent. Your referral provides the essential Tier-1 underwriting evidence they need.
+                                Publish rental, lending, or banking offers with a minimum TransferScore — and receive only applicants who clear your bar.
                             </p>
                         </div>
                     </div>
@@ -94,28 +99,20 @@ const PartnerLanding: React.FC<PartnerLandingProps> = ({ onBack, onSignUp }) => 
                             <div className="max-w-2xl space-y-10 relative z-10">
                                 <div className="space-y-4">
                                     <h2 className="text-4xl md:text-5xl font-black tracking-tighter leading-tight">
-                                        <span className="text-green-500">The math is simple: <br />
-                                        $17 / $2 Revenue Split.</span>
+                                        <span className="text-green-500">Underwrite the invisible: <br />
+                                        verified cross-border applicants.</span>
                                     </h2>
                                     <p className="text-slate-400 font-medium text-lg">
-                                        The Bureau handles all macro-contextual analysis, Google Search oracles, and dossier generation. You provide the bridge.
+                                        Persona.Credit handles document verification, deterministic income audits, and dossier generation. You receive decision-ready applicants.
                                     </p>
                                 </div>
                                 <div className="flex flex-wrap gap-6 items-center">
                                     <button 
-                                        onClick={onSignUp}
+                                        onClick={() => setShowNotAvailable(true)}
                                         className="group bg-emerald-600 text-white px-10 py-5 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] transition-all hover:bg-emerald-500 hover:-translate-y-1 shadow-2xl shadow-emerald-900/40 flex items-center gap-3"
                                     >
                                         Apply to Join Network
                                         <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                                    </button>
-                                    {/* v34.17 (FIX-8): visible entry for EXISTING providers — the portal
-                                        page has both Sign In and Create Account tabs. */}
-                                    <button
-                                        onClick={onSignUp}
-                                        className="text-[11px] font-bold uppercase tracking-widest text-emerald-400 hover:text-emerald-300 underline underline-offset-4 transition-colors"
-                                    >
-                                        Already a partner? Sign in
                                     </button>
                                     <div className="flex items-center gap-3 pl-2">
                                         <div className="flex -space-x-3">
@@ -154,6 +151,14 @@ const PartnerLanding: React.FC<PartnerLandingProps> = ({ onBack, onSignUp }) => 
             <footer className="max-w-7xl mx-auto px-8 py-10 border-t border-slate-100 text-center">
                 <p className="text-[10px] font-bold text-slate-300 uppercase tracking-[0.3em]">&copy; 2026 Persona.Credit Institutional Partner Network &bull; Revenue Transparency Code</p>
             </footer>
+            {showNotAvailable && (
+                <ConfirmModal
+                    title="Partner Onboarding Opens Soon"
+                    message="We are onboarding institutional partners in waves, and self-serve registration is not available yet. If you are a lender, landlord, or bank interested in receiving verified cross-border applicants, contact us and we will reach out as the next wave opens."
+                    confirmLabel="Got It"
+                    onClose={() => setShowNotAvailable(false)}
+                />
+            )}
         </div>
     );
 };
