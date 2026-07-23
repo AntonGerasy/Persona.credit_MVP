@@ -1,21 +1,30 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@200;300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  /* v34.26: geometric display face for headlines (reference-style light headings) */
+  --font-display: "Outfit", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  
-  /* Persona.Credit Professional Palette */
-  --color-brand-blue: #004EE5;
-  --color-brand-dark: #1A1A1A;
-  --color-brand-gray: #71717A;
-  --color-brand-border: #E4E4E7;
-  --color-brand-bg: #FFFFFF;
+
+  /* Persona.Credit palette — v34.26 warm canvas.
+     NOTE: the token is still named `brand-blue` on purpose. It is referenced by
+     ~180 class names across the app; renaming would mean touching every one of
+     them. Changing only its VALUE repaints the whole product safely. */
+  --color-brand-blue: #E0552D;   /* accent — warm coral */
+  --color-brand-dark: #1B1A18;   /* warm near-black */
+  --color-brand-gray: #78716C;   /* warm gray for secondary text */
+  --color-brand-border: #E6E1DA; /* soft warm hairline */
+  --color-brand-bg: #F5F3EF;     /* warm canvas */
+  --color-brand-canvas: #F5F3EF;
+  /* v34.26 FIX: `brand-success` was used in 14 places but never defined, so those
+     classes resolved to nothing. Defining it makes existing markup render. */
+  --color-brand-success: #2F9E68;
 }
 
 @layer base {
   body {
-    @apply font-sans bg-white text-brand-dark antialiased overflow-x-hidden;
+    @apply font-sans bg-brand-bg text-brand-dark antialiased overflow-x-hidden;
     line-height: 1.5;
   }
 
@@ -28,7 +37,7 @@
   }
 
   h1, h2, h3, h4, h5, h6 {
-    @apply text-brand-dark font-bold tracking-tight;
+    @apply font-display text-brand-dark font-bold tracking-tight;
   }
 }
 
@@ -41,3 +50,56 @@
 .markdown-body p { @apply leading-relaxed; }
 .markdown-body ul { @apply list-disc pl-5 space-y-2; }
 .markdown-body strong { @apply font-semibold text-brand-blue; }
+
+/* v34.22 (FIX-4): hide the scrollbar on the mobile dashboard header's
+   horizontally-scrollable action group — the scroll works, the bar is just
+   visually hidden. */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ── v34.26 surface system ───────────────────────────────────────────────────
+   Frosted, borderless surfaces that sit on the warm canvas. Purely visual:
+   these classes add no layout, so they can be applied to existing markup
+   without shifting anything. */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.68);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  box-shadow:
+    0 1px 2px rgba(27, 26, 24, 0.04),
+    0 10px 30px -12px rgba(27, 26, 24, 0.12);
+}
+
+.glass-panel-strong {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  box-shadow:
+    0 1px 2px rgba(27, 26, 24, 0.05),
+    0 18px 40px -16px rgba(27, 26, 24, 0.16);
+}
+
+.soft-lift {
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+              box-shadow 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.soft-lift:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    0 1px 2px rgba(27, 26, 24, 0.05),
+    0 26px 50px -20px rgba(27, 26, 24, 0.22);
+}
+
+/* Ambient colour blooms used behind hero content. */
+.bloom {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .soft-lift { transition: none; }
+  .soft-lift:hover { transform: none; }
+}

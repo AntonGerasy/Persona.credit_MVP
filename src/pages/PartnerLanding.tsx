@@ -115,14 +115,7 @@ const PartnerLanding: React.FC<PartnerLandingProps> = ({ onBack, onSignUp: _onSi
                                         <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                                     </button>
                                     <div className="flex items-center gap-3 pl-2">
-                                        <div className="flex -space-x-3">
-                                            {[1,2,3].map(i => (
-                                                <div key={i} className="w-8 h-8 rounded-full border-2 border-slate-950 bg-slate-800 flex items-center justify-center text-[10px] font-black">
-                                                    {String.fromCharCode(64 + i)}
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">140+ active partners</span>
+                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Institutional program in preparation</span>
                                     </div>
                                 </div>
                             </div>
@@ -132,16 +125,16 @@ const PartnerLanding: React.FC<PartnerLandingProps> = ({ onBack, onSignUp: _onSi
                     <div className="pt-20 grid grid-cols-1 md:grid-cols-2 gap-12 text-left">
                         <div className="space-y-4">
                             <BarChart3 className="w-8 h-8 text-emerald-600" />
-                            <h3 className="text-sm font-black text-slate-950 uppercase tracking-widest">Real-Time Dashboards</h3>
+                            <h3 className="text-sm font-black text-slate-950 uppercase tracking-widest">Planned: Partner Dashboards</h3>
                             <p className="text-sm text-slate-400 font-medium leading-relaxed">
-                                Every partner receives a live terminal to track conversions, earnings, and payout status with institutional transparency.
+                                The partner program will provide a dashboard to review consented applicant dossiers. This is in preparation and not yet available.
                             </p>
                         </div>
                         <div className="space-y-4">
                             <Users className="w-8 h-8 text-emerald-600" />
-                            <h3 className="text-sm font-black text-slate-950 uppercase tracking-widest">Immediate Settlements</h3>
+                            <h3 className="text-sm font-black text-slate-950 uppercase tracking-widest">Planned: Offer Publishing</h3>
                             <p className="text-sm text-slate-400 font-medium leading-relaxed">
-                                No 30-day waiting periods. Once a dossier is generated and verified, your commission is settleable immediately.
+                                A future release will let approved partners publish rental, lending, or banking offers targeted by TransferScore. Details will be shared as the program opens.
                             </p>
                         </div>
                     </div>
@@ -149,7 +142,7 @@ const PartnerLanding: React.FC<PartnerLandingProps> = ({ onBack, onSignUp: _onSi
             </main>
 
             <footer className="max-w-7xl mx-auto px-8 py-10 border-t border-slate-100 text-center">
-                <p className="text-[10px] font-bold text-slate-300 uppercase tracking-[0.3em]">&copy; 2026 Persona.Credit Institutional Partner Network &bull; Revenue Transparency Code</p>
+                <p className="text-[10px] font-bold text-slate-300 uppercase tracking-[0.3em]">&copy; 2026 Persona.Credit &bull; Partner program in preparation</p>
             </footer>
             {showNotAvailable && (
                 <ConfirmModal

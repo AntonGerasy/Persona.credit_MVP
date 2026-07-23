@@ -21,7 +21,7 @@
  *   pc:auth:* / pc:session:* → server-only (refused by /api/kv)
  */
 
-import { getSession } from './session';
+import { getSession, clearSession } from './session';
 
 const LS_KEY = 'persona_credit_db_v1';
 const KV_ENDPOINT = '/api/kv';
@@ -40,6 +40,16 @@ async function kvCall(op: KVOp, params: Record<string, any>): Promise<any> {
     },
     body: JSON.stringify({ op, ...params }),
   });
+
+  // v34.21: a 401 with a token attached means THIS tab's session was revoked
+  // (password changed / account deleted elsewhere). A stale tab must not keep
+  // pretending to be signed in — clear the dead token and reload to landing.
+  if (response.status === 401 && session) {
+    clearSession();
+    try { localStorage.removeItem('pc_cache_v2'); } catch { /* ignore */ }
+    window.location.reload();
+    throw new Error('Session revoked — reloading');
+  }
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
@@ -111,6 +121,21 @@ export const storage = {
     }
   },
 
+  // v34.24 (P1): strict write for CRITICAL publications (e.g. a shareable report
+  // link). Unlike set(), it does NOT silently fall back to localStorage — it
+  // THROWS if the server write fails, so the UI can show a retry instead of
+  // claiming success on a link the recipient could never open. Only use this
+  // where a false success would mislead someone; keep set() for drafts/autosave.
+  async setStrict(key: string, value: any, ttl?: number): Promise<void> {
+    await kvCall('set', { key, value, ttl });
+  },
+
+  // v34.25-safe: strict delete for security-sensitive operations such as
+  // revoking a public report link. Never falls back and never swallows errors.
+  async deleteStrict(key: string): Promise<void> {
+    await kvCall('delete', { key });
+  },
+
   async delete(key: string): Promise<void> {
     try {
       await kvCall('delete', { key });
@@ -145,7 +170,8 @@ export const storage = {
 // the content is now strictly session-scoped: a user session sees only its own
 // user record; a provider session sees only its own provider records. The
 // marketplace slice (offers / permissions / support_tickets) plus a public
-// provider directory live in a shared blob readable by any authenticated session.
+// provider directory live in a shared blob. Applicant sessions do not load or
+// write that blob; it is retained only for future provider compatibility.
 
 export type AppDB = {
   users: Record<string, any>;
@@ -236,12 +262,16 @@ async function persistScoped(data: AppDB): Promise<void> {
     if (prov !== undefined) writes.push(storage.set(`pc:provider:${s.providerId}`, prov));
   }
 
-  const shared = sharedFromDB(data);
-  const sharedJson = JSON.stringify(shared);
-  if (sharedJson !== loadedSharedJson) {
-    writes.push(storage.set(SHARED_KEY, shared));
-    loadedShared = shared;
-    loadedSharedJson = sharedJson;
+  // v34.25-safe: only provider sessions may persist marketplace/shared data.
+  // Applicant actions must never expose or overwrite support tickets or provider data.
+  if (s.kind === 'provider') {
+    const shared = sharedFromDB(data);
+    const sharedJson = JSON.stringify(shared);
+    if (sharedJson !== loadedSharedJson) {
+      writes.push(storage.set(SHARED_KEY, shared));
+      loadedShared = shared;
+      loadedSharedJson = sharedJson;
+    }
   }
 
   await Promise.all(writes);
@@ -273,24 +303,27 @@ export const db = {
         s.kind === 'provider' && s.providerId
           ? withTimeout(Promise.all([storage.get(`pc:provideruser:${s.email}`), storage.get(`pc:provider:${s.providerId}`)]))
           : Promise.resolve(null),
-        withTimeout(storage.get(SHARED_KEY)),
+        // v34.25-safe: applicants must not request pc:shared at all.
+        s.kind === 'provider' ? withTimeout(storage.get(SHARED_KEY)) : Promise.resolve(null),
       ]);
 
-      const shared: SharedBlob = sharedRaw && typeof sharedRaw === 'object'
+      const shared: SharedBlob = s.kind === 'provider' && sharedRaw && typeof sharedRaw === 'object'
         ? { ...emptyShared(), ...(sharedRaw as Partial<SharedBlob>) }
         : emptyShared();
       loadedShared = shared;
       loadedSharedJson = JSON.stringify(shared);
 
-      out.offers = shared.offers;
-      out.permissions = shared.permissions;
-      out.support_tickets = shared.support_tickets;
+      if (s.kind === 'provider') {
+        out.offers = shared.offers;
+        out.permissions = shared.permissions;
+        out.support_tickets = shared.support_tickets;
+      }
 
       if (s.kind === 'user') {
         out.currentUser = s.email;
         out.users[s.email] = own && typeof own === 'object' ? own : {};
-        // Read-only public provider directory — enough for offer matching (companyName).
-        out.providers = { ...shared.providersPublic };
+        // Provider marketplace is intentionally unavailable in the applicant MVP.
+        out.providers = {};
       } else if (s.kind === 'provider' && s.providerId) {
         out.currentProvider = s.email;
         const pu = Array.isArray(ownProviderPair) ? ownProviderPair[0] : null;

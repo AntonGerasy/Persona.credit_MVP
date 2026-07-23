@@ -389,13 +389,23 @@ const ScoreBar: React.FC<{ label: string, score: number, icon?: React.ReactNode 
 
 const formatDossier = (text: string) => {
     if (!text) return '';
-    return text
-        .replace(/^### (.*$)/gim, '<h3 className="text-xl font-bold text-brand-dark mt-8 mb-4 uppercase tracking-tight">$1</h3>')
-        .replace(/^## (.*$)/gim, '<h2 className="text-2xl font-black text-brand-dark mt-10 mb-6 uppercase tracking-tighter border-b border-brand-border pb-2">$1</h2>')
-        .replace(/^# (.*$)/gim, '<h1 className="text-3xl font-black text-brand-blue mt-12 mb-8 uppercase tracking-widest">$1</h1>')
-        .replace(/^\* (.*$)/gim, '<li className="ml-4 mb-2">$1</li>')
-        .replace(/^\- (.*$)/gim, '<li className="ml-4 mb-2 list-none flex items-start gap-2"><span className="text-brand-blue">•</span> $1</li>')
-        .replace(/\*\*(.*?)\*\*/g, '<strong className="font-bold text-brand-dark">$1</strong>')
+    // v34.22 (P1 SECURITY): the dossier text is AI-generated from user-uploaded
+    // documents — it is UNTRUSTED. Escape all HTML first so an attacker cannot
+    // inject <script>/markup via a payer name or memo field, THEN apply our own
+    // markdown-ish formatting. (Also: raw innerHTML needs `class`, not `className`.)
+    const escapeHtml = (s: string) => s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    return escapeHtml(text)
+        .replace(/^### (.*$)/gim, '<h3 class="text-xl font-bold text-brand-dark mt-8 mb-4 uppercase tracking-tight">$1</h3>')
+        .replace(/^## (.*$)/gim, '<h2 class="text-2xl font-black text-brand-dark mt-10 mb-6 uppercase tracking-tighter border-b border-brand-border pb-2">$1</h2>')
+        .replace(/^# (.*$)/gim, '<h1 class="text-3xl font-black text-brand-blue mt-12 mb-8 uppercase tracking-widest">$1</h1>')
+        .replace(/^\* (.*$)/gim, '<li class="ml-4 mb-2">$1</li>')
+        .replace(/^\- (.*$)/gim, '<li class="ml-4 mb-2 list-none flex items-start gap-2"><span class="text-brand-blue">•</span> $1</li>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-brand-dark">$1</strong>')
         .replace(/\n/g, '<br />');
 };
 
@@ -507,8 +517,10 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
   const [isDownloading, setIsDownloading] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);   // v34.15: styled confirm for New Assessment
   const [linkCopied, setLinkCopied] = useState(false);       // v34.16: Copy Link feedback
+  const [linkPublishError, setLinkPublishError] = useState(false); // v34.24: server publish failed
   const [revokeConfirm, setRevokeConfirm] = useState(false); // v34.18: Revoke Link confirm
   const [linkRevoked, setLinkRevoked] = useState(false);     // v34.18: Revoke Link feedback
+  const [revokeError, setRevokeError] = useState(false);       // v34.25-safe: strict revoke failure feedback
   const [showRegistry, setShowRegistry] = useState(false);   // v34.20: admin traction panel
   const [pdfError, setPdfError] = useState(false);           // v34.15: styled notice instead of alert()
   const isAlphaBuildView = false;
@@ -1491,23 +1503,14 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                         <div className="flex items-center gap-4 p-5 bg-white border border-brand-border rounded-2xl">
                             <div className="flex-1">
                                 <p className="text-[11px] font-bold text-brand-dark">Email to Lender</p>
-                                <p className="text-[10px] text-brand-gray mt-0.5">Opens your mail app with a ready-to-send message including a secure online report link. Attach the exported PDF before sending.</p>
+                                <p className="text-[10px] text-brand-gray mt-0.5">Opens your mail app with a ready-to-send message. Attach the exported PDF before sending. Use Copy Link separately for a secure online report.</p>
                             </div>
                             <button
                                 onClick={() => {
-                                    // v34.16 FIX: mailto must launch SYNCHRONOUSLY inside the click —
-                                    // any await before it expires the user gesture and the browser
-                                    // silently blocks the external mail protocol. The share record is
-                                    // published in the background; the lender opens the link later.
-                                    let reportLink = '';
-                                    if (data.shareId) {
-                                        reportLink = `${window.location.origin}/report/${data.shareId}`;
-                                        storage.set(`pc:share:${data.shareId}`, { ...data, ownerEmail: userId }).catch((err) => {
-                                            console.warn('Share record publish failed:', err);
-                                        });
-                                    }
+                                    // v34.25-safe: email drafting never publishes a report link in
+                                    // the background. Copy Link is the sole verified online-sharing path.
                                     const subject = encodeURIComponent(`Persona.Credit Verification Report — ${data.fullName || 'Applicant'} (${data.shareId || ''})`);
-                                    const body = encodeURIComponent(`Hello,\n\nPlease find attached my Persona.Credit cross-border financial verification report.\n\nReport ID: ${data.shareId || '—'}\nTransferScore: ${data.score || '—'} / 850\nVerified monthly income (USD): ${data.reconciliation?.verified_monthly_usd ? '$' + Number(data.reconciliation.verified_monthly_usd).toLocaleString() + '/mo' : 'see report'}${reportLink ? `\nView the report online: ${reportLink}` : ''}\n\nThe PDF report is attached to this email.\n\nBest regards,\n${data.fullName || ''}`);
+                                    const body = encodeURIComponent(`Hello,\n\nPlease find attached my Persona.Credit cross-border financial verification report.\n\nApplicant: ${data.fullName || '—'}\nReport ID: ${data.shareId || '—'}\nTransferScore: ${data.score || '—'} / 850\nVerified monthly income (USD): ${data.reconciliation?.verified_monthly_usd ? '$' + Number(data.reconciliation.verified_monthly_usd).toLocaleString() + '/mo' : 'see report'}\n\nPlease attach the exported PDF report before sending. To share a secure online report separately, use the Copy Link button in Persona.Credit.\n\nBest regards,\n${data.fullName || ''}`);
                                     window.location.href = `mailto:?subject=${subject}&body=${body}`;
                                 }}
                                 className="px-5 py-2.5 bg-white border-2 border-brand-blue text-brand-blue text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-brand-blue/5 transition-all shrink-0"
@@ -1521,23 +1524,32 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                 <button
                                     onClick={() => {
                                         const reportLink = `${window.location.origin}/report/${data.shareId}`;
-                                        navigator.clipboard.writeText(reportLink).then(() => {
-                                            setLinkCopied(true);
-                                            setTimeout(() => setLinkCopied(false), 2500);
-                                        }).catch((err) => console.warn('Clipboard write failed:', err));
+                                        // Clipboard write stays synchronous (browser gesture rule).
+                                        navigator.clipboard.writeText(reportLink).catch((err) => console.warn('Clipboard write failed:', err));
                                         setLinkRevoked(false);
-                                        storage.set(`pc:share:${data.shareId}`, { ...data, ownerEmail: userId }).catch((err) => {
-                                            console.warn('Share record publish failed:', err);
-                                        });
+                                        setLinkPublishError(false);
+                                        setLinkCopied(false);
+                                        // v34.24 (P1): only claim success once the SERVER confirms the
+                                        // share record is published — otherwise the recipient would open
+                                        // a dead link. On failure, surface a retry instead of "Copied ✓".
+                                        storage.setStrict(`pc:share:${data.shareId}`, { ...data, ownerEmail: userId })
+                                            .then(() => {
+                                                setLinkCopied(true);
+                                                setTimeout(() => setLinkCopied(false), 2500);
+                                            })
+                                            .catch((err) => {
+                                                console.warn('Share record publish failed:', err);
+                                                setLinkPublishError(true);
+                                            });
                                     }}
-                                    className={`px-5 py-2.5 border-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shrink-0 ${linkCopied ? 'border-brand-success text-brand-success bg-brand-success/5' : 'border-brand-border text-brand-dark bg-white hover:bg-slate-50'}`}
+                                    className={`px-5 py-2.5 border-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shrink-0 ${linkPublishError ? 'border-red-400 text-red-600 bg-red-50' : linkCopied ? 'border-brand-success text-brand-success bg-brand-success/5' : 'border-brand-border text-brand-dark bg-white hover:bg-slate-50'}`}
                                 >
-                                    {linkCopied ? 'Copied ✓' : 'Copy Link'}
+                                    {linkPublishError ? 'Publish failed — retry' : linkCopied ? 'Copied ✓' : 'Copy Link'}
                                 </button>
                             )}
                         </div>
                         {/* v34.18: revoke the published link (right to change your mind).
-                            Copy Link / Email to Lender publish it again on demand. */}
+                            Copy Link publishes it again on demand. */}
                         {data.shareId && (
                             <div className="flex items-center justify-end px-1">
                                 {linkRevoked ? (
@@ -1555,17 +1567,36 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                         {revokeConfirm && (
                             <ConfirmModal
                                 title="Revoke Shared Link?"
-                                message="Anyone holding the current link will see 'Report Unavailable' instead of your report. You can publish the same link again anytime with Copy Link or Email to Lender."
+                                message="Anyone holding the current link will see 'Report Unavailable' instead of your report. You can publish the same link again anytime with Copy Link."
                                 confirmLabel="Revoke"
                                 cancelLabel="Keep Link"
                                 danger
                                 onConfirm={() => {
-                                    storage.delete(`pc:share:${data.shareId}`)
-                                        .then(() => setLinkRevoked(true))
-                                        .catch((err) => console.warn('Revoke failed:', err));
+                                    setRevokeError(false);
+                                    storage.deleteStrict(`pc:share:${data.shareId}`)
+                                        .then(() => {
+                                            setLinkRevoked(true);
+                                            setRevokeConfirm(false);
+                                        })
+                                        .catch((err) => {
+                                            console.warn('Revoke failed:', err);
+                                            setLinkRevoked(false);
+                                            setRevokeError(true);
+                                            setRevokeConfirm(false);
+                                        });
                                 }}
                                 onClose={() => setRevokeConfirm(false)}
                             />
+                        )}
+                        {revokeError && (
+                            <div className="flex items-center justify-end px-1">
+                                <button
+                                    onClick={() => { setRevokeError(false); setRevokeConfirm(true); }}
+                                    className="text-[10px] font-bold uppercase tracking-widest text-red-600 hover:text-red-700 underline underline-offset-4 transition-colors"
+                                >
+                                    Revoke failed — retry
+                                </button>
+                            </div>
                         )}
 
                         {/* Instructions */}
@@ -1716,8 +1747,9 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                             </div>
                             <div className="flex flex-wrap gap-4">
                                 <button onClick={() => setShowRegistry(true)} className="px-5 py-2 bg-red-600 text-white rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-red-700 transition-all shadow-md active:scale-95">User Registry</button>
-                                <button className="px-5 py-2 bg-white text-red-600 border border-red-200 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-all active:scale-95">Manual Override</button>
-                                <button className="px-5 py-2 bg-white text-red-600 border border-red-200 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-all active:scale-95">Service Health</button>
+                                {/* v34.22 audit: not implemented yet — shown as visually non-interactive, no dead buttons */}
+                                <button disabled title="Coming in a later release" className="px-5 py-2 bg-white text-red-300 border border-red-100 rounded-lg text-[10px] font-bold uppercase tracking-widest cursor-not-allowed opacity-60">Manual Override</button>
+                                <button disabled title="Coming in a later release" className="px-5 py-2 bg-white text-red-300 border border-red-100 rounded-lg text-[10px] font-bold uppercase tracking-widest cursor-not-allowed opacity-60">Service Health</button>
                             </div>
                         </div>
                     </Card>
@@ -2409,7 +2441,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
   };
   
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-brand-dark selection:bg-brand-blue/10 selection:text-brand-dark">
+    <div className="min-h-screen bg-brand-bg font-sans text-brand-dark selection:bg-brand-blue/15 selection:text-brand-dark">
       {confirmReset && (
         <ConfirmModal
           title="Start a New Assessment?"
@@ -2430,8 +2462,8 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
       )}
       {showRegistry && <AdminRegistry onClose={() => setShowRegistry(false)} />}
       <header className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-brand-border shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 sm:px-10 py-5 flex justify-between items-center text-nowrap">
-            <div className="flex items-center gap-3 cursor-pointer" onClick={onExitToLanding} title="Back to home (you stay signed in)">
+        <div className="max-w-7xl mx-auto px-6 sm:px-10 py-5 flex justify-between items-center gap-3 text-nowrap">
+            <div className="flex items-center gap-3 cursor-pointer shrink-0" onClick={onExitToLanding} title="Back to home (you stay signed in)">
                 <div className="w-10 h-10 bg-brand-blue rounded-xl flex items-center justify-center text-white shadow-lg">
                     <Shield className="w-5 h-5" />
                 </div>
@@ -2440,7 +2472,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                     <p className="text-[10px] font-bold text-brand-gray uppercase tracking-widest mt-0.5 m-0">{plan ? `${plan} Node` : 'Terminal Dashboard'}</p>
                 </div>
             </div>
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-3 md:gap-6 overflow-x-auto no-scrollbar">
                 {userId && (
                     <span className="hidden md:inline text-[10px] font-bold text-brand-gray tracking-widest" title="Signed in account">{userId}</span>
                 )}
@@ -2481,7 +2513,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
         const failed = entries.filter(([, a]) => a && a._agent_failed);
         if (failed.length === 0) return null;
         const first = failed[0][1];
-        const keyUsed = first?._key_used || 'unknown';
         const anyRateLimited = failed.some(([, a]) => a && a._rate_limited);
         const reason = first?._error_reason || 'No reason returned by API.';
         return (
@@ -2494,7 +2525,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                 ⚠ AI AGENTS FAILED — {failed.length}/{entries.length} ({failed.map(([n]) => n).join(', ')})
               </div>
               <div style={{ fontSize: '13px', color: '#7F1D1D', lineHeight: 1.7 }}>
-                <div>GEMINI_API_KEY in use: <strong style={{ background: '#FEE2E2', padding: '1px 6px', borderRadius: '4px' }}>{keyUsed}</strong></div>
                 <div>Failure type: <strong>{anyRateLimited ? 'rate-limit / quota / credits' : 'API error'}</strong></div>
                 <div style={{ wordBreak: 'break-word' }}>Reason: {reason}</div>
               </div>
@@ -2656,7 +2686,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
               <div className="flex flex-col items-start gap-3">
                   <p className="text-[10px] font-bold text-brand-gray/60 uppercase tracking-widest">&copy; 2026 Persona.Credit &bull; Cross-Border Financial Verification</p>
                   <p className="text-[10px] font-bold text-brand-gray/30 uppercase tracking-widest">
-                    Inquiry: <a href="mailto:compliance@dossier.global" className="text-brand-blue hover:underline">compliance@dossier.global</a>
+                    Inquiry: <a href="mailto:compliance@persona.credit" className="text-brand-blue hover:underline">compliance@persona.credit</a>
                   </p>
               </div>
               <RealmSwitcher />

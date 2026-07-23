@@ -82,10 +82,10 @@ const HelpCenterPage: React.FC<HelpCenterPageProps> = ({ onContactSupport, onBac
                                 <textarea id="message" value={message} onChange={e => setMessage(e.target.value)} rows={5} required className="mt-1 block w-full p-2 border border-slate-300 rounded-md dark:bg-slate-700 dark:border-slate-600" />
                             </div>
                             <button type="submit" disabled={formStatus === 'submitting'} className="w-full py-2 px-4 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 disabled:bg-slate-400">
-                                {formStatus === 'submitting' ? 'Submitting...' : 'Submit Ticket'}
+                                {formStatus === 'submitting' ? 'Opening...' : 'Open Support Email'}
                             </button>
-                            {formStatus === 'success' && <p className="text-sm text-green-600">Your ticket has been received! Our team will get back to you shortly.</p>}
-                            {formStatus === 'error' && <p className="text-sm text-red-600">Could not submit your ticket. Please try again later.</p>}
+                            {formStatus === 'success' && <p className="text-sm text-green-600">Your email application has been opened. Send the prepared message to contact support.</p>}
+                            {formStatus === 'error' && <p className="text-sm text-red-600">Could not open your email application. Please email support@persona.credit directly.</p>}
                         </form>
                     </div>
                 );

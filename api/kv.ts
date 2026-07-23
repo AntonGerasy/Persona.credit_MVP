@@ -13,8 +13,8 @@
  * v34.13 hardening — key access is now AUTHORIZED, not caller's-responsibility:
  *   - Every request (except public share reads, below) must carry a valid
  *     session token in the 'x-pc-session' header (issued by /api/auth).
- *   - A 'user' session may touch ONLY pc:user:{ownEmail}, pc:history:{ownEmail}:*,
- *     and the shared marketplace blob pc:shared.
+ *   - A 'user' session may touch ONLY pc:user:{ownEmail} and
+ *     pc:history:{ownEmail}:*. Applicant sessions cannot access pc:shared.
  *   - A 'provider' session may touch ONLY pc:provideruser:{ownEmail},
  *     pc:provider:{ownProviderId}, and pc:shared.
  *   - pc:auth:*, pc:session:*, and the legacy pc:fulldb blob are server-only and
@@ -98,8 +98,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!session) return false;
     if (session.kind === 'user') {
       return k === `pc:user:${session.email}` ||
-        k.startsWith(`pc:history:${session.email}:`) ||
-        k === 'pc:shared';
+        k.startsWith(`pc:history:${session.email}:`);
     }
     if (session.kind === 'provider') {
       return k === `pc:provideruser:${session.email}` ||
@@ -130,8 +129,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!canAccessKey(key)) return res.status(403).json({ error: 'Access denied for this key' });
         if (value === undefined) return res.status(400).json({ error: 'Missing value' });
 
+        // v34.24 (P0): ownership enforcement for share capability records. Anyone
+        // who holds a share link could otherwise re-publish over someone else's
+        // report. On overwrite, only the recorded owner may write; and the owner
+        // is stamped SERVER-SIDE from the session, never trusted from the payload.
+        let effectiveValue = value;
+        if (key.startsWith('pc:share:')) {
+          if (!session || session.kind !== 'user') {
+            return res.status(403).json({ error: 'Sign in to publish a report link' });
+          }
+          const existing: any = await kv.get(key);
+          if (existing && typeof existing === 'object' && existing.ownerEmail &&
+              existing.ownerEmail !== session.email) {
+            return res.status(403).json({ error: 'Only the owner can update this link' });
+          }
+          // Force ownerEmail from the session (ignore any client-supplied value).
+          if (value && typeof value === 'object') {
+            effectiveValue = { ...value, ownerEmail: session.email };
+          }
+        }
+
         const effectiveTtl = typeof ttl === 'number' ? ttl : DEFAULT_TTL;
-        await kv.set(key, value, { ex: effectiveTtl });
+        await kv.set(key, effectiveValue, { ex: effectiveTtl });
         return res.status(200).json({ ok: true });
       }
 
@@ -166,6 +185,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   } catch (err) {
     console.error('KV operation error:', err);
-    return res.status(500).json({ error: 'Storage operation failed', detail: String(err) });
+    return res.status(500).json({ error: 'Storage operation failed' });
   }
 }

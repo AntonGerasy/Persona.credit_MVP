@@ -34,12 +34,30 @@ const FileStatusIcon: React.FC<{ status?: 'validating' | 'valid' | 'invalid' | '
 
 const FileField: React.FC<FileFieldProps> = ({ id, label, value, error, onChange, multiple, accept, required, onFileValidation, field, tooltip }) => {
     const files = value || [];
+    const [sizeError, setSizeError] = React.useState<string | null>(null); // v34.22
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files) return;
 
-        const newRawFiles = Array.from(e.target.files);
+        let newRawFiles = Array.from(e.target.files);
         if (newRawFiles.length === 0) return;
+
+        // v34.22 audit: files travel to the API as base64 inside a JSON body, and
+        // Vercel caps request bodies at ~4.5 MB — so anything above ~3 MB raw would
+        // die server-side with a cryptic network error. Reject it here with a clear
+        // message instead.
+        const MAX_FILE_BYTES = 3 * 1024 * 1024;
+        const oversized = newRawFiles.filter((f) => f.size > MAX_FILE_BYTES);
+        if (oversized.length > 0) {
+            setSizeError(`Too large (max 3 MB per file): ${oversized.map((f) => f.name).join(', ')}. Tip: export the statement as a standard PDF instead of a scan.`);
+            newRawFiles = newRawFiles.filter((f) => f.size <= MAX_FILE_BYTES);
+            if (newRawFiles.length === 0) {
+                e.target.value = '';
+                return;
+            }
+        } else {
+            setSizeError(null);
+        }
 
         // If no validation function is provided, just add the files without any validation status.
         if (!onFileValidation) {
@@ -110,6 +128,9 @@ const FileField: React.FC<FileFieldProps> = ({ id, label, value, error, onChange
                         <span className="text-[8px] font-bold text-brand-blue uppercase tracking-widest">Active Forensic Scanning</span>
                     </div>
                 </div>
+            )}
+            {sizeError && (
+                <div className="mt-3 text-xs font-bold rounded-lg px-4 py-3 bg-red-50 text-red-600">{sizeError}</div>
             )}
             <div className="mt-3 flex justify-center px-8 py-10 border-2 border-brand-border border-dashed rounded-2xl bg-slate-50 hover:bg-slate-100/50 transition-all group shadow-sm">
                 <div className="space-y-4 text-center">

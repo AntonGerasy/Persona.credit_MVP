@@ -127,7 +127,7 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
   const empType = employmentLabel[data.employment_type || ''] || data.employment_type || '—';
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-20">
+    <div className="min-h-screen bg-brand-bg text-brand-dark font-sans pb-20">
 
       {/* Watermark */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden -z-0 opacity-[0.025] rotate-[-20deg] scale-150 flex flex-wrap gap-16 items-center justify-center">

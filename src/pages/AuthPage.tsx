@@ -41,7 +41,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ title, onLogin, onSignUp, onBack })
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center p-6 font-sans">
+    <div className="min-h-screen bg-brand-bg flex flex-col items-center justify-center p-6 font-sans">
       <div className="w-full max-w-md space-y-8">
 
         {/* Logo */}

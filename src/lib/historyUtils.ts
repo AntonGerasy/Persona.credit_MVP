@@ -2,7 +2,18 @@ import { DashboardData, HistoryEntry, ComparisonResult } from '../types';
 import { storage } from './storage';
 import { getSession } from './session';
 
-const HISTORY_KEY = 'transferscore_history';
+// v34.24 (P0 FIX): history is now ACCOUNT-SCOPED in localStorage. Previously a
+// single global key ('transferscore_history') was shared by every account on the
+// device, so after user A logged out and user B logged in, getHistory() would
+// synchronously return A's full financial reports before hydration ran. The key
+// is now suffixed with the signed-in email; a signed-out context keeps the old
+// bare key (only demo/among-session data, never another account's).
+const HISTORY_KEY_BASE = 'transferscore_history';
+
+const historyKey = (): string => {
+    const s = getSession();
+    return s && s.email ? `${HISTORY_KEY_BASE}:${s.email}` : HISTORY_KEY_BASE;
+};
 
 // v34.14: history is no longer device-local only. Each entry is ALSO written to
 // KV under pc:history:{email}:{timestamp} (the /api/kv rules from v34.13 already
@@ -47,7 +58,7 @@ export const hydrateHistory = async (): Promise<void> => {
         ]
             .sort((a, b) => b.timestamp - a.timestamp)
             .slice(0, 20);
-        localStorage.setItem(HISTORY_KEY, JSON.stringify(merged));
+        localStorage.setItem(historyKey(), JSON.stringify(merged));
     } catch (err) {
         console.warn('History hydrate from KV failed (local history retained):', err);
     }
@@ -76,7 +87,7 @@ export const saveToHistory = (data: DashboardData) => {
         }
 
         const updatedHistory = [newEntry, ...history].slice(0, 20); // Keep last 20 entries
-        localStorage.setItem(HISTORY_KEY, JSON.stringify(updatedHistory));
+        localStorage.setItem(historyKey(), JSON.stringify(updatedHistory));
         pushHistoryToKV(newEntry); // v34.14: cross-device persistence
         return updatedHistory;
     } catch (e) {
@@ -87,7 +98,7 @@ export const saveToHistory = (data: DashboardData) => {
 
 export const getHistory = (): HistoryEntry[] => {
     try {
-        const historyJson = localStorage.getItem(HISTORY_KEY);
+        const historyJson = localStorage.getItem(historyKey());
         if (!historyJson) return [];
         return JSON.parse(historyJson);
     } catch (e) {
@@ -97,7 +108,10 @@ export const getHistory = (): HistoryEntry[] => {
 };
 
 export const clearHistory = () => {
-    localStorage.removeItem(HISTORY_KEY);
+    // Clear BOTH the account-scoped key and the legacy global key, so a device
+    // that accumulated pre-v34.24 shared history is cleaned on the next logout.
+    try { localStorage.removeItem(historyKey()); } catch { /* ignore */ }
+    try { localStorage.removeItem(HISTORY_KEY_BASE); } catch { /* ignore */ }
 };
 
 export const compareEntries = (previous: HistoryEntry, current: HistoryEntry): ComparisonResult => {

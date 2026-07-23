@@ -378,9 +378,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const shareId = userRecord?.dashboardResult?.shareId;
             await kv.del(`pc:user:${session.email}`);
             if (shareId) await kv.del(`pc:share:${shareId}`);
-            // Assessment history
+            // Assessment history — and v34.24 (P0): every historical entry may carry
+            // its OWN published share link, so collect and revoke all of them before
+            // deleting the history keys. Otherwise old /report/PC-… links stay live
+            // after the account is gone.
             const historyKeys = await kv.keys(`pc:history:${session.email}:*`);
-            for (const hk of historyKeys) await kv.del(hk);
+            for (const hk of historyKeys) {
+              try {
+                const entry: any = await kv.get(hk);
+                const sid = entry?.data?.shareId || entry?.shareId;
+                if (sid) await kv.del(`pc:share:${sid}`);
+              } catch { /* best-effort per entry */ }
+              await kv.del(hk);
+            }
             // Permissions/tickets referencing this user in the shared blob
             const shared: any = await kv.get('pc:shared');
             if (shared && typeof shared === 'object') {
@@ -409,6 +419,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   } catch (err) {
     console.error('Auth operation error:', err);
-    return res.status(500).json({ error: 'Authentication failed', detail: String(err) });
+    return res.status(500).json({ error: 'Authentication failed' });
   }
 }

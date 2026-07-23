@@ -16,8 +16,8 @@ import { ExtractedDocument } from './lib/agents/documentExtractor';
 // synthesis prompt/schema no longer imported — logic moved to api/synthesize.ts and inline agent aggregation
 import { countries } from './countries';
 import countryIntelligence from './countryRiskProfiles.json';
-import { saveToHistory, hydrateHistory } from './lib/historyUtils';
-import type { FormSchema, Section as SectionType, FormData, FileData, RepeaterData, ValidationErrors, DashboardData, RepeaterItem, ProviderFormData, ProviderDashboardData, Field, Offer, Provider, ProviderUser, PartnerOffer, Applicant, SupportTicket, UserDossier } from './types';
+import { saveToHistory, hydrateHistory, clearHistory } from './lib/historyUtils';
+import type { FormSchema, Section as SectionType, FormData, FileData, RepeaterData, ValidationErrors, DashboardData, RepeaterItem, ProviderFormData, ProviderDashboardData, Field, Offer, Provider, ProviderUser, PartnerOffer, Applicant, UserDossier } from './types';
 import Section from './components/Section';
 import ProgressBar from './components/ProgressBar';
 import ResultCard from './components/ResultCard';
@@ -663,6 +663,11 @@ const App: React.FC = () => {
     };
 
     const handleLogout = async () => {
+        // v34.24 (P0): clear this account's local history + device cache BEFORE the
+        // token is dropped (clearHistory() reads the email from the live session),
+        // so the next account on this device can never read the previous one's data.
+        clearHistory();
+        try { localStorage.removeItem('pc_cache_v2'); } catch { /* ignore */ }
         await authClient.logOut(); // deletes the server session and clears the local token
         setUserSession(null);
         setUserProfile(null);
@@ -1953,6 +1958,10 @@ const App: React.FC = () => {
                     .map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
                 finalResult.shareId = `PC-${rnd}`;
             }
+            // v34.21: stamp the completion time — shown in History and the admin registry.
+            if (!finalResult.generatedAt) {
+                finalResult.generatedAt = Date.now();
+            }
 
             currentDB.users[userSession!].dashboardResult = finalResult;
             // Keep formData so user can re-run or edit without re-entering everything
@@ -2087,22 +2096,14 @@ const App: React.FC = () => {
 
     const handleContactSupport = async (subject: string, message: string): Promise<boolean> => {
         try {
-            const currentDB = db.load();
-// FIX: Replace incorrect backslash with backtick for template literal
-            const ticketId = `ticket_${Date.now()}`;
-            const newTicket: SupportTicket = {
-                id: ticketId,
-                userId: userSession || 'anonymous',
-                subject,
-                message,
-                timestamp: Date.now(),
-                status: 'open'
-            };
-            currentDB.support_tickets[ticketId] = newTicket;
-            db.save(currentDB);
+            // v34.25-safe: applicant support is email-based for the MVP. Do not
+            // store private messages in the shared marketplace blob.
+            const emailSubject = encodeURIComponent(`[Persona.Credit Support] ${subject}`);
+            const emailBody = encodeURIComponent(`${message}\n\nAccount: ${userSession || 'not signed in'}`);
+            window.location.href = `mailto:support@persona.credit?subject=${emailSubject}&body=${emailBody}`;
             return true;
         } catch (e) {
-            console.error("Failed to save support ticket:", e);
+            console.error("Failed to open support email:", e);
             return false;
         }
     };
@@ -2315,7 +2316,7 @@ const App: React.FC = () => {
     }
     
     return (
-        <div className="min-h-screen bg-white flex flex-col items-center justify-start p-4 sm:p-8 font-sans selection:bg-brand-blue/10">
+        <div className="min-h-screen bg-brand-bg flex flex-col items-center justify-start p-4 sm:p-8 font-sans selection:bg-brand-blue/15">
             {/* Header Area */}
             <header className="w-full max-w-5xl flex flex-col md:flex-row items-center justify-between mb-12 py-6 border-b border-brand-border">
                 <div className="flex items-center space-x-4 mb-4 md:mb-0">

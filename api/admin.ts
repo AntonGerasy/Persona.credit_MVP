@@ -64,6 +64,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           kv.keys('pc:history:*'),
         ]);
 
+        // Latest history timestamp per email — date fallback for reports created
+        // before v34.21 (which lacked generatedAt).
+        const lastHistoryTs: Record<string, number> = {};
+        for (const hk of historyKeys) {
+          const rest = hk.slice('pc:history:'.length);
+          const sep = rest.lastIndexOf(':');
+          if (sep <= 0) continue;
+          const email = rest.slice(0, sep);
+          const ts = Number(rest.slice(sep + 1));
+          if (Number.isFinite(ts) && ts > (lastHistoryTs[email] ?? 0)) lastHistoryTs[email] = ts;
+        }
+
         const users: any[] = [];
         for (const group of chunk(emails, 100)) {
           const [records, auths] = await Promise.all([
@@ -81,7 +93,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               hasReport: !!report,
               score: report?.score ?? null,
               level: report?.level ?? null,
-              reportGeneratedAt: report?.generatedAt ?? null,
+              reportGeneratedAt: report?.generatedAt ?? lastHistoryTs[email] ?? null,
               shareId: report?.shareId ?? null,
               currentStep: typeof rec?.currentStep === 'number' ? rec.currentStep : null,
               plan: rec?.plan ?? null,
@@ -118,6 +130,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   } catch (err) {
     console.error('Admin operation error:', err);
-    return res.status(500).json({ error: 'Admin operation failed', detail: String(err) });
+    return res.status(500).json({ error: 'Admin operation failed' });
   }
 }

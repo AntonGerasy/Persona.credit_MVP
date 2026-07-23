@@ -106,12 +106,16 @@ export const authClient = {
         if (status === 503) return { success: false, message: 'Account storage is not configured on the server.' };
         return { success: false, message: String(data?.error || 'Account deletion failed. Please try again.') };
       }
-      clearSession();
-      // Wipe device-local traces of the deleted account
+      // v34.24: wipe device-local traces BEFORE clearing the session, so the
+      // account-scoped history key (transferscore_history:{email}) can be removed
+      // while the email is still known. Also remove the legacy global key.
       try {
-        localStorage.removeItem('pc_cache_v2');
+        const email = session.email;
+        if (email) localStorage.removeItem(`transferscore_history:${email}`);
         localStorage.removeItem('transferscore_history');
+        localStorage.removeItem('pc_cache_v2');
       } catch { /* ignore */ }
+      clearSession();
       return { success: true, message: 'Your account and data have been deleted.' };
     } catch (err) {
       console.error('authClient.deleteAccount error:', err);
