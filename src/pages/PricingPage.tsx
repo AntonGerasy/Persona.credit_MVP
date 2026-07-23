@@ -93,25 +93,6 @@ const PricingPage: React.FC<PricingPageProps> = ({ onBack, onSelectPlan }) => {
                     </p>
                 </motion.div>
 
-                {/* Beta Access Messaging */}
-                <div className="max-w-4xl mx-auto mb-16 px-8 py-6 bg-blue-50 border border-blue-100 rounded-3xl flex flex-col md:flex-row items-center gap-6 text-left shadow-sm">
-                    <div className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-blue-600/20">
-                        <Zap className="w-6 h-6" />
-                    </div>
-                    <div>
-                        <div className="flex items-center gap-2 mb-1">
-                            <span className="px-2 py-0.5 bg-blue-600 text-white text-[8px] font-black uppercase tracking-widest rounded-md">Special Beta Access</span>
-                            <span className="text-[10px] font-black text-blue-600/60 uppercase tracking-widest">Limited Time</span>
-                        </div>
-                        <p className="text-base font-bold text-slate-700 leading-tight mb-1">
-                            Full AI Financial Identity Reports are currently available free during our beta launch.
-                        </p>
-                        <p className="text-xs text-slate-500 font-medium">
-                            Premium features and institutional connectivity coming soon. Gain early access today.
-                        </p>
-                    </div>
-                </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10 max-w-4xl mx-auto">
                     {/* Option A: Standard */}
                     <motion.div 
@@ -125,9 +106,8 @@ const PricingPage: React.FC<PricingPageProps> = ({ onBack, onSelectPlan }) => {
                             <div>
                                 <h3 className="text-2xl font-black text-slate-950 tracking-tight">Standard Dossier</h3>
                                 <div className="flex items-baseline gap-1 mt-2">
-                                    <span className="text-4xl font-black text-slate-950 text-slate-300 line-through mr-2">$19</span>
-                                    <span className="text-4xl font-black text-brand-blue">$0</span>
-                                    <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest ml-2">BETA ACCESS</span>
+                                    <span className="text-4xl font-black text-slate-950">$19</span>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">one time</span>
                                 </div>
                             </div>
                             <ul className="space-y-4">
@@ -150,7 +130,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onBack, onSelectPlan }) => {
                             onClick={() => onSelectPlan('standard')}
                             className="w-full py-5 bg-slate-950 text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
                         >
-                            Claim Free Report
+                            Purchase Standard Dossier
                             <ArrowRight className="w-3 h-3" />
                         </button>
                     </motion.div>
@@ -158,21 +138,21 @@ const PricingPage: React.FC<PricingPageProps> = ({ onBack, onSelectPlan }) => {
                     {/* Option B: Membership */}
                     <motion.div 
                         whileHover={{ y: -8 }}
-                        className="p-10 bg-slate-100 border border-slate-200 rounded-[3rem] text-left space-y-8 flex flex-col justify-between opacity-80"
+                        className="p-10 bg-slate-950 border border-slate-900 rounded-[3rem] text-left space-y-8 flex flex-col justify-between shadow-[0_40px_100px_rgba(15,23,42,0.12)]"
                     >
                         <div className="space-y-6">
-                            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm">
-                                <Globe className="w-6 h-6 text-slate-400" />
+                            <div className="w-12 h-12 bg-brand-blue rounded-2xl flex items-center justify-center shadow-lg shadow-brand-blue/20">
+                                <Globe className="w-6 h-6 text-white" />
                             </div>
                             <div>
-                                <div className="inline-flex px-3 py-1 bg-slate-200 text-slate-500 text-[8px] font-black uppercase tracking-widest rounded-full mb-3">COMING SOON</div>
-                                <h3 className="text-2xl font-black text-slate-400 tracking-tight">Global Membership</h3>
+                                <div className="inline-flex px-3 py-1 bg-brand-blue text-white text-[8px] font-black uppercase tracking-widest rounded-full mb-3">RECOMMENDED</div>
+                                <h3 className="text-2xl font-black text-white tracking-tight">Global Membership</h3>
                                 <div className="flex items-baseline gap-1 mt-2">
-                                    <span className="text-4xl font-black text-slate-400">$7</span>
+                                    <span className="text-4xl font-black text-white">$7</span>
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">per month</span>
                                 </div>
                             </div>
-                            <ul className="space-y-4 text-slate-400">
+                            <ul className="space-y-4 text-slate-300">
                                 {membershipFeatures.map((feature) => (
                                     <TooltipItem 
                                         key={feature.name} 
@@ -183,10 +163,11 @@ const PricingPage: React.FC<PricingPageProps> = ({ onBack, onSelectPlan }) => {
                             </ul>
                         </div>
                         <button 
-                            disabled
-                            className="w-full py-5 bg-slate-200 text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                            onClick={() => onSelectPlan('membership')}
+                            className="w-full py-5 bg-white text-slate-950 text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl hover:bg-slate-100 transition-all flex items-center justify-center gap-2"
                         >
-                            Join Waitlist
+                            Buy Membership
+                            <ArrowRight className="w-3 h-3" />
                         </button>
                     </motion.div>
                 </div>

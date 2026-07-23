@@ -274,7 +274,8 @@ export interface DashboardData {
     rationalWarnings?: string[];
     // Live Oracle Indicators
     realTimeInflationOffset?: number;
-    livePPPMultiplier?: number;
+    livePPPMultiplier?: number | string;
+    countryBenchmarkAvailable?: boolean;
     // Income reconciliation: declared (user) vs verified (documents)
     reconciliation?: IncomeReconciliation;
     is_provisional?: boolean;

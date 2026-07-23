@@ -137,6 +137,8 @@ const App: React.FC = () => {
     const [isPaid, setIsPaid] = useState(true); // MVP: all features open
     const [plan, setPlan] = useState<'standard' | 'membership' | null>(null);
     const [previousView, setPreviousView] = useState<View | null>(null);
+    const [pendingPlan, setPendingPlan] = useState<'standard' | 'membership' | null>(null);
+    const [showStartNewConfirm, setShowStartNewConfirm] = useState(false);
 
     const [authMode, setAuthMode] = useState<'user' | 'provider'>('user');
     const [isAdmin, setIsAdmin] = useState<boolean>(false);
@@ -1475,7 +1477,9 @@ const App: React.FC = () => {
             const buildResultFromAgents = () => ({
                 financial_identity_profile: {
                     profile_type: finNode.income_reliability > 65 ? 'Stable Income Profile' : 'Variable Income Profile',
-                    overall_integrity_level: idNode.identity_reliability > 65 ? 'Verified' : 'Partially Verified',
+                    overall_integrity_level: extractedDocuments.some((d: any) => d.is_usable)
+                        ? (idNode.identity_reliability > 65 ? 'Verified' : 'Partially Verified')
+                        : 'Not Verified',
                     trust_assessment: fraudNode.fraud_risk < 30 ? 'Low Risk' : fraudNode.fraud_risk < 60 ? 'Moderate Risk' : 'Elevated Risk',
                     professional_stability: finNode.financial_stability > 65 ? 'Stable' : 'Variable',
                 },
@@ -1644,7 +1648,9 @@ const App: React.FC = () => {
                         ...(parsedResult.score_explanation.top_negative_drivers.slice(0, 1))
                     ]
                 },
-                strengths: parsedResult.aggregated_strengths.map((s: string) => ({ title: s, description: reconciliation.income_status === 'contradicted' ? "Analytic strength (profile contested)." : "Verified analytic strength.", confidence: parsedResult.overall_confidence })),
+                strengths: parsedResult.aggregated_strengths.map((s: string) => ({ title: s, description: reconciliation.income_status === 'contradicted'
+                        ? "Analytic strength (profile contested)."
+                        : (extractedDocuments.some((d: any) => d.is_usable) ? "Evidence-supported analytical strength." : "Assessment observation based on currently available information."), confidence: parsedResult.overall_confidence })),
                 risks: parsedResult.aggregated_risks.map((r: string) => ({ title: r, description: "Identified institutional risk factor.", severity: 50, confidence: parsedResult.overall_confidence })),
                 uncertainty_analysis: {
                     high_uncertainty_areas: parsedResult.aggregated_uncertainties,
@@ -1858,11 +1864,13 @@ const App: React.FC = () => {
                 inflationDefenseFactor: currencyRisk <= 35 ? 'Positive' : currencyRisk >= 70 ? 'Negative' : 'Neutral',
                 transferabilityIndex: Math.round(countryNode.country_transferability ?? 50),
             };
-            finalResult.livePPPMultiplier = pppMultiplier ? pppMultiplier.toFixed(2) : '1.00';
+            const countryBenchmarkAvailable = Boolean(originIntel && Object.keys(originIntel).length > 0);
+            finalResult.countryBenchmarkAvailable = countryBenchmarkAvailable;
+            finalResult.livePPPMultiplier = countryBenchmarkAvailable && pppMultiplier ? pppMultiplier.toFixed(2) : undefined;
             finalResult.pppContextOnly = usdObligationProduct; // #4: gate PPP headline/strength off for USD-obligation products
-            finalResult.realTimeInflationOffset = (typeof originIntel?.inflation_risk === 'number')
+            finalResult.realTimeInflationOffset = countryBenchmarkAvailable && typeof originIntel?.inflation_risk === 'number'
                 ? Number((originIntel.inflation_risk / 10).toFixed(1))
-                : 0.0;
+                : undefined;
 
             // Income reconciliation (declared vs documented) + provisional status for the UI
             finalResult.reconciliation = reconciliation;
@@ -2080,18 +2088,23 @@ const App: React.FC = () => {
             setView('auth');
             return;
         }
+        // Keep the paid storefront intact, then reveal the Early Access gift.
+        // No payment details are collected during the MVP launch period.
+        setPendingPlan(selectedPlan);
+    };
 
+    const handleActivateFreePlan = () => {
+        if (!userSession || !pendingPlan) return;
         const currentDB = db.load();
-        // BETA ACCESS OVERRIDE: Everything is free
-        currentDB.users[userSession].isPaid = true;
-        currentDB.users[userSession].plan = selectedPlan;
-        db.save(currentDB);
-
+        if (currentDB.users[userSession]) {
+            currentDB.users[userSession].isPaid = true;
+            currentDB.users[userSession].plan = pendingPlan;
+            db.save(currentDB);
+        }
         setIsPaid(true);
-        setPlan(selectedPlan);
-        
-        // Show success notification or just go to dashboard
-        setView('dashboard');
+        setPlan(pendingPlan);
+        setPendingPlan(null);
+        setView(result ? 'dashboard' : 'form');
     };
 
     const handleContactSupport = async (subject: string, message: string): Promise<boolean> => {
@@ -2161,8 +2174,7 @@ const App: React.FC = () => {
         if (userSession) {
             const currentDB = await db.loadAsync();
             if (currentDB.users[userSession]?.dashboardResult) {
-                setResult(currentDB.users[userSession].dashboardResult);
-                setView('dashboard');
+                setShowStartNewConfirm(true);
                 return;
             }
             handleReset();
@@ -2186,6 +2198,18 @@ const App: React.FC = () => {
                 </div>
             )}
             {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} onDeleted={handleAccountDeleted} />}
+            {showStartNewConfirm && (
+                <div className="fixed inset-0 z-[300] bg-slate-950/45 backdrop-blur-sm flex items-center justify-center p-5" role="dialog" aria-modal="true" aria-labelledby="start-new-title">
+                    <div className="w-full max-w-md bg-white rounded-[2rem] border border-brand-border shadow-2xl p-8">
+                        <h2 id="start-new-title" className="font-display text-3xl font-semibold text-brand-dark tracking-tight">Start a new report?</h2>
+                        <p className="mt-3 text-sm text-brand-gray leading-relaxed">Your existing reports will remain available in History. Your current saved report will not be deleted.</p>
+                        <div className="mt-8 flex gap-3">
+                            <button onClick={() => setShowStartNewConfirm(false)} className="flex-1 px-5 py-3.5 border border-brand-border rounded-xl text-[10px] font-bold uppercase tracking-widest text-brand-dark hover:bg-slate-50">Cancel</button>
+                            <button onClick={() => { setShowStartNewConfirm(false); handleReset(); }} className="flex-1 px-5 py-3.5 bg-brand-blue text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:opacity-90">Continue</button>
+                        </div>
+                    </div>
+                </div>
+            )}
             <LandingPage 
             onStartApplication={handleStartNewApplication} 
             onGoToProvider={() => { setAuthMode('provider'); setView('auth'); }} 
@@ -2254,10 +2278,32 @@ const App: React.FC = () => {
     }
 
     if (view === 'pricing') {
-        return <PricingPage 
-            onBack={handleBackFromPricing}
-            onSelectPlan={handleSelectPlan}
-        />
+        return <>
+            <PricingPage 
+                onBack={handleBackFromPricing}
+                onSelectPlan={handleSelectPlan}
+            />
+            {pendingPlan && (
+                <div className="fixed inset-0 z-[300] bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-5" role="dialog" aria-modal="true" aria-labelledby="early-access-title">
+                    <div className="w-full max-w-lg bg-white rounded-[2.25rem] border border-brand-border shadow-2xl p-9 text-center relative overflow-hidden">
+                        <div className="absolute -top-24 -right-20 w-64 h-64 rounded-full bg-brand-blue/20 blur-3xl"></div>
+                        <div className="relative z-10">
+                            <div className="w-14 h-14 mx-auto rounded-2xl bg-brand-blue text-white flex items-center justify-center text-2xl shadow-lg shadow-brand-blue/25">🎉</div>
+                            <p className="mt-6 text-[9px] font-bold uppercase tracking-[0.22em] text-brand-blue">Early Access Surprise</p>
+                            <h2 id="early-access-title" className="mt-2 font-display text-4xl font-semibold text-brand-dark tracking-tight">Congratulations!</h2>
+                            <p className="mt-4 text-sm text-brand-gray leading-relaxed">You are one of the first Persona.Credit users. For a limited Early Access period, the <strong className="text-brand-dark">{pendingPlan === 'membership' ? 'Global Membership' : 'Standard Dossier'}</strong> is unlocked for you at no cost.</p>
+                            <div className="mt-6 p-5 bg-brand-bg rounded-2xl text-left space-y-2 text-sm text-brand-dark">
+                                <p>✓ No payment is required today</p>
+                                <p>✓ Premium access is activated immediately</p>
+                                <p>✓ No card details are collected</p>
+                            </div>
+                            <button onClick={handleActivateFreePlan} className="mt-7 w-full py-4 bg-brand-blue text-white rounded-xl text-[10px] font-bold uppercase tracking-[0.18em] hover:opacity-90">Activate Free Access</button>
+                            <button onClick={() => setPendingPlan(null)} className="mt-3 text-[10px] font-bold uppercase tracking-widest text-brand-gray hover:text-brand-dark">Not now</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
     }
 
     if (view === 'report' && reportToken) {

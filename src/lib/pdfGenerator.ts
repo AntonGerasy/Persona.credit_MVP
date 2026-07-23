@@ -609,7 +609,9 @@ export const generateDossierPDF = async (data: DashboardData) => {
       : `Prospective mover to ${geo.destination_country || data.destination_country || 'destination'}.`]);
     if (Array.isArray(geo.signals) && geo.signals.length) recRows.push(['Geography Signals', geo.signals.slice(0, 3).join('; ')]);
   }
-  if ((data as any).livePPPMultiplier) {
+  if ((data as any).countryBenchmarkAvailable === false) {
+    recRows.push(['Country Benchmark', 'Unavailable — no default PPP or inflation values were used']);
+  } else if ((data as any).livePPPMultiplier) {
     recRows.push(['PPP Multiplier', `x${(data as any).livePPPMultiplier} — origin purchasing-power context only${(data as any).pppContextOnly ? '; underwriting uses documented USD income, not PPP' : ''}`]);
   }
   if (recRows.length) {
@@ -696,7 +698,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
     if (up.stabilityScore !== undefined) pmRows.push(['Stability Index', `${up.stabilityScore}% fidelity`]);
     if (up.transferabilityIndex !== undefined) pmRows.push(['Transferability', `${up.transferabilityIndex}% mobility`]);
     if (up.inflationDefenseFactor) pmRows.push(['Inflation Defense', `${up.inflationDefenseFactor}`]);
-    if (infOffset !== undefined && infOffset !== null) pmRows.push(['Inflation Offset', `${Number(infOffset) > 0 ? '+' : ''}${infOffset}%`]);
+    if ((data as any).countryBenchmarkAvailable !== false && infOffset !== undefined && infOffset !== null) pmRows.push(['Inflation Offset', `${Number(infOffset) > 0 ? '+' : ''}${infOffset}%`]);
     pmRows.push(['Interaction Stability', `${beh.behavioral_consistency || 85}%`]);
     if (evidenceQualityPct !== null) pmRows.push(['Evidence Quality (Fidelity)', `${evidenceQualityPct}%`]);
     pmRows.push(['Market Readiness — Target Territory', `${data.destination_country || '—'} (fit signal: ${fitSignal})`]);

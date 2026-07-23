@@ -1857,29 +1857,44 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                     );
                 })()}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <Card className="bg-white border-brand-border p-8 text-brand-dark flex items-center justify-between group overflow-hidden relative shadow-sm">
-                         <div className="absolute top-0 right-0 w-24 h-24 bg-brand-blue/5 rounded-full blur-2xl -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-1000"></div>
-                         <div className="relative z-10">
-                            <p className="text-[9px] font-bold text-brand-gray uppercase tracking-widest mb-1">{data.pppContextOnly ? 'PPP — Origin Context Only' : 'Live PPP Multiplier'}</p>
-                            <p className={`text-3xl font-bold tracking-tight ${data.pppContextOnly ? 'text-brand-gray' : 'text-brand-blue'}`}>x{data.livePPPMultiplier || '1.00'}</p>
-                            {data.pppContextOnly && <p className="text-[9px] text-brand-gray/70 mt-1 font-medium normal-case tracking-normal">Origin purchasing power — not US repayment capacity. Underwriting uses documented USD income.</p>}
-                         </div>
-                         <div className="relative z-10 w-12 h-12 bg-slate-50 border border-brand-border rounded-xl flex items-center justify-center">
-                            <Globe className="w-6 h-6 text-brand-blue" />
-                         </div>
+                {data.countryBenchmarkAvailable === false ? (
+                    <Card className="bg-white border-brand-border p-8 text-brand-dark shadow-sm">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-slate-50 border border-brand-border rounded-xl flex items-center justify-center flex-shrink-0">
+                                <Globe className="w-6 h-6 text-brand-gray" />
+                            </div>
+                            <div>
+                                <p className="text-[9px] font-bold text-brand-gray uppercase tracking-widest mb-1">Country Benchmark</p>
+                                <p className="text-lg font-bold text-brand-dark m-0">Country benchmark unavailable</p>
+                                <p className="text-xs text-brand-gray mt-1 mb-0">More country profiles are being added continuously. No default PPP or inflation values were used.</p>
+                            </div>
+                        </div>
                     </Card>
-                    <Card className="bg-white border-brand-border p-8 text-brand-dark flex items-center justify-between group overflow-hidden relative shadow-sm">
-                         <div className="absolute top-0 right-0 w-24 h-24 bg-brand-blue/5 rounded-full blur-2xl -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-1000"></div>
-                         <div className="relative z-10">
-                            <p className="text-[9px] font-bold text-brand-gray uppercase tracking-widest mb-1">Inflation Offset</p>
-                            <p className="text-3xl font-bold tracking-tight text-brand-blue">{data.realTimeInflationOffset && data.realTimeInflationOffset > 0 ? '+' : ''}{data.realTimeInflationOffset || '0.0'}%</p>
-                         </div>
-                         <div className="relative z-10 w-12 h-12 bg-slate-50 border border-brand-border rounded-xl flex items-center justify-center">
-                            <TrendingUp className="w-6 h-6 text-brand-blue" />
-                         </div>
-                    </Card>
-                </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <Card className="bg-white border-brand-border p-8 text-brand-dark flex items-center justify-between group overflow-hidden relative shadow-sm">
+                             <div className="absolute top-0 right-0 w-24 h-24 bg-brand-blue/5 rounded-full blur-2xl -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-1000"></div>
+                             <div className="relative z-10">
+                                <p className="text-[9px] font-bold text-brand-gray uppercase tracking-widest mb-1">{data.pppContextOnly ? 'PPP — Origin Context Only' : 'Live PPP Multiplier'}</p>
+                                <p className={`text-3xl font-bold tracking-tight ${data.pppContextOnly ? 'text-brand-gray' : 'text-brand-blue'}`}>x{data.livePPPMultiplier}</p>
+                                {data.pppContextOnly && <p className="text-[9px] text-brand-gray/70 mt-1 font-medium normal-case tracking-normal">Origin purchasing power — not US repayment capacity. Underwriting uses documented USD income.</p>}
+                             </div>
+                             <div className="relative z-10 w-12 h-12 bg-slate-50 border border-brand-border rounded-xl flex items-center justify-center">
+                                <Globe className="w-6 h-6 text-brand-blue" />
+                             </div>
+                        </Card>
+                        <Card className="bg-white border-brand-border p-8 text-brand-dark flex items-center justify-between group overflow-hidden relative shadow-sm">
+                             <div className="absolute top-0 right-0 w-24 h-24 bg-brand-blue/5 rounded-full blur-2xl -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-1000"></div>
+                             <div className="relative z-10">
+                                <p className="text-[9px] font-bold text-brand-gray uppercase tracking-widest mb-1">Inflation Offset</p>
+                                <p className="text-3xl font-bold tracking-tight text-brand-blue">{Number(data.realTimeInflationOffset) > 0 ? '+' : ''}{data.realTimeInflationOffset}%</p>
+                             </div>
+                             <div className="relative z-10 w-12 h-12 bg-slate-50 border border-brand-border rounded-xl flex items-center justify-center">
+                                <TrendingUp className="w-6 h-6 text-brand-blue" />
+                             </div>
+                        </Card>
+                    </div>
+                )}
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                     <Card className="border-brand-border shadow-md relative overflow-hidden group">
