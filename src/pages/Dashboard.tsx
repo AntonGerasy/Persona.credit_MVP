@@ -372,14 +372,14 @@ const ScoreBar: React.FC<{ label: string, score: number, icon?: React.ReactNode 
         <div className="space-y-2">
             <div className="flex justify-between items-center px-1">
                 <div className="flex items-center gap-2.5">
-                    {icon && <span className="text-cyber-silver/40">{icon}</span>}
-                    <span className="text-[10px] font-semibold text-cyber-silver uppercase tracking-apple-label">{label}</span>
+                    {icon && <span className="text-brand-gray">{icon}</span>}
+                    <span className="text-[10px] font-semibold text-brand-dark uppercase tracking-apple-label">{label}</span>
                 </div>
-                <span className="text-sm font-bold text-white">{score}</span>
+                <span className="text-sm font-bold text-brand-dark">{score}</span>
             </div>
-            <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+            <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
                 <div 
-                    className="h-full bg-cyber-teal transition-all duration-1000 ease-out rounded-full shadow-[0_0_8px_rgba(20,160,152,0.4)]" 
+                    className="h-full bg-brand-success transition-all duration-1000 ease-out rounded-full" 
                     style={{ width: `${score}%` }}
                 />
             </div>
@@ -483,6 +483,9 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
     d.partnerOffers = Array.isArray(d.partnerOffers) ? d.partnerOffers : [];
     d.rationalWarnings = Array.isArray(d.rationalWarnings) ? d.rationalWarnings : [];
     d.recommendations = Array.isArray(d.recommendations) ? d.recommendations : [];
+    if (d.dossier_analysis?.uncertainty_analysis?.high_uncertainty_areas) {
+      d.dossier_analysis.uncertainty_analysis.high_uncertainty_areas = d.dossier_analysis.uncertainty_analysis.high_uncertainty_areas.filter((x: any) => !/confidence\/uncertainty mismatch requires review/i.test(String(x)));
+    }
     d.improvements = Array.isArray(d.improvements) ? d.improvements : undefined; // keep undefined so fallback chain works
     d.documentAnalysis = Array.isArray(d.documentAnalysis) ? d.documentAnalysis : [];
     d.aggregated_strengths = Array.isArray(d.aggregated_strengths) ? d.aggregated_strengths : [];
@@ -503,6 +506,8 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
   // reconciliation card already tells the real story; these gates stop the rest of
   // the page from contradicting it.
   const isContradicted = (data as any)?.reconciliation?.income_status === 'contradicted';
+  const contradictionPenalty = Number((data as any)?.dossier_analysis?.score_breakdown?.contradiction_penalty ?? (data as any)?.score_breakdown?.contradiction_penalty ?? 0);
+  const hasConsistencyConcern = isContradicted || contradictionPenalty > 0;
 
   // #3: evidence_quality can arrive malformed (e.g. a tiny float rendered as "0000000000004").
   // Normalize deterministically to a bounded 0–100 integer for display.
@@ -1038,10 +1043,10 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                         <Card className="bg-slate-50 border-brand-border">
                                             <CardHeader className="bg-slate-100/50"><CardTitle>Consistency Patterns</CardTitle></CardHeader>
                                             <CardContent className="space-y-4">
-                                                {(data.behavioral_analysis?.consistency_patterns || (isContradicted ? ["Income consistency contested — declared figure not supported by documents"] : ["No consistency issues detected in provided data"])).map((pattern, i) => (
+                                                {(data.behavioral_analysis?.consistency_patterns || (hasConsistencyConcern ? ["Material consistency or evidence conflict requires review"] : ["No consistency issues detected in provided data"])).map((pattern, i) => (
                                                     <div key={i} className="flex gap-3 items-center text-xs text-brand-dark font-black italic p-3 bg-white border border-brand-border rounded-xl">
-                                                        <div className={`w-5 h-5 flex items-center justify-center rounded-full border ${isContradicted ? 'bg-amber-500/10 text-amber-600 border-amber-500/20' : 'bg-brand-blue/10 text-brand-blue border-brand-blue/20'}`}>
-                                                            {isContradicted ? <AlertTriangle className="w-2.5 h-2.5" /> : <Check className="w-2.5 h-2.5" />}
+                                                        <div className={`w-5 h-5 flex items-center justify-center rounded-full border ${hasConsistencyConcern ? 'bg-amber-500/10 text-amber-600 border-amber-500/20' : 'bg-brand-blue/10 text-brand-blue border-brand-blue/20'}`}>
+                                                            {hasConsistencyConcern ? <AlertTriangle className="w-2.5 h-2.5" /> : <Check className="w-2.5 h-2.5" />}
                                                         </div>
                                                         {pattern}
                                                     </div>
@@ -1122,6 +1127,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                         ))}
                                                     </div>
                                                 </div>
+                                                {(data.dossier_analysis?.uncertainty_analysis?.recommended_additional_evidence?.length || 0) > 0 && (
                                                 <div className="space-y-3">
                                                     <p className="text-[9px] font-black text-amber-700 uppercase tracking-widest">Evidence Recommendations</p>
                                                     <ul className="text-xs space-y-2">
@@ -1133,6 +1139,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                         ))}
                                                     </ul>
                                                 </div>
+                                                )}
                                             </CardContent>
                                         </Card>
                                         )}
@@ -1942,6 +1949,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                 </div>
                             </div>
 
+                            {(['renting', 'loan', 'auto', 'banking'] as const).some(uc => data.useCases?.[uc]?.label || Number(data.useCases?.[uc]?.score) > 0) && (
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                                 {(['renting', 'loan', 'auto', 'banking'] as const).map(uc => (
                                     <div key={uc} className="flex flex-col p-4 rounded-xl bg-white border border-brand-border text-center transition-all hover:shadow-md group">
@@ -1953,6 +1961,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                     </div>
                                 ))}
                             </div>
+                            )}
                         </CardContent>
                     </Card>
                 </div>
@@ -2246,9 +2255,10 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                     </Card>
                 )}
 
+                {((data.improvements || (data.recommendations || []).map(r => r.text)).filter(Boolean).length > 0) && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 pb-12">
                     <div className="space-y-6">
-                        <h4 className="text-[10px] font-bold text-brand-gray uppercase tracking-widest ml-1">Path to Potential +100</h4>
+                        <h4 className="text-[10px] font-bold text-brand-gray uppercase tracking-widest ml-1">Recommended Next Steps</h4>
                         <div className="space-y-3">
                             {(data.improvements || (data.recommendations || []).map(r => r.text)).slice(0, 3).map((text, i) => (
                                 <div key={i} className="group flex items-center justify-between p-6 bg-white border border-brand-border rounded-xl hover:border-brand-blue transition-all hover:bg-slate-50 duration-300 cursor-default shadow-sm">
@@ -2269,6 +2279,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                         </button>
                     </div>
                 </div>
+                )}
             </div>
         );
       case 'history':

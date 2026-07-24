@@ -521,7 +521,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
         ['Cross-Border Transferability',  `${bd.crossBorderScore?.toFixed(0) ?? '—'}/100`, '16%'],
         ['Migration Resilience',          `${bd.housingScore?.toFixed(0) ?? '—'}/100`,     '14%'],
         ['Behavioral Consistency',        `${bd.paymentScore?.toFixed(0) ?? '—'}/100`,     '10%'],
-        ['Fraud & Document Integrity',     `${Math.max(0, 100 - Number((data as any).fraud_analysis?.fraud_risk || 0)).toFixed(0)}/100`, '12%'],
+        ['Fraud & Document Integrity',     bd.fraudIntegrityScore == null ? 'N/A — identity pending/failed' : `${Number(bd.fraudIntegrityScore).toFixed(0)}/100`, '12%'],
       ],
       theme: 'grid',
       margin: { left: margin, right: margin },
@@ -773,8 +773,11 @@ export const generateDossierPDF = async (data: DashboardData) => {
     if (Array.isArray(ua?.missing_critical_information) && ua.missing_critical_information.length) {
       subLabel('Missing Critical Information:', C.amber); bullets(ua.missing_critical_information, 4);
     }
-    if (Array.isArray(ua?.high_uncertainty_areas) && ua.high_uncertainty_areas.length) {
-      subLabel('High-Uncertainty Areas:', C.amber); bullets(ua.high_uncertainty_areas, 4);
+    const clientHighUncertainty = Array.isArray(ua?.high_uncertainty_areas)
+      ? ua.high_uncertainty_areas.filter((x: string) => !/confidence\/uncertainty mismatch requires review/i.test(String(x)))
+      : [];
+    if (clientHighUncertainty.length) {
+      subLabel('High-Uncertainty Areas:', C.amber); bullets(clientHighUncertainty, 4);
     }
   }
 

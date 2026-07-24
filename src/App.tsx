@@ -1357,6 +1357,32 @@ const App: React.FC = () => {
                 }
             }
 
+            // Deterministic lender-safe post-processing. AI text is never allowed to
+            // reintroduce unsourced market numbers or contradict known profession/sector data.
+            const statedSector = String(formData.job_sector || '').trim();
+            const statedProfession = String((formData as any).profession || (formData as any).job_title || '').trim();
+            const stripUnsourcedBenchmarks = (value: any): string => {
+                let text = String(value || '');
+                text = text.replace(/(?:US|U\.S\.)\s+(?:national\s+)?median[^.]*\$[\d,]+[^.]*\.?/gi, '');
+                text = text.replace(/(?:typical\s+)?salar(?:y|ies)\s+(?:range|ranging)[^.]*\$[\d,]+[^.]*\.?/gi, '');
+                text = text.replace(/\$[\d,]+\s*(?:-|–|to)\s*\$[\d,]+\s*(?:annually|per year|\/year)?/gi, '');
+                return text.replace(/\s{2,}/g, ' ').replace(/\s+([,.;:])/g, '$1').trim();
+            };
+            if (countryNode) {
+                const rdtNode = (countryNode.raw_data_table = countryNode.raw_data_table || {});
+                if (statedSector || statedProfession) {
+                    const label = statedSector || statedProfession;
+                    rdtNode.income_vs_sector_median = `Sector stated: ${label} — verified sector benchmark unavailable`;
+                    rdtNode.sector_benchmark_note = statedProfession
+                        ? `Profession stated: ${statedProfession}. Destination demand should be reviewed using current external sources.`
+                        : `Sector stated: ${statedSector}. Destination demand should be reviewed using current external sources.`;
+                }
+                countryNode.origin_income_context = stripUnsourcedBenchmarks(countryNode.origin_income_context);
+                countryNode.income_transfer_narrative = stripUnsourcedBenchmarks(countryNode.income_transfer_narrative);
+                countryNode.sector_demand_in_destination = stripUnsourcedBenchmarks(countryNode.sector_demand_in_destination);
+                rdtNode.sector_benchmark_note = stripUnsourcedBenchmarks(rdtNode.sector_benchmark_note);
+            }
+
             // ============================================================
             // DETERMINISTIC INCOME RECONCILIATION — source of truth for score.
             // The LLM produces narrative; the NUMBERS here drive the score.
@@ -1744,8 +1770,15 @@ const App: React.FC = () => {
                 income_evidence_factor: incomeEvidenceFactor
             });
 
-            const hasIdentityDocument = ((formData['identity_document'] as any[]) || []).some((item: any) => item && (item instanceof File || item.validationStatus !== 'invalid'));
-            parsedResult.identity_verification_status = hasIdentityDocument ? 'Identity document submitted — automated verification assessed' : 'Identity verification pending';
+            const identityDocs = extractedDocuments.filter((d: any) => /identity/i.test(String(d.field_label || d.document_type || '')));
+            const identityUsable = identityDocs.some((d: any) => d.is_usable === true && !(d.authenticity_concerns || []).some((x: any) => /synthetic|specimen|test document|not government issued/i.test(String(x))));
+            const identityRejected = identityDocs.some((d: any) => d.is_usable === false || (d.authenticity_concerns || []).some((x: any) => /synthetic|specimen|test document|not government issued/i.test(String(x))));
+            parsedResult.identity_verification_status = identityUsable
+                ? 'Identity evidence submitted — automated checks passed'
+                : identityRejected
+                    ? 'Identity evidence rejected — review or replacement required'
+                    : 'Identity verification pending';
+            parsedResult.identity_document_status = identityUsable ? 'passed' : identityRejected ? 'failed' : 'missing';
 
             // Map results to dossier
             parsedResult.score = scoringResult.finalScore;
@@ -1861,7 +1894,8 @@ const App: React.FC = () => {
                     paymentScore: behNode.behavioral_consistency ?? 50,
                     savingsScore: finNode.financial_stability ?? 50,
                     housingScore: finNode.migration_resilience ?? 50,
-                    crossBorderScore: countryNode.country_transferability ?? 50
+                    crossBorderScore: countryNode.country_transferability ?? 50,
+                    fraudIntegrityScore: identityUsable ? Math.max(0, 100 - Number(fraudNode.fraud_risk ?? 50)) : null
                 }
             };
 

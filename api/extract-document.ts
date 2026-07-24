@@ -217,6 +217,40 @@ const parseTxDate = (s: string): Date | null => {
   return null;
 };
 
+
+const deriveReliablePeriod = (
+  rawTxs: any[],
+  llmPeriodMonths: number,
+): { months: number; source: string; startMonth?: string; endMonth?: string } => {
+  const parsed = (Array.isArray(rawTxs) ? rawTxs : [])
+    .map((t: any) => parseTxDate(String(t?.date || '')))
+    .filter((d): d is Date => !!d && d.getUTCFullYear() !== 2001);
+
+  if (parsed.length > 0) {
+    const monthIndexes = parsed.map(d => d.getUTCFullYear() * 12 + d.getUTCMonth());
+    const minIdx = Math.min(...monthIndexes);
+    const maxIdx = Math.max(...monthIndexes);
+    const calendarMonths = Math.min(36, Math.max(1, maxIdx - minIdx + 1));
+    const startYear = Math.floor(minIdx / 12);
+    const startMonthNum = (minIdx % 12) + 1;
+    const endYear = Math.floor(maxIdx / 12);
+    const endMonthNum = (maxIdx % 12) + 1;
+    const startMonth = `${startYear}-${String(startMonthNum).padStart(2, '0')}`;
+    const endMonth = `${endYear}-${String(endMonthNum).padStart(2, '0')}`;
+
+    // Financial statements and recurring-income analysis are normalized by covered
+    // calendar months. LLM/OCR period values are advisory only: when they disagree
+    // materially with dated transactions, deterministic calendar coverage wins.
+    if (!(llmPeriodMonths > 0) || Math.abs(llmPeriodMonths - calendarMonths) > 0.2) {
+      return { months: calendarMonths, source: 'transaction_calendar_guard', startMonth, endMonth };
+    }
+    return { months: llmPeriodMonths, source: 'llm_confirmed_by_transactions', startMonth, endMonth };
+  }
+
+  if (llmPeriodMonths > 0) return { months: Math.min(36, Math.max(0.25, llmPeriodMonths)), source: 'llm_no_parseable_dates' };
+  return { months: 1, source: 'default_no_period_evidence' };
+};
+
 const runIncomeEngine = (
   rawTxs: any[],
   applicantName: string,
@@ -263,15 +297,8 @@ const runIncomeEngine = (
 
   const countedTotal = counted.reduce((s, t) => s + t.amount, 0);
 
-  // Period: trust the statement header (LLM) when present; else derive from tx date span
-  // (ignoring year-less dates that got the 2001 placeholder year).
-  let periodMonths = llmPeriodMonths > 0 ? llmPeriodMonths : 0;
-  const dates = txs.map((t) => parseTxDate(t.date)).filter((d): d is Date => !!d && d.getUTCFullYear() !== 2001);
-  if (periodMonths <= 0 && dates.length >= 2) {
-    const span = (Math.max(...dates.map(Number)) - Math.min(...dates.map(Number))) / (30.44 * 86400e3);
-    periodMonths = Math.min(36, Math.max(0.25, Math.round(span * 4) / 4));
-  }
-  if (periodMonths <= 0) periodMonths = 1;
+  const periodResolution = deriveReliablePeriod(txs, llmPeriodMonths);
+  const periodMonths = periodResolution.months;
 
   // Deterministic regularity from counted credits.
   const monthKeys = new Set(
@@ -311,6 +338,7 @@ const runIncomeEngine = (
     income_audit: {
       engine: 'deterministic' as const,
       period_months_used: periodMonths,
+      period_source: periodResolution.source,
       counted_total: Math.round(countedTotal),
       counted_count: counted.length,
       excluded_count: excluded.length,
@@ -411,14 +439,8 @@ const runObligationsEngine = (
 
   const applicantTokens = nameTokensOf(applicantName);
 
-  // Period: same policy as the income engine — trust the statement header, else date span.
-  let periodMonths = llmPeriodMonths > 0 ? llmPeriodMonths : 0;
-  const dates = txs.map((t) => parseTxDate(t.date)).filter((d): d is Date => !!d && d.getUTCFullYear() !== 2001);
-  if (periodMonths <= 0 && dates.length >= 2) {
-    const span = (Math.max(...dates.map(Number)) - Math.min(...dates.map(Number))) / (30.44 * 86400e3);
-    periodMonths = Math.min(36, Math.max(0.25, Math.round(span * 4) / 4));
-  }
-  if (periodMonths <= 0) periodMonths = 1;
+  const periodResolution = deriveReliablePeriod(txs, llmPeriodMonths);
+  const periodMonths = periodResolution.months;
 
   // Pass 1 — per-payee stats for the recurring-payment rule (keyword-less landlords etc.):
   // same payee, ≥2 debits, similar amounts (min/max ≥ 0.7), evidence of ≥2 distinct months.
@@ -474,6 +496,7 @@ const runObligationsEngine = (
     obligations_audit: {
       engine: 'deterministic' as const,
       period_months_used: periodMonths,
+      period_source: periodResolution.source,
       counted_total: Math.round(countedTotal),
       counted_count: counted.length,
       excluded_count: excluded.length,
@@ -603,6 +626,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const result = JSON.parse(jsonStr);
+
+    const combinedTransactions = [
+      ...(Array.isArray(result.credit_transactions) ? result.credit_transactions : []),
+      ...(Array.isArray(result.debit_transactions) ? result.debit_transactions : []),
+    ];
+    const reliablePeriod = deriveReliablePeriod(combinedTransactions, Number(result.period_months) || 0);
+    result.period_months = reliablePeriod.months;
+    result.period_source = reliablePeriod.source;
+    if (reliablePeriod.source === 'transaction_calendar_guard' && reliablePeriod.startMonth && reliablePeriod.endMonth) {
+      result.period_covered = reliablePeriod.startMonth === reliablePeriod.endMonth
+        ? `${reliablePeriod.startMonth} (transaction-derived calendar month)`
+        : `${reliablePeriod.startMonth} to ${reliablePeriod.endMonth} (${reliablePeriod.months} calendar months; transaction-derived)`;
+    }
 
     // v34.4 — DETERMINISTIC INCOME ENGINE: recompute inflow/regularity/sources from the
     // transaction transcript. The LLM's own average_monthly_inflow survives only as a
