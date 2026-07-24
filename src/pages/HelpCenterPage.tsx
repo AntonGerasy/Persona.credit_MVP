@@ -3,7 +3,7 @@ import type { HelpCenterPageProps } from '../types';
 import RealmSwitcher from '../components/RealmSwitcher';
 
 const faqData = [
-    { q: "What is TransferScore?", a: "TransferScore is an alternative credit scoring platform designed for individuals moving to the US. We analyze your financial history from your country of origin to create a comprehensive score that US lenders and service providers can trust." },
+    { q: "What is TransferScore?", a: "TransferScore is an cross-border financial evidence platform designed for individuals moving to the US. We analyze your financial history from your country of origin to create a proprietary TransferScore and evidence dossier for applicant-consented review; it is not a FICO or credit bureau score." },
     { q: "Is my data secure?", a: "Yes. We take data security and privacy very seriously. All data is encrypted at rest and in transit. We only share your detailed report with service providers after you give explicit consent for each specific offer." },
     { q: "How is my score calculated?", a: "Our AI analyzes hundreds of data points from the information and documents you provide. It cross-references your data with real-time economic indicators for your country of origin to create a fair and context-aware score." },
     { q: "What if I upload the wrong document?", a: "Our AI performs an instant check on every document you upload. If you upload an irrelevant or incorrect file, the system will notify you immediately so you can correct it before submitting your application." },

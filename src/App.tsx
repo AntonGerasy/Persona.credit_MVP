@@ -907,6 +907,7 @@ const App: React.FC = () => {
                 };
 
                 const allDocumentEntries: { key: string; label: string; files: File[] }[] = [
+                    { key: 'identity_document',       label: 'Government-Issued Identity Document', files: pickFiles('identity_document') },
                     { key: 'bank_statements_origin', label: 'Origin Country Bank Statement', files: pickFiles('bank_statements_origin') },
                     { key: 'bank_statements_us',     label: 'Destination Country Bank Statement', files: pickFiles('bank_statements_us') },
                     { key: 'asset_evidence',         label: 'Asset / Property Document', files: pickFiles('asset_evidence') },
@@ -1599,6 +1600,19 @@ const App: React.FC = () => {
                     `**Considerations:** ${parsedResult.aggregated_risks.slice(0, 3).join('; ')}`;
             }
 
+            const lenderSafeText = (value: string): string => String(value || '')
+                .replace(/[^.]*median monthly income in the (?:US|United States)[^.]*\.?/gi, '')
+                .replace(/moderate to good capacity for repayment/gi, 'documented income and observed obligations available for review')
+                .replace(/moderate capacity for repayment/gi, 'documented income available for review')
+                .replace(/existing obligations are unknown/gi, 'the complete liabilities picture is not established from the submitted evidence')
+                .replace(/\.\.+/g, '.')
+                .replace(/\s{2,}/g, ' ')
+                .trim();
+            countryNode.income_transfer_narrative = lenderSafeText(countryNode.income_transfer_narrative || '');
+            parsedResult.summary_statement = lenderSafeText(parsedResult.summary_statement || '');
+            parsedResult.aggregated_strengths = (parsedResult.aggregated_strengths || []).map(lenderSafeText).filter(Boolean);
+            parsedResult.aggregated_risks = (parsedResult.aggregated_risks || []).map(lenderSafeText).filter(Boolean);
+
             parsedResult.agent_summary = {
                 identity: idNode,
                 financial: finNode,
@@ -1696,13 +1710,14 @@ const App: React.FC = () => {
 
             // Construct uncertainty_analysis explicitly for DashboardData
             const confidencePctForUncertainty = Math.round(Math.max(0, Math.min(1, Number(parsedResult.overall_confidence) || 0.5)) * 100);
-            const alignedUncertainty = Math.min(
-                Number(parsedResult.analysis_integrity.uncertainty_level) || 50,
-                100 - confidencePctForUncertainty
-            );
+            const agentUncertainty = Math.max(0, Math.min(100, Number(parsedResult.analysis_integrity.uncertainty_level) || 50));
+            const confidenceImpliedUncertainty = 100 - confidencePctForUncertainty;
+            const confidenceUncertaintyMismatch = Math.abs(agentUncertainty - confidenceImpliedUncertainty) >= 25
+                ? [`Confidence/uncertainty mismatch requires review (confidence ${confidencePctForUncertainty}%, agent uncertainty ${agentUncertainty}%).`]
+                : [];
             parsedResult.uncertainty_analysis = {
-                overall_uncertainty: alignedUncertainty,
-                high_uncertainty_areas: parsedResult.aggregated_uncertainties,
+                overall_uncertainty: agentUncertainty,
+                high_uncertainty_areas: [...parsedResult.aggregated_uncertainties, ...confidenceUncertaintyMismatch],
                 moderate_uncertainty_areas: [],
                 low_uncertainty_areas: [],
                 missing_critical_information: parsedResult.aggregated_uncertainties,
@@ -1721,13 +1736,16 @@ const App: React.FC = () => {
                 migration_resilience: finNode.migration_resilience ?? 50,
                 country_transferability: countryNode.country_transferability ?? 50,
                 behavioral_consistency: behNode.behavioral_consistency ?? 50,
-                fraud_risk: fraudNode.fraud_risk ?? 0,
+                fraud_risk: fraudNode.fraud_risk ?? 50,
                 contradiction_score: fraudNode.contradiction_score ?? 0,
                 overall_confidence: parsedResult.overall_confidence ?? 0.5,
                 evidence_strength: evidence_strength,
                 overall_uncertainty: overall_uncertainty,
                 income_evidence_factor: incomeEvidenceFactor
             });
+
+            const hasIdentityDocument = ((formData['identity_document'] as any[]) || []).some((item: any) => item && (item instanceof File || item.validationStatus !== 'invalid'));
+            parsedResult.identity_verification_status = hasIdentityDocument ? 'Identity document submitted — automated verification assessed' : 'Identity verification pending';
 
             // Map results to dossier
             parsedResult.score = scoringResult.finalScore;
@@ -1959,8 +1977,8 @@ const App: React.FC = () => {
 
             // Scoring Logic Fix (The Truth Engine)
             if (finalResult.score < 500) {
-                finalResult.level = "Subprime / Incomplete";
-                finalResult.summaryStatement = "Current score reflects insufficient evidence. To achieve Prime status, please provide professional contracts or utility history.";
+                finalResult.level = "Limited Evidence";
+                finalResult.summaryStatement = "Current TransferScore reflects insufficient evidence. Provide additional identity and financial documents to strengthen the assessment.";
             }
 
             // v34.15: persistent share/report ID — one ID across the PDF header,

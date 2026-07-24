@@ -138,6 +138,17 @@ export const formSchema: FormSchema = {
           "tooltip": "The country whose bank statements, payslips, and documents you will upload. This may differ from citizenship."
         },
         {
+          "id": "identity_document",
+          "label": "Government-Issued Identity Document",
+          "subLabel": "Upload a passport, national identity card, residence permit, or driver license. PDF or clear photo. Any language accepted.",
+          "type": "file",
+          "multiple": false,
+          "accept": ["pdf", "jpg", "jpeg", "png"],
+          "required": true,
+          "forensicScan": true,
+          "tooltip": "Required to verify identity. Financial evidence may be verified separately, but the profile cannot be marked Identity Verified without this document."
+        },
+        {
           "id": "years_in_destination",
           "label": "How long have you been in the destination country? (months)",
           "type": "number",

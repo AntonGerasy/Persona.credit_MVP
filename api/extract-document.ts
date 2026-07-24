@@ -382,8 +382,15 @@ const DISCRETIONARY_MERCHANT_MARKERS = [
   'retail purchase', 'point of sale', 'pos purchase', 'shopping',
 ].map(normTxt);
 
+const containsMarkerSafely = (text: string, marker: string): boolean => {
+  const hasNonLatin = /[^\x00-\x7F]/.test(marker);
+  if (hasNonLatin) return text.includes(marker);
+  const escaped = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(text);
+};
+
 const isOrdinaryMerchantPurchase = (text: string): boolean =>
-  DISCRETIONARY_MERCHANT_MARKERS.some((marker) => text.includes(marker));
+  DISCRETIONARY_MERCHANT_MARKERS.some((marker) => containsMarkerSafely(text, marker));
 
 const runObligationsEngine = (
   rawTxs: any[],
@@ -488,9 +495,15 @@ const reconcileNameMatch = (documentName: string, applicantName: string, modelMa
   const doc = normalizeLatinName(documentName);
   const applicant = normalizeLatinName(applicantName);
   if (!doc || !applicant) return modelMatch || 'Cannot determine';
-  const a = applicant.split(' ').filter(Boolean).sort();
+  const a = applicant.split(' ').filter(Boolean);
   const d = doc.split(' ').filter(Boolean);
-  if (a.length && a.every((token) => d.includes(token))) return 'Match';
+  const model = String(modelMatch || '').toLowerCase();
+  if (model.includes('no match')) return modelMatch;
+  if (a.length < 2 || d.length < 2) return modelMatch || 'Cannot determine';
+  const sameTokens = a.length === d.length && a.every((token) => d.includes(token));
+  const sameOrder = a.join(' ') === d.join(' ');
+  const reversedOrder = a.join(' ') === [...d].reverse().join(' ');
+  if (sameTokens && (sameOrder || reversedOrder)) return 'Match';
   return modelMatch || 'Cannot determine';
 };
 

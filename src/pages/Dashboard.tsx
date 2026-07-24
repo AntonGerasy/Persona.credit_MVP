@@ -29,13 +29,13 @@ import {
     History,
     Clock
 } from 'lucide-react';
-import RealmSwitcher from '../components/RealmSwitcher';
-import type { DashboardProps, SimulationResult, DashboardData, HistoryEntry } from '../types';
-import { generateDossierPDF } from '../lib/pdfGenerator';
-import { getHistory, compareEntries } from '../lib/historyUtils';
-import { storage } from '../lib/storage';
-import ConfirmModal from '../components/ConfirmModal';
-import AdminRegistry from '../components/AdminRegistry';
+import RealmSwitcher from './components/RealmSwitcher';
+import type { DashboardProps, SimulationResult, DashboardData, HistoryEntry } from './types';
+import { generateDossierPDF } from './lib/pdfGenerator';
+import { getHistory, compareEntries } from './lib/historyUtils';
+import { storage } from './lib/storage';
+import ConfirmModal from './components/ConfirmModal';
+import AdminRegistry from './components/AdminRegistry';
 
 const SOPHISTICATED_DEMO_DATA: DashboardData = {
     score: 842,
@@ -468,7 +468,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
   // Reports built from agent outputs (or fallbacks) may be missing nested objects/arrays;
   // without this, a single undefined access blanks the whole dashboard.
   const data = useMemo(() => {
-    const d: any = { ...(rawData || {}) };
+    const d: any = { ..(rawData || {}) };
     // Scalars
     d.score = d.score ?? 0;
     d.level = d.level || 'Assessed';
@@ -796,8 +796,8 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                         <FileText className="w-10 h-10" />
                                     </div>
                                     <div>
-                                        <Badge variant="negative" className="mb-2">Confidential &bull; Verified Identity Service</Badge>
-                                        <h2 className="text-4xl font-bold text-brand-dark tracking-tight leading-none">Verified Identity Dossier</h2>
+                                        <Badge variant="negative" className="mb-2">Confidential &bull; Financial Evidence Service</Badge>
+                                        <h2 className="text-4xl font-bold text-brand-dark tracking-tight leading-none">Financial Evidence Dossier</h2>
                                         <p className="text-[10px] font-bold text-brand-gray uppercase tracking-widest mt-2 px-2 py-0.5 bg-slate-100 rounded inline-block">Ref: DG-Z7-PRO-2026-XQ</p>
                                     </div>
                                 </div>
@@ -832,20 +832,12 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                         <div className="space-y-8">
                                             <div>
                                                 <p className="text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-2">Equivalent Tier</p>
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-3 h-3 rounded-full ${data.score < 500 ? 'bg-red-500' : 'bg-emerald-500'} shadow-sm`}></div>
-                                                    <p className="text-sm font-bold text-brand-dark uppercase tracking-wide">
-                                                        {data.score < 500 ? "Subprime / High Risk" : data.score < 650 ? "Near Prime / Conditional" : data.score < 750 ? "Prime Verified Group" : "Ultra-Prime Tier"}
-                                                    </p>
-                                                </div>
-                                                <p className="text-[11px] text-brand-gray font-medium mt-1.5 ml-6">
-                                                    Estimated FICO benchmark: {data.score < 500 ? "< 620" : data.score < 650 ? "620-679 range" : data.score < 750 ? "680-759 range" : "760-850 range"}
-                                                </p>
+                                                <div className="flex items-center gap-3"><div className="w-3 h-3 rounded-full bg-emerald-500 shadow-sm"></div><p className="text-sm font-bold text-brand-dark uppercase tracking-wide">TransferScore {data.score} / 1000 — {data.level}</p></div><p className="text-[11px] text-brand-gray font-medium mt-1.5 ml-6">Proprietary cross-border financial evidence score. Not equivalent to FICO or a credit bureau score.</p>
                                             </div>
                                             <div className="p-6 bg-slate-50 rounded-2xl border border-brand-border">
                                                 <p className="text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-2">Internal Assessment</p>
                                                 <p className="text-xs font-semibold text-brand-dark leading-relaxed italic">
-                                                    "{data.score < 500 ? "Current score reflects insufficient evidence. Achieve Prime status via expanded professional documentation." : `Persona.Credit provides cross-border income contextualisation. Their TransferScore of ${data.score} represents an established economic integrity pattern.`}"
+                                                    "{`Persona.Credit provides cross-border income contextualisation. TransferScore ${data.score} / 1000 is a proprietary evidence score and is not a credit bureau score.`}"
                                                 </p>
                                             </div>
                                         </div>
@@ -865,7 +857,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                         className="px-8 py-4 bg-brand-blue text-white text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all shadow-lg hover:shadow-brand-blue/30 flex items-center gap-3 active:scale-95"
                                     >
                                         <Download className="w-4 h-4" />
-                                        {isDownloading ? 'Archiving...' : 'Download Dossier Archive'}
+                                        {isDownloading ? 'Archiving..' : 'Download Dossier Archive'}
                                     </button>
                                 </div>
                             </div>
@@ -888,8 +880,8 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                             </div>
                             <div className="flex flex-col items-end gap-4">
                                 <div className="text-right">
-                                    <p className="text-[10px] font-bold text-brand-gray/50 uppercase tracking-widest mb-1">Integrity Status</p>
-                                    <Badge variant={isContradicted ? 'warning' : 'positive'} className="text-lg py-1 px-4">{isContradicted ? 'Contested — Income Disputed' : (data.dossier_analysis?.financial_identity_profile.overall_integrity_level || "Active Analysis")}</Badge>
+                                    <p className="text-[10px] font-bold text-brand-gray/50 uppercase tracking-widest mb-1">Identity Verification</p>
+                                    <Badge variant={isContradicted ? 'warning' : 'positive'} className="text-lg py-1 px-4">{isContradicted ? 'Contested — Income Disputed' : ((data as any).identity_verification_status || 'Identity verification pending')}</Badge>
                                 </div>
                                 <button 
                                     onClick={handleDownloadPDF}
@@ -897,7 +889,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                     className="flex items-center gap-2 px-4 py-2 bg-brand-blue text-white text-[10px] font-bold uppercase tracking-widest rounded-lg shadow-sm hover:shadow-md hover:bg-brand-blue/90 transition-all active:scale-95 disabled:opacity-50"
                                 >
                                     <Download className="w-3 h-3" />
-                                    {isDownloading ? 'Exporting...' : 'Export PDF'}
+                                    {isDownloading ? 'Exporting..' : 'Export PDF'}
                                 </button>
                             </div>
                         </div>
@@ -1201,7 +1193,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                 <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto text-brand-gray animate-pulse">
                                     <Shield className="w-8 h-8" />
                                 </div>
-                                <h3 className="text-xl font-bold text-brand-dark uppercase tracking-widest">Generating AI Dossier...</h3>
+                                <h3 className="text-xl font-bold text-brand-dark uppercase tracking-widest">Generating AI Dossier..</h3>
                                 <p className="text-sm text-brand-gray max-w-sm mx-auto italic font-medium">Re-calculating institutional weights and evidence fidelity signals.</p>
                             </div>
                         )}
@@ -1369,7 +1361,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                 <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto text-brand-gray animate-pulse">
                                     <Brain className="w-8 h-8" />
                                 </div>
-                                <h3 className="text-xl font-bold text-brand-dark uppercase tracking-widest">Recalculating Pathway...</h3>
+                                <h3 className="text-xl font-bold text-brand-dark uppercase tracking-widest">Recalculating Pathway..</h3>
                                 <p className="text-sm text-brand-gray max-w-sm mx-auto italic font-medium">Analyzing evidence nodes to generate intelligent growth vectors.</p>
                             </div>
                         )}
@@ -1517,7 +1509,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                     // v34.25-safe: email drafting never publishes a report link in
                                     // the background. Copy Link is the sole verified online-sharing path.
                                     const subject = encodeURIComponent(`Persona.Credit Verification Report — ${data.fullName || 'Applicant'} (${data.shareId || ''})`);
-                                    const body = encodeURIComponent(`Hello,\n\nPlease find attached my Persona.Credit cross-border financial verification report.\n\nApplicant: ${data.fullName || '—'}\nReport ID: ${data.shareId || '—'}\nTransferScore: ${data.score || '—'} / 850\nVerified monthly income (USD): ${data.reconciliation?.verified_monthly_usd ? '$' + Number(data.reconciliation.verified_monthly_usd).toLocaleString() + '/mo' : 'see report'}\n\nPlease attach the exported PDF report before sending. To share a secure online report separately, use the Copy Link button in Persona.Credit.\n\nBest regards,\n${data.fullName || ''}`);
+                                    const body = encodeURIComponent(`Hello,\n\nPlease find attached my Persona.Credit cross-border financial verification report.\n\nApplicant: ${data.fullName || '—'}\nReport ID: ${data.shareId || '—'}\nTransferScore: ${data.score || '—'} / 1000\nVerified monthly income (USD): ${data.reconciliation?.verified_monthly_usd ? '$' + Number(data.reconciliation.verified_monthly_usd).toLocaleString() + '/mo' : 'see report'}\n\nPlease attach the exported PDF report before sending. To share a secure online report separately, use the Copy Link button in Persona.Credit.\n\nBest regards,\n${data.fullName || ''}`);
                                     window.location.href = `mailto:?subject=${subject}&body=${body}`;
                                 }}
                                 className="px-5 py-2.5 bg-white border-2 border-brand-blue text-brand-blue text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-brand-blue/5 transition-all shrink-0"
@@ -1539,7 +1531,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                         // v34.24 (P1): only claim success once the SERVER confirms the
                                         // share record is published — otherwise the recipient would open
                                         // a dead link. On failure, surface a retry instead of "Copied ✓".
-                                        storage.setStrict(`pc:share:${data.shareId}`, { ...data, ownerEmail: userId })
+                                        storage.setStrict(`pc:share:${data.shareId}`, { ..data, ownerEmail: userId })
                                             .then(() => {
                                                 setLinkCopied(true);
                                                 setTimeout(() => setLinkCopied(false), 2500);
@@ -1684,7 +1676,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                     disabled={isSimulating || simValue === ''}
                                     className="w-full py-5 bg-brand-blue text-white text-[11px] font-bold uppercase tracking-widest rounded-xl shadow-lg shadow-brand-blue/20 transition-all active:scale-95 disabled:opacity-30 disabled:pointer-events-none hover:bg-brand-blue/90"
                                 >
-                                    {isSimulating ? 'Recalculating Logic...' : 'Run Simulation'}
+                                    {isSimulating ? 'Recalculating Logic..' : 'Run Simulation'}
                                 </button>
                             </CardContent>
                         </Card>

@@ -35,18 +35,18 @@ export interface ScoringResult {
  * Maps a numeric score to a qualitative level.
  */
 export function calculateLevel(score: number): string {
-  if (score >= 800) return 'Trusted Alpha';
-  if (score >= 720) return 'Trusted';
-  if (score >= 650) return 'Standard';
-  if (score >= 550) return 'Limited';
-  if (score >= 450) return 'Caution';
+  if (score >= 850) return 'Exceptional';
+  if (score >= 750) return 'Strong';
+  if (score >= 650) return 'Established';
+  if (score >= 550) return 'Developing';
+  if (score >= 450) return 'Limited';
   return 'Critical';
 }
 
 /**
  * Deterministic Scoring Engine
  * 
- * This engine calculates the TransferScore (300-850 range) based on 
+ * This engine calculates the proprietary TransferScore (0-1000 range) based on 
  * structured inputs from the AI analysis agents. 
  */
 export function calculateTransferScore(inputs: ScoringInputs): ScoringResult {
@@ -91,8 +91,8 @@ export function calculateTransferScore(inputs: ScoringInputs): ScoringResult {
   // STEP 5: Clamp 0-100
   const finalAdjustedScore = Math.max(0, Math.min(100, adjustedScore));
 
-  // STEP 6: Convert to 300-850 range
-  const finalScore = Math.round(300 + ((finalAdjustedScore / 100) * 550));
+  // STEP 6: Convert to proprietary 0-1000 range
+  const finalScore = Math.round(finalAdjustedScore * 10);
 
   return {
     finalScore,

@@ -75,7 +75,7 @@ const ProviderOnboardingPage: React.FC<ProviderOnboardingPageProps> = ({ onSubmi
         if (!formData.websiteUrl.startsWith('http')) newErrors.websiteUrl = 'Please enter a valid URL (e.g., https://...).';
         if (!formData.contactName) newErrors.contactName = 'A contact person is required.';
         const minScoreNum = Number(formData.minScore);
-        if (isNaN(minScoreNum) || minScoreNum < 300 || minScoreNum > 850) newErrors.minScore = 'Score must be between 300 and 850.';
+        if (isNaN(minScoreNum) || minScoreNum < 300 || minScoreNum > 850) newErrors.minScore = 'Score must be between 0 and 1000.';
         if (!consent) newErrors.consent = 'You must agree to the policy.';
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
@@ -125,7 +125,7 @@ const ProviderOnboardingPage: React.FC<ProviderOnboardingPageProps> = ({ onSubmi
                             <option>Other</option>
                         </Select>
                         <Input errors={errors} id="contactName" label="Primary Contact Person" type="text" value={formData.contactName} onChange={(e:any) => handleChange('contactName', e.target.value)} required />
-                        <Input errors={errors} id="minScore" label="Default Minimum TransferScore" type="number" min="300" max="850" value={formData.minScore} onChange={(e:any) => handleChange('minScore', e.target.value)} required 
+                        <Input errors={errors} id="minScore" label="Default Minimum TransferScore" type="number" min="0" max="1000" value={formData.minScore} onChange={(e:any) => handleChange('minScore', e.target.value)} required 
                             tooltip="This will be the default minimum score when you create new offers." 
                         />
                     </div>

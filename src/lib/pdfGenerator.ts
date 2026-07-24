@@ -187,7 +187,8 @@ export const generateDossierPDF = async (data: DashboardData) => {
     ['Purpose of Application', purpose],
     ['Employment Type', empType],
     ['Analysis Confidence', `${((data.confidence || 0) * 100).toFixed(0)}%`],
-    ['TransferScore™', `${data.score || 0} / 850 — ${data.level || 'Assessed'}`],
+    ['TransferScore™', `${data.score || 0} / 1000 — ${data.level || 'Assessed'}`],
+    ['Identity Verification', (data as any).identity_verification_status || 'Identity verification pending'],
   ]);
 
   // ── II. EXECUTIVE SUMMARY ─────────────────────────────────────────────────
@@ -653,11 +654,11 @@ export const generateDossierPDF = async (data: DashboardData) => {
     y = ((doc as any).lastAutoTable?.finalY ?? y) + 4;
   }
   const score = Number(data.score) || 0;
-  const tierLabel = score < 500 ? 'Subprime / High Risk' : score < 650 ? 'Near Prime / Conditional' : score < 750 ? 'Prime Verified Group' : 'Ultra-Prime Tier';
-  const ficoBand = score < 500 ? '< 620' : score < 650 ? '620-679 range' : score < 750 ? '680-759 range' : '760-850 range';
   ensureRoom(12);
   doc.setFontSize(7.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.dark);
-  doc.text(`Equivalent Tier: ${tierLabel} (estimated FICO benchmark: ${ficoBand})`, margin, y); y += 7;
+  doc.text(`TransferScore: ${score} / 1000 — ${data.level || 'Assessed'}`, margin, y); y += 4;
+  doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.slate);
+  doc.text('Proprietary cross-border financial evidence score. Not equivalent to FICO or a credit bureau score.', margin, y); y += 7;
 
   const se: any = (data as any).dossier_analysis?.score_explanation || null;
   if (se) {
@@ -744,7 +745,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
 
     const internalAssessment = score < 500
       ? 'Current score reflects insufficient evidence. Achieve Prime status via expanded professional documentation.'
-      : `Persona.Credit provides cross-border income contextualisation. Their TransferScore of ${score} represents an established economic integrity pattern.`;
+      : `Persona.Credit provides cross-border income contextualisation. Their TransferScore of ${score} / 1000 represents an established economic integrity pattern.`;
     subLabel('Internal Assessment:');
     doc.setFontSize(7.5); doc.setFont('helvetica', 'italic'); doc.setTextColor(...C.dark);
     vnLines = doc.splitTextToSize(`"${internalAssessment}"`, contentWidth - 4);
