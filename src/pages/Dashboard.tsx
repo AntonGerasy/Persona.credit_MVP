@@ -29,13 +29,13 @@ import {
     History,
     Clock
 } from 'lucide-react';
-import RealmSwitcher from './components/RealmSwitcher';
-import type { DashboardProps, SimulationResult, DashboardData, HistoryEntry } from './types';
-import { generateDossierPDF } from './lib/pdfGenerator';
-import { getHistory, compareEntries } from './lib/historyUtils';
-import { storage } from './lib/storage';
-import ConfirmModal from './components/ConfirmModal';
-import AdminRegistry from './components/AdminRegistry';
+import RealmSwitcher from '../components/RealmSwitcher';
+import type { DashboardProps, SimulationResult, DashboardData, HistoryEntry } from '../types';
+import { generateDossierPDF } from '../lib/pdfGenerator';
+import { getHistory, compareEntries } from '../lib/historyUtils';
+import { storage } from '../lib/storage';
+import ConfirmModal from '../components/ConfirmModal';
+import AdminRegistry from '../components/AdminRegistry';
 
 const SOPHISTICATED_DEMO_DATA: DashboardData = {
     score: 842,
