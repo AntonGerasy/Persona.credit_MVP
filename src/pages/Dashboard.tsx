@@ -468,7 +468,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
   // Reports built from agent outputs (or fallbacks) may be missing nested objects/arrays;
   // without this, a single undefined access blanks the whole dashboard.
   const data = useMemo(() => {
-    const d: any = { ..(rawData || {}) };
+    const d: any = { ...(rawData || {}) };
     // Scalars
     d.score = d.score ?? 0;
     d.level = d.level || 'Assessed';
@@ -1531,7 +1531,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                         // v34.24 (P1): only claim success once the SERVER confirms the
                                         // share record is published — otherwise the recipient would open
                                         // a dead link. On failure, surface a retry instead of "Copied ✓".
-                                        storage.setStrict(`pc:share:${data.shareId}`, { ..data, ownerEmail: userId })
+                                        storage.setStrict(`pc:share:${data.shareId}`, { ...data, ownerEmail: userId })
                                             .then(() => {
                                                 setLinkCopied(true);
                                                 setTimeout(() => setLinkCopied(false), 2500);
