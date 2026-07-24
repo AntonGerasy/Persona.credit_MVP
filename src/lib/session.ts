@@ -2,9 +2,9 @@
  * session.ts — client-side session token store (v34.13 hardening).
  *
  * Holds the opaque random token issued by /api/auth plus display metadata.
- * localStorage is appropriate here (production Vercel app, NOT a chat artifact):
- * the token is a revocable capability with a 30-day server-side TTL, and no
- * secrets (passwords, hashes) are ever kept client-side.
+ * sessionStorage is used for the applicant/provider session so a newly opened browser
+ * window does not silently inherit the active financial profile. The opaque token remains
+ * revocable server-side; passwords and hashes are never stored client-side.
  */
 
 export type PcSession = {
@@ -19,7 +19,7 @@ const SESSION_KEY = 'pc_session_v1';
 
 export const getSession = (): PcSession | null => {
   try {
-    const raw = localStorage.getItem(SESSION_KEY);
+    const raw = sessionStorage.getItem(SESSION_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed.token !== 'string' || !parsed.email) return null;
@@ -31,12 +31,12 @@ export const getSession = (): PcSession | null => {
 
 export const setSession = (s: PcSession): void => {
   try {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(s));
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(s));
   } catch { /* storage unavailable — session lives for this page only */ }
 };
 
 export const clearSession = (): void => {
   try {
-    localStorage.removeItem(SESSION_KEY);
+    sessionStorage.removeItem(SESSION_KEY);
   } catch { /* ignore */ }
 };

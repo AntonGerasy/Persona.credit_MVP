@@ -191,7 +191,7 @@ FILL raw_data_table FIRST — all income figures come from the DOCUMENTED values
 - monthly_income_original: documented MONTHLY amount + currency from documented_monthly_income_local / documented_currency (e.g. "UAH 35,689/month"). If has_documented_income is false: "N/A — declared only, unverified".
 - monthly_income_usd: documented_monthly_income_usd (e.g. "≈ $860 USD/month"). NEVER the declared claim.
 - income_vs_national_median: % above/below median, based on the DOCUMENTED figure (e.g. "78% above Ukraine median of UAH 20,000/mo")
-- income_vs_sector_median: % vs sector benchmark, based on the DOCUMENTED figure. ONLY if a sector is stated in the data (job_sector / employment fields); otherwise "N/A — sector not stated".
+- income_vs_sector_median: % vs sector benchmark, based on the DOCUMENTED figure. If a profession OR sector is stated anywhere in the application data, use the corresponding benchmark and never say the sector is unstated. Otherwise return "N/A — sector not stated".
 - income_percentile_label: percentile based on the DOCUMENTED figure (e.g. "Top 40% of earners in Ukraine")
 - ppp_equivalent_usd: realistic purchasing power of the MONTHLY USD figure (SANITY CHECK: same order of magnitude as monthly_income_usd — never 10x larger)
 - sector_benchmark_note: US salary range for the applicant's STATED profession/sector taken from the application data. PROFESSION RULE (STRICT): if NO profession or sector is stated in the data, write "Sector not stated by applicant" — NEVER guess, infer, or invent a profession from transaction counterparties, payer names, country, income level, or anything else. An invented profession is a fabrication that can mislead a lender.
@@ -203,7 +203,7 @@ PPP RULE (this is a USD-obligation product — rent/loan/mortgage): ppp_equivale
 
 THEN write:
 - origin_income_context: 2-3 sentences. What does this income mean IN the origin country? Reference the STATED sector only; if no sector is stated, describe the income without attributing a profession.
-- income_transfer_narrative: 2-3 sentences FOR THE RECIPIENT OF THIS DOSSIER. The applicant is applying for: ${ctx.verification_purpose || 'financial verification'}. Underwriting lens for this product: ${ctx.purpose_lens || 'general financial picture'}. Frame the narrative around what THIS product's decision-maker actually evaluates — do not give a generic answer.
+- income_transfer_narrative: 2-3 sentences FOR THE RECIPIENT OF THIS DOSSIER. The applicant is applying for: ${ctx.verification_purpose || 'financial verification'}. Underwriting lens for this product: ${ctx.purpose_lens || 'general financial picture'}. Frame the narrative around what THIS product's decision-maker actually evaluates — do not give a generic answer. NEVER assign a US social-class bracket from income alone. Household size, location, gross/net basis, other earners, existing debt and requested amount are unknown unless explicitly supplied; use conditional borrowing-capacity language instead.
 
 Data: ${JSON.stringify(ctx)}
 Rules: all scores 0-100. Use actual numbers from country intelligence. Return JSON only.`,

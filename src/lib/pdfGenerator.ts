@@ -454,7 +454,8 @@ export const generateDossierPDF = async (data: DashboardData) => {
           loan_or_credit: 'Counted: loan / credit card',
           insurance: 'Counted: insurance',
           tuition: 'Counted: tuition',
-          recurring_payment: 'Counted: recurring payment',
+          recurring_payment: 'Counted: recurring contractual payment',
+          ordinary_merchant_purchase: 'Excluded: ordinary merchant purchase',
           own_transfer: 'Excluded: own-account transfer',
           one_off_or_discretionary: 'Excluded: one-off / discretionary',
         };
@@ -519,6 +520,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
         ['Cross-Border Transferability',  `${bd.crossBorderScore?.toFixed(0) ?? '—'}/100`, '16%'],
         ['Migration Resilience',          `${bd.housingScore?.toFixed(0) ?? '—'}/100`,     '14%'],
         ['Behavioral Consistency',        `${bd.paymentScore?.toFixed(0) ?? '—'}/100`,     '10%'],
+        ['Fraud & Document Integrity',     `${Math.max(0, 100 - Number((data as any).fraud_analysis?.fraud_risk || 0)).toFixed(0)}/100`, '12%'],
       ],
       theme: 'grid',
       margin: { left: margin, right: margin },
@@ -669,8 +671,16 @@ export const generateDossierPDF = async (data: DashboardData) => {
       subLabel('Primary Underwriting Weights:'); bullets(se.most_influential_factors, 3);
     }
   }
+  const humanizeMachineText = (value: unknown): string => String(value || '')
+    .replace(/^['"]|['"]$/g, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^./, (c) => c.toUpperCase())
+    .replace(/\.$/, '') + (String(value || '').trim() ? '.' : '');
   const behSummaryRaw: any = (data as any).dossier_analysis?.behavioral_summary;
-  const behSummary: any = typeof behSummaryRaw === 'string' ? behSummaryRaw : (behSummaryRaw?.overall_stability || null);
+  const rawBehSummary: any = typeof behSummaryRaw === 'string' ? behSummaryRaw : (behSummaryRaw?.overall_stability || null);
+  const behSummary: any = rawBehSummary ? humanizeMachineText(rawBehSummary) : null;
   const behConsistency: any = (data as any).behavioral_analysis?.behavioral_consistency;
   if (behSummary || behConsistency !== undefined) {
     subLabel('Behavioral Observation:');
@@ -723,7 +733,9 @@ export const generateDossierPDF = async (data: DashboardData) => {
       ? 'This profile has an unresolved contradiction between declared and documented income. Verification is incomplete pending reconciliation.'
       : (Number(data.confidence) || 0) < 0.6
         ? 'CAUTION: This analysis contains significant reasoning limitations due to evidence gaps. Complete certainty cannot be established at this stage.'
-        : 'This profile has achieved professional verification standards with moderate to high reasoning stability.';
+        : (Number((data as any).uncertaintyAnalysis?.overall_uncertainty ?? 100) <= 25
+          ? 'Documented evidence supports this profile with moderate-to-high analysis confidence.'
+          : 'Documented evidence supports parts of this profile, but material uncertainty remains and should be reviewed before a decision.');
     subLabel('Verification Note:');
     doc.setFontSize(7.5); doc.setFont('helvetica', 'italic'); doc.setTextColor(...C.dark);
     let vnLines = doc.splitTextToSize(verificationNote, contentWidth - 4);

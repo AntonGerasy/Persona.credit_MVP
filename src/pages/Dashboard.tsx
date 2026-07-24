@@ -727,7 +727,9 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                         ? "This profile has an unresolved contradiction between declared and documented income. Verification is incomplete pending reconciliation."
                                                         : data.confidence < 0.6
                                                         ? "CAUTION: This analysis contains significant reasoning limitations due to evidence gaps. Complete certainty cannot be established at this stage."
-                                                        : "This profile has achieved professional verification standards with moderate to high reasoning stability."
+                                                        : (data.uncertaintyAnalysis?.overall_uncertainty ?? 100) <= 25
+                                                        ? "Documented evidence supports this profile with moderate-to-high analysis confidence."
+                                                        : "Documented evidence supports parts of this profile, but material uncertainty remains and should be reviewed before a decision."
                                                     }
                                                 </p>
                                             </div>
@@ -751,19 +753,21 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                     </CardContent>
                                 </Card>
 
-                                <Card className="bg-red-50/20 border-red-100">
-                                    <CardHeader className="bg-red-50/50 border-red-100"><CardTitle className="text-red-700">Identified Vulnerabilities</CardTitle></CardHeader>
-                                    <CardContent className="space-y-4">
-                                        {(data.weaknesses || []).map((w, i) => (
-                                            <div key={i} className="flex items-start gap-4 p-4 bg-white rounded-2xl border border-red-100 group shadow-sm">
-                                                <div className="w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform shadow-sm">
-                                                    <AlertTriangle className="w-3.5 h-3.5" />
+                                {(data.weaknesses || []).length > 0 && (
+                                    <Card className="bg-red-50/20 border-red-100">
+                                        <CardHeader className="bg-red-50/50 border-red-100"><CardTitle className="text-red-700">Identified Vulnerabilities</CardTitle></CardHeader>
+                                        <CardContent className="space-y-4">
+                                            {(data.weaknesses || []).map((w, i) => (
+                                                <div key={i} className="flex items-start gap-4 p-4 bg-white rounded-2xl border border-red-100 group shadow-sm">
+                                                    <div className="w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform shadow-sm">
+                                                        <AlertTriangle className="w-3.5 h-3.5" />
+                                                    </div>
+                                                    <p className="text-sm font-semibold text-brand-dark italic leading-tight pt-0.5">{w}</p>
                                                 </div>
-                                                <p className="text-sm font-semibold text-brand-dark italic leading-tight pt-0.5">{w}</p>
-                                            </div>
-                                        ))}
-                                    </CardContent>
-                                </Card>
+                                            ))}
+                                        </CardContent>
+                                    </Card>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -1113,6 +1117,8 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                     </Card>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                                        {((data.dossier_analysis?.uncertainty_analysis?.high_uncertainty_areas?.length || 0) > 0 ||
+                                          (data.dossier_analysis?.uncertainty_analysis?.recommended_additional_evidence?.length || 0) > 0) && (
                                         <Card className="bg-amber-50/20 border-amber-100">
                                             <CardHeader className="bg-amber-50/50 border-amber-100"><CardTitle className="text-amber-800">Uncertainty Remediation</CardTitle></CardHeader>
                                             <CardContent className="space-y-6">
@@ -1137,6 +1143,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                 </div>
                                             </CardContent>
                                         </Card>
+                                        )}
 
                                         <Card>
                                             <CardHeader><CardTitle>Evidence Quality Metrics</CardTitle></CardHeader>
@@ -1876,7 +1883,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                              <div className="absolute top-0 right-0 w-24 h-24 bg-brand-blue/5 rounded-full blur-2xl -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-1000"></div>
                              <div className="relative z-10">
                                 <p className="text-[9px] font-bold text-brand-gray uppercase tracking-widest mb-1">{data.pppContextOnly ? 'PPP — Origin Context Only' : 'Live PPP Multiplier'}</p>
-                                <p className={`text-3xl font-bold tracking-tight ${data.pppContextOnly ? 'text-brand-gray' : 'text-brand-blue'}`}>x{data.livePPPMultiplier}</p>
+                                <p className={`text-3xl font-bold tracking-tight ${data.pppContextOnly ? 'text-brand-gray' : 'text-brand-blue'}`}>{data.livePPPMultiplier !== undefined && data.livePPPMultiplier !== null && data.livePPPMultiplier !== '' ? `x${data.livePPPMultiplier}` : 'PPP data unavailable'}</p>
                                 {data.pppContextOnly && <p className="text-[9px] text-brand-gray/70 mt-1 font-medium normal-case tracking-normal">Origin purchasing power — not US repayment capacity. Underwriting uses documented USD income.</p>}
                              </div>
                              <div className="relative z-10 w-12 h-12 bg-slate-50 border border-brand-border rounded-xl flex items-center justify-center">
@@ -2142,7 +2149,8 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                         loan_or_credit: 'Loan / credit card',
                                         insurance: 'Insurance',
                                         tuition: 'Tuition',
-                                        recurring_payment: 'Recurring payment',
+                                        recurring_payment: 'Recurring contractual payment',
+                                        ordinary_merchant_purchase: 'Excluded: ordinary merchant purchase',
                                         own_transfer: 'Own-account transfer (not spending)',
                                         one_off_or_discretionary: 'One-off / discretionary',
                                     };

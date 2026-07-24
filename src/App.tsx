@@ -1695,8 +1695,13 @@ const App: React.FC = () => {
             };
 
             // Construct uncertainty_analysis explicitly for DashboardData
+            const confidencePctForUncertainty = Math.round(Math.max(0, Math.min(1, Number(parsedResult.overall_confidence) || 0.5)) * 100);
+            const alignedUncertainty = Math.min(
+                Number(parsedResult.analysis_integrity.uncertainty_level) || 50,
+                100 - confidencePctForUncertainty
+            );
             parsedResult.uncertainty_analysis = {
-                overall_uncertainty: parsedResult.analysis_integrity.uncertainty_level,
+                overall_uncertainty: alignedUncertainty,
                 high_uncertainty_areas: parsedResult.aggregated_uncertainties,
                 moderate_uncertainty_areas: [],
                 low_uncertainty_areas: [],

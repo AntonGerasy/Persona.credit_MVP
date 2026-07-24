@@ -373,6 +373,18 @@ const OBLIGATION_MARKERS: Array<{ reason: string; markers: string[] }> = [
   },
 ];
 
+const DISCRETIONARY_MERCHANT_MARKERS = [
+  'supermarket', 'grocery', 'groceries', 'food market', 'hypermarket',
+  '超市', '超市消费', '食品', '杂货', 'hema', '盒马',
+  'супермаркет', 'продукт', 'магазин', 'продукты',
+  'supermercado', 'mercado', 'épicerie', 'lebensmittel',
+  'restaurant', 'cafe', 'coffee', 'takeaway', 'delivery',
+  'retail purchase', 'point of sale', 'pos purchase', 'shopping',
+].map(normTxt);
+
+const isOrdinaryMerchantPurchase = (text: string): boolean =>
+  DISCRETIONARY_MERCHANT_MARKERS.some((marker) => text.includes(marker));
+
 const runObligationsEngine = (
   rawTxs: any[],
   applicantName: string,
@@ -422,9 +434,9 @@ const runObligationsEngine = (
     return months >= 2 || (months === 0 && periodMonths >= 2);
   };
 
-  // Pass 2 — classify. KNOWN LIMITATION (accepted): a habitual same-amount merchant
-  // (e.g. identical grocery runs across months) can slip into recurring_payment; the
-  // ±30% similarity + multi-month gates keep this rare, and the audit table exposes it.
+  // Pass 2 — classify. Repetition alone is not an obligation: ordinary merchant, grocery,
+  // restaurant and retail purchases remain discretionary even when the same merchant and
+  // similar amount appear in multiple months.
   const counted: AuditEntry[] = [];
   const excluded: AuditEntry[] = [];
   for (const tx of txs) {
@@ -439,6 +451,8 @@ const runObligationsEngine = (
     const cat = OBLIGATION_MARKERS.find((c) => c.markers.some((mk) => allNorm.includes(mk)));
     if (cat) {
       counted.push({ ...entry, reason: cat.reason });
+    } else if (isOrdinaryMerchantPurchase(allNorm)) {
+      excluded.push({ ...entry, reason: 'ordinary_merchant_purchase' });
     } else if (isRecurringPayee(cpNorm)) {
       counted.push({ ...entry, reason: 'recurring_payment' });
     } else {
@@ -462,6 +476,24 @@ const runObligationsEngine = (
   };
 };
 
+const normalizeLatinName = (value: string): string => {
+  const parenthetical = String(value || '').match(/\(([^)]+)\)/g)?.join(' ') || '';
+  const latin = `${value || ''} ${parenthetical}`
+    .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z\s'-]/g, ' ').toLowerCase().replace(/\s+/g, ' ').trim();
+  return latin;
+};
+
+const reconcileNameMatch = (documentName: string, applicantName: string, modelMatch: string): string => {
+  const doc = normalizeLatinName(documentName);
+  const applicant = normalizeLatinName(applicantName);
+  if (!doc || !applicant) return modelMatch || 'Cannot determine';
+  const a = applicant.split(' ').filter(Boolean).sort();
+  const d = doc.split(' ').filter(Boolean);
+  if (a.length && a.every((token) => d.includes(token))) return 'Match';
+  return modelMatch || 'Cannot determine';
+};
+
 const PROMPT = (applicantName: string, fieldLabel: string, originCountry: string, destinationCountry: string, employerName: string, employmentType: string) =>
 `Extract financial data from this document. Applicant: ${applicantName}. Origin: ${originCountry}. Destination: ${destinationCountry}. Field: ${fieldLabel}.
 Applicant's stated employer/company: ${employerName || 'not provided'}. Employment type: ${employmentType || 'not provided'}.
@@ -475,7 +507,7 @@ Rules:
 - credit_transactions: THE MOST IMPORTANT FIELD. List EVERY single incoming credit (money IN) shown in the statement, up to 120 entries, in document order. Do NOT filter, do NOT judge, do NOT skip anything — include self-transfers, own-account moves, salary, client payments, refunds, everything that increased the balance. The system decides later what counts as income; your job is a faithful transcript. Per entry: date = the posted date, normalized to YYYY-MM-DD when determinable (else as printed); description = the transaction line text VERBATIM (trim to 90 chars, keep original language/script); counterparty = the SENDER name or entity exactly as printed — if non-Latin script, append a Latin transliteration in parentheses; if no sender is identifiable, repeat the key words of the description; amount = positive number in the document currency (no separators). Do NOT include outgoing debits here.
 - average_monthly_inflow: FALLBACK ONLY (the system recomputes from credit_transactions). Your best estimate of monthly THIRD-PARTY income: total credits over the period divided by period_months, excluding self-funding — (a) senders matching the applicant "${applicantName}" in any script, (b) own-account transfers ("TRASPASO ENTRE CUENTAS PROPIAS", "self transfer", "перевод между своими счетами", "转账-本人账户", "chuyển tiền giữa tài khoản của chính chủ" and equivalents), (c) for self-employed/freelance/owner applicants, deposits from "${employerName || 'their own company'}". For salaried applicants employer deposits ARE income. Repeat payments from the same third-party client are NORMAL income. Do NOT annualize a partial period.
 - debit_transactions: SECOND MOST IMPORTANT FIELD. List EVERY single outgoing debit (money OUT) shown in the statement, up to 120 entries, in document order. Do NOT filter, do NOT judge, do NOT skip anything — include rent, utilities, card payments, own-account transfers out, shopping, everything that decreased the balance. The system decides later what counts as a recurring obligation; your job is a faithful transcript. Per entry: date = the posted date, normalized to YYYY-MM-DD when determinable (else as printed); description = the transaction line text VERBATIM (trim to 90 chars, keep original language/script); counterparty = the RECIPIENT name or entity exactly as printed — if non-Latin script, append a Latin transliteration in parentheses; if no recipient is identifiable, repeat the key words of the description; amount = positive number in the document currency (no separators). Do NOT include incoming credits here.
-- estimated_monthly_obligations: FALLBACK ONLY (the system recomputes from debit_transactions). Recurring monthly outflows clearly shown (rent, loan/utility autopay). Return 0 if not clearly determinable — do NOT guess. Must not exceed average_monthly_inflow unless the statement clearly shows deficit spending.
+- estimated_monthly_obligations: FALLBACK ONLY (the system recomputes from debit_transactions). Recurring contractual monthly outflows clearly shown (rent, loan/utility autopay). Grocery, supermarket, restaurant, retail, and ordinary merchant purchases are NEVER obligations merely because they repeat. Return 0 if not clearly determinable — do NOT guess. Must not exceed average_monthly_inflow unless the statement clearly shows deficit spending.
 - income_regularity: "Regular" ONLY for recurring similar-sized deposits (e.g. monthly salary). Lump/one-off/self/P2P transfers → "Irregular" or "Single entry".
 - income_sources_detected: name the payers/sources that COUNTED as income; note if they are individuals (P2P). List excluded self-funding separately in analyst_note if significant.
 - is_usable: false only if blank/unreadable/irrelevant
@@ -583,6 +615,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       };
     }
     delete result.credit_transactions; // audit carries the counted/excluded detail; keep payload lean
+
+    result.account_holder_name_match = reconcileNameMatch(
+      String(result.account_holder_name || ''),
+      applicantName || '',
+      String(result.account_holder_name_match || ''),
+    );
 
     // v34.10 — DETERMINISTIC OBLIGATIONS ENGINE: recompute monthly obligations from the
     // debit transcript. The LLM's own estimated_monthly_obligations survives only as a
