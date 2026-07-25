@@ -1187,7 +1187,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                     ))}
                                                 </div>
                                                 <button className="w-full py-4 mt-2 bg-white text-brand-blue text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg transition-all group-hover:bg-cyan-400 group-hover:text-brand-dark flex items-center justify-center gap-2">
-                                                    Open Growth Pathway 
+                                                    Recommended Next Steps 
                                                     <ArrowRightCircle className="w-4 h-4" />
                                                 </button>
                                             </CardContent>

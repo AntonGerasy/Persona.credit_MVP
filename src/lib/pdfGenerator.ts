@@ -189,6 +189,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
     ['Analysis Confidence', `${((data.confidence || 0) * 100).toFixed(0)}%`],
     ['TransferScore™', `${data.score || 0} / 1000 — ${data.level || 'Assessed'}`],
     ['Identity Verification', (data as any).identity_verification_status || 'Identity verification pending'],
+    ...((data as any).is_qa_fixture_assessment ? [['Assessment Mode', 'SYNTHETIC QA FIXTURE — NOT FOR REAL-WORLD USE']] : []),
   ]);
 
   // ── II. EXECUTIVE SUMMARY ─────────────────────────────────────────────────
@@ -521,7 +522,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
         ['Cross-Border Transferability',  `${bd.crossBorderScore?.toFixed(0) ?? '—'}/100`, '16%'],
         ['Migration Resilience',          `${bd.housingScore?.toFixed(0) ?? '—'}/100`,     '14%'],
         ['Behavioral Consistency',        `${bd.paymentScore?.toFixed(0) ?? '—'}/100`,     '10%'],
-        ['Fraud & Document Integrity',     bd.fraudIntegrityScore == null ? 'N/A — identity pending/failed' : `${Number(bd.fraudIntegrityScore).toFixed(0)}/100`, '12%'],
+        ['Fraud & Document Integrity',     bd.fraudIntegrityScore == null ? 'N/A — identity not production-verified' : `${Number(bd.fraudIntegrityScore).toFixed(0)}/100`, '12%'],
       ],
       theme: 'grid',
       margin: { left: margin, right: margin },

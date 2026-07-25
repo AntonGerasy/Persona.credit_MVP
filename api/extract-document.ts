@@ -167,10 +167,18 @@ const NON_INCOME_CREDIT_MARKERS = [
 ].map(normTxt);
 
 const CJK_NON_INCOME_CREDIT_MARKERS = new Set(['退款', '退税'].map(normTxt));
-const hasNonIncomeCreditMarker = (text: string): boolean =>
-  NON_INCOME_CREDIT_MARKERS.some((marker) =>
-    CJK_NON_INCOME_CREDIT_MARKERS.has(marker) ? text.includes(marker) : containsMarkerSafely(text, marker)
-  );
+const GENERIC_REFUND_WORDS = new Set(['refund', 'rebate', 'reversal', 'cashback'].map(normTxt));
+const hasNonIncomeCreditMarker = (description: string, counterparty: string): boolean => {
+  const desc = normTxt(description);
+  const cp = normTxt(counterparty);
+  return NON_INCOME_CREDIT_MARKERS.some((marker) => {
+    if (CJK_NON_INCOME_CREDIT_MARKERS.has(marker)) return desc.includes(marker) || cp.includes(marker);
+    // Bare refund words are unsafe in a payer/company name (e.g. Refund Solutions LLC).
+    // Treat them as non-income only when they appear in the transaction description.
+    if (GENERIC_REFUND_WORDS.has(marker)) return containsMarkerSafely(desc, marker);
+    return containsMarkerSafely(desc, marker) || containsMarkerSafely(cp, marker);
+  });
+};
 
 // v34.5: month-name dictionary — statements print "21/ABR", "05-Apr-2026", "5 мая" etc.
 // Keys are lowercase; Latin entries also matched after diacritic-stripping (août → aout).
@@ -307,7 +315,7 @@ const runIncomeEngine = (
       excluded.push({ ...entry, reason: 'bank_interest' });
     } else if (senderIsApplicant(cpNorm, applicantTokens)) {
       excluded.push({ ...entry, reason: 'sender_is_applicant' });
-    } else if (hasNonIncomeCreditMarker(allNorm)) {
+    } else if (hasNonIncomeCreditMarker(tx.description, tx.counterparty)) {
       excluded.push({ ...entry, reason: 'refund_or_reversal' });
     } else {
       counted.push({

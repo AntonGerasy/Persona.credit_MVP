@@ -445,8 +445,8 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
                           <p className="text-[10px] text-slate-400">{doc.issuing_institution} · {doc.issuing_country}</p>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
-                          <CheckCircle size={12} className="text-emerald-500" />
-                          <span className="text-[10px] font-bold text-emerald-600">Usable</span>
+                          {doc.qa_fixture ? <AlertCircle size={12} className="text-amber-500" /> : <CheckCircle size={12} className="text-emerald-500" />}
+                          <span className={`text-[10px] font-bold ${doc.qa_fixture ? 'text-amber-600' : 'text-emerald-600'}`}>{doc.qa_fixture ? 'QA Fixture' : 'Usable'}</span>
                         </div>
                       </div>
 

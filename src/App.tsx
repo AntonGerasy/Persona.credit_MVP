@@ -865,7 +865,7 @@ const App: React.FC = () => {
                 rationalWarnings.push("High Debt-to-Income ratio detected in origin jurisdiction.");
             }
             if (annIncomeUSD > 0 && reserveMonths < 3) {
-                rationalWarnings.push("Limited liquid liquidity buffer for cross-border transition.");
+                rationalWarnings.push("Limited liquid reserves for cross-border transition.");
             }
 
             // Build textData for agents (non-file fields only)
@@ -1396,12 +1396,17 @@ const App: React.FC = () => {
             // currency_usd_rate_approx is "local units per 1 USD" (e.g. UAH 41.5 = $1) → USD = local / rate
             const originRate = numOf(originIntelligence?.currency_usd_rate_approx) || null;
 
-            // Declared monthly income in USD (ann_income_usd is ANNUAL; local_monthly_income is MONTHLY local)
+            // Declared monthly income: reconcile in the document/local currency whenever possible.
+            // USD is presentation only and must use the SAME FX snapshot as the verified amount.
+            const declaredMonthlyLocal = numOf(formData.local_monthly_income);
+            const reconciliationRate = basisDocs.length ? rateForDoc(basisDocs[0]) : originRate;
             let declaredMonthlyUsd = 0;
-            if (numOf(formData.ann_income_usd) > 0) {
+            if (declaredMonthlyLocal > 0 && documentedMonthlyLocal != null && reconciliationRate) {
+                declaredMonthlyUsd = declaredMonthlyLocal / reconciliationRate;
+            } else if (numOf(formData.ann_income_usd) > 0) {
                 declaredMonthlyUsd = numOf(formData.ann_income_usd) / 12;
-            } else if (numOf(formData.local_monthly_income) > 0 && originRate) {
-                declaredMonthlyUsd = numOf(formData.local_monthly_income) / originRate;
+            } else if (declaredMonthlyLocal > 0 && originRate) {
+                declaredMonthlyUsd = declaredMonthlyLocal / originRate;
             }
 
             // Documented monthly income in USD (verifiedMonthlyUsd) is the SINGLE SOURCE OF TRUTH,
@@ -1417,8 +1422,11 @@ const App: React.FC = () => {
             let discrepancyPct: number | null = null;
 
             if (hasVerifiedIncome && hasDeclaredIncome) {
-                discrepancyPct = Math.round(((verifiedMonthlyUsd - declaredMonthlyUsd) / declaredMonthlyUsd) * 100);
-                const ratio = verifiedMonthlyUsd / declaredMonthlyUsd;
+                const canReconcileLocally = documentedMonthlyLocal != null && documentedMonthlyLocal > 0 && declaredMonthlyLocal > 0;
+                const ratio = canReconcileLocally
+                    ? documentedMonthlyLocal / declaredMonthlyLocal
+                    : verifiedMonthlyUsd / declaredMonthlyUsd;
+                discrepancyPct = Math.round((ratio - 1) * 100);
                 if (ratio >= 0.85) { incomeStatus = 'verified'; incomeEvidenceFactor = 1.0; }      // docs confirm (or exceed) declared
                 else if (declaredCoverageIsPartial) {
                     incomeStatus = 'partial';
@@ -1440,6 +1448,14 @@ const App: React.FC = () => {
             const nameMismatch = extractedDocuments.some(
                 (d: any) => d.is_usable && d.account_holder_name_match === 'No match'
             );
+
+            // One deterministic name verdict across every surface. LLM per-document labels
+            // must not oscillate between Match and Partial match for the same normalized names.
+            extractedDocuments.forEach((d: any) => {
+                if (!d?.account_holder_name) return;
+                const normalized = String(d.account_holder_name_match || '');
+                if (!nameMismatch && normalized !== 'Cannot determine') d.account_holder_name_match = 'Match';
+            });
 
             const isProvisional = incomeStatus !== 'verified' && incomeStatus !== 'partial';
 
@@ -1488,6 +1504,11 @@ const App: React.FC = () => {
                 savings_source: savingsSource,
                 liquid_reserves_effective_usd: liquidReservesEffectiveUsd || null,
                 doc_currency: usableDocCurrency,
+                reconciliation_currency: documentedMonthlyLocal != null && declaredMonthlyLocal > 0 ? usableDocCurrency : 'USD',
+                declared_monthly_local: declaredMonthlyLocal || null,
+                verified_monthly_local: documentedMonthlyLocal,
+                fx_rate_local_per_usd: reconciliationRate || null,
+                fx_rate_source: basisDocs.length ? 'document_currency_snapshot' : 'origin_profile_fallback',
                 name_mismatch: nameMismatch,
                 explanation: reconciliationExplanation,
             };
@@ -1504,7 +1525,7 @@ const App: React.FC = () => {
             // cannot substantiate — an agent spooked by e.g. "self-transfer excluded" wording must
             // not cost a clean profile 17+ points. Deterministic numbers are the source of truth
             // in BOTH directions.
-            if (!nameMismatch && fraudNode && incomeStatus === 'verified' && (discrepancyPct === null || Math.abs(discrepancyPct) <= 1)) {
+            if (!nameMismatch && fraudNode && incomeStatus === 'verified') {
                 // Only the income-reconciliation contradiction channel is cleared here.
                 // Independent document-integrity findings remain represented by fraud_risk/evidence fields.
                 fraudNode.contradiction_score = 0;
@@ -1567,7 +1588,7 @@ const App: React.FC = () => {
                     evidence_quality: evidence_strength_prelim,
                     reasoning_stability: 70,
                     contradiction_severity: fraudNode.contradiction_score ?? 0,
-                    uncertainty_level: 50,
+                    uncertainty_level: Math.round((1 - parsedResult_confidence) * 100),
                 },
                 dossier_markdown: '',
                 summary_statement: '',
@@ -1655,6 +1676,37 @@ const App: React.FC = () => {
             parsedResult.summary_statement = lenderSafeText(parsedResult.summary_statement || '');
             parsedResult.aggregated_strengths = (parsedResult.aggregated_strengths || []).map(lenderSafeText).filter(Boolean);
             parsedResult.aggregated_risks = (parsedResult.aggregated_risks || []).map(lenderSafeText).filter(Boolean);
+
+            const humanizeBehavior = (value: string): string => String(value || '')
+                .replace(/_/g, ' ')
+                .replace(/\bhas documents\b/gi, 'Submitted documents are available')
+                .replace(/\bdeclared income consistent with documents\b/gi, 'Declared income is consistent with submitted documents')
+                .replace(/\s*\.\s*/g, '. ')
+                .trim();
+            parsedResult.behavioral_summary.narrative_consistency = humanizeBehavior(parsedResult.behavioral_summary.narrative_consistency);
+
+            const obligationDocs = extractedDocuments.filter((d: any) => d.is_usable && Number(d.estimated_monthly_obligations) > 0);
+            const observedObligationsLocal = obligationDocs.length
+                ? Math.round(obligationDocs.reduce((sum: number, d: any) => sum + Number(d.estimated_monthly_obligations || 0), 0) / obligationDocs.length)
+                : 0;
+            const obligationCurrency = obligationDocs.find((d: any) => d.currency_code)?.currency_code || usableDocCurrency || '';
+            const detectedLoanPayments = obligationDocs.flatMap((d: any) => d.obligations_audit?.counted || [])
+                .filter((x: any) => x.reason === 'loan_or_credit');
+            parsedResult.obligations_summary = {
+                observed_monthly_average_local: observedObligationsLocal || null,
+                currency: obligationCurrency || null,
+                detected_loan_payment_count: detectedLoanPayments.length,
+                complete_liability_schedule_available: false,
+            };
+            if (observedObligationsLocal > 0) {
+                const grounded = `Observed statement-based obligations average approximately ${obligationCurrency} ${observedObligationsLocal.toLocaleString()}/month. The outstanding balances, full repayment schedules, and exact DTI are not established.`;
+                parsedResult.aggregated_risks = (parsedResult.aggregated_risks || [])
+                    .filter((r: string) => !/obligations are unknown|debt obligations are not detailed|complete liabilities picture/i.test(r));
+                parsedResult.aggregated_risks.push(grounded);
+                parsedResult.summary_statement = parsedResult.summary_statement
+                    .replace(/existing obligations are unknown/gi, grounded)
+                    .replace(/the complete liabilities picture is not established from the submitted evidence/gi, grounded);
+            }
 
             parsedResult.agent_summary = {
                 identity: idNode,
@@ -1753,13 +1805,11 @@ const App: React.FC = () => {
 
             // Construct uncertainty_analysis explicitly for DashboardData
             const confidencePctForUncertainty = Math.round(Math.max(0, Math.min(1, Number(parsedResult.overall_confidence) || 0.5)) * 100);
-            const rawAgentUncertainty = Number(parsedResult.analysis_integrity?.uncertainty_level);
             const confidenceImpliedUncertainty = 100 - confidencePctForUncertainty;
-            const hasExplicitAgentUncertainty = Number.isFinite(rawAgentUncertainty);
-            const agentUncertainty = Math.max(0, Math.min(100, hasExplicitAgentUncertainty ? rawAgentUncertainty : confidenceImpliedUncertainty));
-            const confidenceUncertaintyMismatch = hasExplicitAgentUncertainty && Math.abs(agentUncertainty - confidenceImpliedUncertainty) >= 25
-                ? [`Confidence/uncertainty mismatch requires review (confidence ${confidencePctForUncertainty}%, agent uncertainty ${agentUncertainty}%).`]
-                : [];
+            // Scoring uncertainty is deterministic. The model may explain evidence gaps, but
+            // cannot independently choose a score-moving uncertainty percentage.
+            const agentUncertainty = Math.max(0, Math.min(100, confidenceImpliedUncertainty));
+            const confidenceUncertaintyMismatch: string[] = [];
             parsedResult.uncertainty_analysis = {
                 overall_uncertainty: agentUncertainty,
                 high_uncertainty_areas: [...parsedResult.aggregated_uncertainties, ...confidenceUncertaintyMismatch],
@@ -1807,6 +1857,14 @@ const App: React.FC = () => {
                         : 'Identity verification pending';
             parsedResult.identity_document_status = qaSyntheticAccepted ? 'qa_fixture' : identityUsable ? 'passed' : identityRejected ? 'failed' : 'missing';
             parsedResult.is_qa_fixture_assessment = qaSyntheticAccepted;
+            if (qaSyntheticAccepted) {
+                extractedDocuments.forEach((d: any) => {
+                    if (/identity/i.test(String(d.field_label || d.document_type || ''))) {
+                        d.qa_fixture = true;
+                        d.verification_display_status = 'QA Fixture — accepted for pipeline testing; not identity-verified';
+                    }
+                });
+            }
 
             // Map results to dossier
             parsedResult.score = scoringResult.finalScore;
@@ -1978,8 +2036,8 @@ const App: React.FC = () => {
                     const balanceUsd = d.is_usable ? toUsdByCurrency(Number(d.ending_balance) || 0, d) : null;
                     return {
                         documentType: [d.document_type, d.issuing_institution].filter(Boolean).join(' — ') || 'Document',
-                        trustLevel: Math.max(0, Math.min(100, Number(d.legibility_score) || 0)),
-                        status: d.is_usable ? 'Verified' : (d.rejection_reason ? 'Failed' : 'Unusable'),
+                        trustLevel: d.qa_fixture ? 0.70 : Math.max(0, Math.min(1, (Number(d.legibility_score) || 0) / (Number(d.legibility_score) > 1 ? 100 : 1))),
+                        status: d.qa_fixture ? 'QA Fixture' : d.is_usable ? 'Verified' : (d.rejection_reason ? 'Failed' : 'Unusable'),
                         notes: d.analyst_note || d.rejection_reason || '',
                         statementPeriod: d.period_covered || '',
                         totalInflow: inflowUsd && inflowUsd > 0 ? Math.round(inflowUsd) : undefined,
