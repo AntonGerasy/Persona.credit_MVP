@@ -617,34 +617,34 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                 <CardHeader><CardTitle>Risk Analytics Decomposition</CardTitle></CardHeader>
                                 <CardContent className="space-y-8">
                                     <ScoreBar 
-                                        label="Identity Integrity" 
+                                        label="Identity Reliability" 
                                         score={data.breakdown?.identityScore || 0} 
                                         icon={<Fingerprint className="w-4 h-4" />}
                                     />
                                     <ScoreBar 
-                                        label="Income Stability" 
+                                        label="Financial Stability" 
                                         score={data.breakdown?.incomeScore || 0} 
                                         icon={<CreditCard className="w-4 h-4" />}
                                     />
                                     <ScoreBar 
-                                        label="Payment Discipline" 
-                                        score={data.breakdown?.paymentScore || 0} 
-                                        icon={<ShieldCheck className="w-4 h-4" />}
+                                        label="Cross-Border Transferability" 
+                                        score={data.breakdown?.crossBorderScore || 0} 
+                                        icon={<Globe className="w-4 h-4" />}
                                     />
                                     <ScoreBar 
-                                        label="Savings Buffer" 
-                                        score={data.breakdown?.savingsScore || 0} 
-                                        icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg>}
-                                    />
-                                    <ScoreBar 
-                                        label="Housing Readiness" 
+                                        label="Migration Resilience" 
                                         score={data.breakdown?.housingScore || 0} 
                                         icon={<Home className="w-4 h-4" />}
                                     />
                                     <ScoreBar 
-                                        label="Cross-Border Integrity" 
-                                        score={data.breakdown?.crossBorderScore || 0} 
-                                        icon={<Globe className="w-4 h-4" />}
+                                        label="Behavioral Consistency" 
+                                        score={data.breakdown?.paymentScore || 0} 
+                                        icon={<ShieldCheck className="w-4 h-4" />}
+                                    />
+                                    <ScoreBar 
+                                        label="Fraud & Document Integrity" 
+                                        score={data.breakdown?.fraudIntegrityScore ?? 0} 
+                                        icon={<ShieldCheck className="w-4 h-4" />}
                                     />
 
                                     {data.rationalWarnings && data.rationalWarnings.length > 0 && (
@@ -829,9 +829,9 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                 <ShieldCheck className="w-32 h-32 text-white" />
                                             </div>
                                             <div className="relative z-10 space-y-6">
-                                                <Badge variant="info" className={`shadow-none ${isContradicted || data.score < 500 ? 'bg-white text-amber-600' : data.score < 650 ? 'bg-white text-brand-gray' : 'bg-white text-brand-blue'}`}>{isContradicted || data.score < 500 ? 'Provisional — Needs Review' : data.score < 650 ? 'Near Prime — Conditional' : 'Global Standard Prime'}</Badge>
-                                                <h4 className="text-2xl font-bold leading-tight">{isContradicted ? 'Documented income does not support the declared profile.' : data.score < 500 ? 'Profile does not yet meet prime verification thresholds.' : data.score < 650 ? 'Profile is partially verified — approaching prime thresholds.' : 'Subject has cleared multi-region regulatory fidelity checks.'}</h4>
-                                                <p className="text-xs text-white/70 leading-relaxed font-medium">{isContradicted || data.score < 500 ? 'This assessment reflects gaps between declared and documented financials. It is not a prime credit certification.' : data.score < 650 ? 'Verification is partial. Additional documentation would be required before any prime-equivalent certification.' : 'This document certifies that the subject possesses verified financial integrity equivalent to a Prime US credit profile.'}</p>
+                                                <Badge variant="info" className={`shadow-none ${isContradicted || data.score < 500 ? 'bg-white text-amber-600' : data.score < 650 ? 'bg-white text-brand-gray' : 'bg-white text-brand-blue'}`}>{isContradicted || data.score < 500 ? 'Provisional — Needs Review' : data.score < 650 ? 'Partially Documented' : 'Established Evidence Profile'}</Badge>
+                                                <h4 className="text-2xl font-bold leading-tight">{isContradicted ? 'Documented income does not support the declared profile.' : data.score < 500 ? 'Profile requires additional evidence before a confident assessment.' : data.score < 650 ? 'Profile is partially documented and may require additional evidence.' : 'Cross-border financial evidence has been assessed with substantial supporting documentation.'}</h4>
+                                                <p className="text-xs text-white/70 leading-relaxed font-medium">{isContradicted || data.score < 500 ? 'This assessment reflects gaps between declared and documented financials. It is not a prime credit certification.' : data.score < 650 ? 'Verification is partial. Additional documentation would be required before a confident decision.' : 'This assessment summarizes documented financial evidence and does not certify equivalence to any US credit tier.'}</p>
                                             </div>
                                         </div>
                                         <div className="space-y-8">

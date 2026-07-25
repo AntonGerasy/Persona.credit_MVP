@@ -360,7 +360,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
         docRows.push(['Avg Monthly Inflow', fmt(docItem.average_monthly_inflow, docItem.currency_code)]);
       if (docItem.ending_balance > 0)
         docRows.push(['Ending Balance', fmt(docItem.ending_balance, docItem.currency_code)]);
-      if (docItem.income_regularity)
+      if (docItem.income_regularity && !/identity/i.test(String(docItem.document_type || '')))
         docRows.push(['Income Pattern', docItem.income_regularity]);
       if (docItem.salary_deposits_detected)
         docRows.push(['Salary Deposits', `Detected — ${docItem.salary_deposit_count} deposit(s)`]);
@@ -721,9 +721,14 @@ export const generateDossierPDF = async (data: DashboardData) => {
     });
     y = ((doc as any).lastAutoTable?.finalY ?? y) + 4;
 
-    const consistencyPatterns: string[] = Array.isArray(beh.consistency_patterns) && beh.consistency_patterns.length
-      ? beh.consistency_patterns
-      : [isContested ? 'Income consistency contested — declared figure not supported by documents' : 'No consistency issues detected in provided data'];
+    const sharedConsistencyConcerns: string[] = Array.isArray((data as any).uncertaintyAnalysis?.high_uncertainty_areas)
+      ? (data as any).uncertaintyAnalysis.high_uncertainty_areas
+      : [];
+    const consistencyPatterns: string[] = sharedConsistencyConcerns.length
+      ? sharedConsistencyConcerns
+      : (Array.isArray(beh.consistency_patterns) && beh.consistency_patterns.length
+          ? beh.consistency_patterns
+          : [isContested ? 'Income consistency contested — declared figure not supported by documents' : 'No consistency issues detected in provided data']);
     subLabel('Consistency Patterns:'); bullets(consistencyPatterns, 3);
 
     const strongestEvidence: string[] = (data as any).dossier_analysis?.evidence_summary?.strongest_evidence || [];

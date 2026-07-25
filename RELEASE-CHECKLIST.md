@@ -51,3 +51,9 @@ the step — not a failure of the build.
       texts ship later as a content-only patch.
 
 Verdict: PASSED = public launch approved (technically).
+
+
+## QA fixture safety
+- Confirm `PERSONA_QA_FIXTURE_MODE=false` in Production.
+- Confirm `VITE_QA_FIXTURE_MODE=false` in Production.
+- QA fixture deployments must be visibly separated from public production.

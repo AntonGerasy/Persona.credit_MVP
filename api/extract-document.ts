@@ -166,6 +166,12 @@ const NON_INCOME_CREDIT_MARKERS = [
   'повернення', 'возврат', '退款', '退税', 'hoan tien',
 ].map(normTxt);
 
+const CJK_NON_INCOME_CREDIT_MARKERS = new Set(['退款', '退税'].map(normTxt));
+const hasNonIncomeCreditMarker = (text: string): boolean =>
+  NON_INCOME_CREDIT_MARKERS.some((marker) =>
+    CJK_NON_INCOME_CREDIT_MARKERS.has(marker) ? text.includes(marker) : containsMarkerSafely(text, marker)
+  );
+
 // v34.5: month-name dictionary — statements print "21/ABR", "05-Apr-2026", "5 мая" etc.
 // Keys are lowercase; Latin entries also matched after diacritic-stripping (août → aout).
 const MONTH_ABBR: Record<string, number> = {
@@ -301,7 +307,7 @@ const runIncomeEngine = (
       excluded.push({ ...entry, reason: 'bank_interest' });
     } else if (senderIsApplicant(cpNorm, applicantTokens)) {
       excluded.push({ ...entry, reason: 'sender_is_applicant' });
-    } else if (NON_INCOME_CREDIT_MARKERS.some((mk) => allNorm.includes(mk))) {
+    } else if (hasNonIncomeCreditMarker(allNorm)) {
       excluded.push({ ...entry, reason: 'refund_or_reversal' });
     } else {
       counted.push({
@@ -426,12 +432,12 @@ const DISCRETIONARY_MERCHANT_MARKERS = [
   'retail purchase', 'point of sale', 'pos purchase', 'shopping',
 ].map(normTxt);
 
-const containsMarkerSafely = (text: string, marker: string): boolean => {
+function containsMarkerSafely(text: string, marker: string): boolean {
   const hasNonLatin = /[^\x00-\x7F]/.test(marker);
   if (hasNonLatin) return text.includes(marker);
   const escaped = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(text);
-};
+}
 
 const isOrdinaryMerchantPurchase = (text: string): boolean =>
   DISCRETIONARY_MERCHANT_MARKERS.some((marker) => containsMarkerSafely(text, marker));

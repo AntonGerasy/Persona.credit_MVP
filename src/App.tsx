@@ -1504,9 +1504,12 @@ const App: React.FC = () => {
             // cannot substantiate — an agent spooked by e.g. "self-transfer excluded" wording must
             // not cost a clean profile 17+ points. Deterministic numbers are the source of truth
             // in BOTH directions.
-            if (!nameMismatch && fraudNode && (incomeStatus === 'verified' || incomeStatus === 'partial')) {
-                const contradictionCap = incomeStatus === 'verified' ? 20 : 40;
-                fraudNode.contradiction_score = Math.min(numOf(fraudNode.contradiction_score), contradictionCap);
+            if (!nameMismatch && fraudNode && incomeStatus === 'verified' && (discrepancyPct === null || Math.abs(discrepancyPct) <= 1)) {
+                // Only the income-reconciliation contradiction channel is cleared here.
+                // Independent document-integrity findings remain represented by fraud_risk/evidence fields.
+                fraudNode.contradiction_score = 0;
+            } else if (!nameMismatch && fraudNode && incomeStatus === 'partial') {
+                fraudNode.contradiction_score = Math.min(numOf(fraudNode.contradiction_score), 40);
             }
 
             // FINAL SYNTHESIS — Structured Aggregation Engine
@@ -1750,9 +1753,11 @@ const App: React.FC = () => {
 
             // Construct uncertainty_analysis explicitly for DashboardData
             const confidencePctForUncertainty = Math.round(Math.max(0, Math.min(1, Number(parsedResult.overall_confidence) || 0.5)) * 100);
-            const agentUncertainty = Math.max(0, Math.min(100, Number(parsedResult.analysis_integrity.uncertainty_level) || 50));
+            const rawAgentUncertainty = Number(parsedResult.analysis_integrity?.uncertainty_level);
             const confidenceImpliedUncertainty = 100 - confidencePctForUncertainty;
-            const confidenceUncertaintyMismatch = Math.abs(agentUncertainty - confidenceImpliedUncertainty) >= 25
+            const hasExplicitAgentUncertainty = Number.isFinite(rawAgentUncertainty);
+            const agentUncertainty = Math.max(0, Math.min(100, hasExplicitAgentUncertainty ? rawAgentUncertainty : confidenceImpliedUncertainty));
+            const confidenceUncertaintyMismatch = hasExplicitAgentUncertainty && Math.abs(agentUncertainty - confidenceImpliedUncertainty) >= 25
                 ? [`Confidence/uncertainty mismatch requires review (confidence ${confidencePctForUncertainty}%, agent uncertainty ${agentUncertainty}%).`]
                 : [];
             parsedResult.uncertainty_analysis = {
@@ -1807,7 +1812,7 @@ const App: React.FC = () => {
             parsedResult.score = scoringResult.finalScore;
             parsedResult.level = scoringResult.level;
             parsedResult.score_breakdown = scoringResult.breakdown;
-            parsedResult.confidence = Math.max(0.1, (parsedResult.overall_confidence * 0.6) + ((evidence_strength / 100) * 0.4));
+            parsedResult.confidence = Math.max(0.1, Math.min(1, Number(parsedResult.overall_confidence) || 0.5));
             
             // Safety Mode Check
             let analysisStatus: 'success' | 'limited_confidence' | 'unreliable' = 'success';
