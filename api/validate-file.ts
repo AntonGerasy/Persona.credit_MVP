@@ -33,7 +33,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  const { fileBase64, mimeType, fieldLabel, fieldSubLabel, applicantName } = req.body;
+  const { fileBase64, mimeType, fieldLabel, fieldSubLabel, applicantName, qaFixtureMode } = req.body;
+  const qaFixtureEnabled = process.env.PERSONA_QA_FIXTURE_MODE === 'true' && qaFixtureMode === true;
 
   if (!fileBase64 || !mimeType || !fieldLabel) {
     return res.status(400).json({ error: 'Missing required fields: fileBase64, mimeType, fieldLabel' });
@@ -81,6 +82,10 @@ TASK: Determine if this document is usable for financial verification purposes.
    - Mark invalid only if completely unreadable or clearly tampered.
 
 4. QUICK EXTRACTION (if valid): Note the institution name and period/date visible in the document.
+
+5. SYNTHETIC / SPECIMEN IDENTIFICATION:
+   - In normal production mode, synthetic, specimen, sample, test, or clearly fabricated identity documents are invalid.
+   - ${qaFixtureEnabled ? 'QA FIXTURE MODE IS ENABLED. A synthetic/specimen identity document may pass intake only as a test fixture. Set isValid=true and begin the reason with "QA FIXTURE — synthetic identity accepted for sandbox pipeline testing only; not identity-verified."' : 'QA fixture mode is disabled. Reject synthetic/specimen identity documents.'}
 
 Respond STRICTLY in valid JSON only. No conversational text.`;
 

@@ -149,9 +149,22 @@ const senderIsApplicant = (counterpartyNorm: string, applicantTokens: string[]):
   return applicantTokens.length === 1 ? hits >= 1 : hits >= 2;
 };
 
-// Self-employed/owner moving money from their own company is self-funding, not income.
-const isOwnCompany = (counterpartyNorm: string, employerTokens: string[]): boolean =>
-  employerTokens.length > 0 && employerTokens.some((t) => counterpartyNorm.includes(t));
+// A counterparty overlapping a declared employer/business is NOT sufficient evidence of
+// a self-transfer. It may be payroll, contractor income, an owner salary, or a client payment.
+// We retain the relationship as an audit signal, but only explicit own-account evidence may
+// exclude the credit. This prevents broad employer-token false positives across countries.
+const employerTokenOverlap = (counterpartyNorm: string, employerTokens: string[]): boolean => {
+  if (!counterpartyNorm || employerTokens.length === 0) return false;
+  const hits = employerTokens.filter((t) => counterpartyNorm.includes(t)).length;
+  return hits >= Math.max(1, Math.ceil(employerTokens.length * 0.6));
+};
+
+const NON_INCOME_CREDIT_MARKERS = [
+  'tax refund', 'franchise tax bd', 'franchise tax board', 'cashback', 'cash back',
+  'reversal', 'reversed transaction', 'chargeback', 'rebate', 'refund',
+  'devolucion', 'reembolso', 'estorno', 'remboursement', 'erstattung',
+  'повернення', 'возврат', '退款', '退税', 'hoan tien',
+].map(normTxt);
 
 // v34.5: month-name dictionary — statements print "21/ABR", "05-Apr-2026", "5 мая" etc.
 // Keys are lowercase; Latin entries also matched after diacritic-stripping (août → aout).
@@ -288,10 +301,13 @@ const runIncomeEngine = (
       excluded.push({ ...entry, reason: 'bank_interest' });
     } else if (senderIsApplicant(cpNorm, applicantTokens)) {
       excluded.push({ ...entry, reason: 'sender_is_applicant' });
-    } else if (isOwnCompany(cpNorm, employerTokens)) {
-      excluded.push({ ...entry, reason: 'own_company' });
+    } else if (NON_INCOME_CREDIT_MARKERS.some((mk) => allNorm.includes(mk))) {
+      excluded.push({ ...entry, reason: 'refund_or_reversal' });
     } else {
-      counted.push(entry);
+      counted.push({
+        ...entry,
+        ...(employerTokenOverlap(cpNorm, employerTokens) ? { reason: 'declared_business_or_employer_payment' } : {}),
+      });
     }
   }
 

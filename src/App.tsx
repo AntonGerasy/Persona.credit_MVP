@@ -555,6 +555,7 @@ const App: React.FC = () => {
                     fieldSubLabel: field.subLabel || '',
                     applicantName: formData['full_name'] || 'Unknown',
                     isOriginTrack,
+                    qaFixtureMode: import.meta.env.VITE_QA_FIXTURE_MODE === 'true',
                 }),
             });
 
@@ -840,7 +841,8 @@ const App: React.FC = () => {
             const monthlyIncome = cleanNum(formData['local_monthly_income']) || 1;
             const annIncomeUSD = cleanNum(formData['ann_income_usd']) || 0;
             const originDebts = cleanNum(formData['debts_total_origin']) || 0;
-            const officialShare = cleanNum(formData['official_income_share']) || 1;
+            const officialShareRaw = cleanNum(formData['official_income_share']);
+            const officialShare = officialShareRaw > 0 ? Math.min(1, officialShareRaw) : 1;
             const tenure = cleanNum(formData['experience_years']) || 0;
             const liquidReserves = cleanNum(formData['liquid_reserves']) || 0;
 
@@ -854,7 +856,7 @@ const App: React.FC = () => {
             // when the underlying figure was actually declared. With optional inputs, an empty
             // field must not manufacture "High DTI" (debts / 1) or "no liquidity buffer".
             if (officialShare < 0.5) {
-                rationalWarnings.push("Low Verifiable Income Ratio detected. Risk adjusted for informal economy exposure.");
+                rationalWarnings.push("Applicant reports that submitted documents cover only part of total income. Treat the evidence set as incomplete, not contradictory.");
             }
             if (tenure < 2) {
                 rationalWarnings.push("Limited professional tenure in current sector.");
@@ -1233,7 +1235,9 @@ const App: React.FC = () => {
                 verifiedMonthlyUsd > 0 && declaredMonthlyUsdPreRaw > 0 &&
                 (verifiedMonthlyUsd / declaredMonthlyUsdPreRaw) > 20;
             const declaredMonthlyUsdPre = declaredPreSuspect ? 0 : declaredMonthlyUsdPreRaw;
+            const declaredCoverageIsPartial = officialShare < 0.999;
             const incomeContradictedPre =
+                !declaredCoverageIsPartial &&
                 verifiedMonthlyUsd > 0 && declaredMonthlyUsdPre > 0 &&
                 (verifiedMonthlyUsd / declaredMonthlyUsdPre) < 0.60;
             const incomeDiscrepancyPctPre =
@@ -1416,8 +1420,14 @@ const App: React.FC = () => {
                 discrepancyPct = Math.round(((verifiedMonthlyUsd - declaredMonthlyUsd) / declaredMonthlyUsd) * 100);
                 const ratio = verifiedMonthlyUsd / declaredMonthlyUsd;
                 if (ratio >= 0.85) { incomeStatus = 'verified'; incomeEvidenceFactor = 1.0; }      // docs confirm (or exceed) declared
+                else if (declaredCoverageIsPartial) {
+                    incomeStatus = 'partial';
+                    // Incomplete evidence can support only the observed portion; it cannot disprove
+                    // the remainder solely by omission.
+                    incomeEvidenceFactor = Math.max(0.35, Math.min(0.80, ratio / Math.max(officialShare, 0.1)));
+                }
                 else if (ratio >= 0.60) { incomeStatus = 'partial'; incomeEvidenceFactor = 0.85; }  // docs somewhat below declared
-                else { incomeStatus = 'contradicted'; incomeEvidenceFactor = 0.0; }                  // declared significantly inflated vs evidence
+                else { incomeStatus = 'contradicted'; incomeEvidenceFactor = 0.0; }                  // full-coverage evidence materially conflicts
             } else if (hasVerifiedIncome && !hasDeclaredIncome) {
                 incomeStatus = 'verified'; incomeEvidenceFactor = 1.0;   // the document speaks for itself
             } else if (!hasVerifiedIncome && hasDeclaredIncome) {
@@ -1445,7 +1455,9 @@ const App: React.FC = () => {
             if (incomeStatus === 'contradicted') {
                 reconciliationExplanation = `Declared income (~${fmtUsd(declaredMonthlyUsd)}/mo) is significantly higher than documented income (~${fmtUsd(verifiedMonthlyUsd)}/mo, ${discrepancyPct}% difference). The gap is unexplained and lowers verified standing.`;
             } else if (incomeStatus === 'partial') {
-                reconciliationExplanation = `Documents confirm ~${fmtUsd(verifiedMonthlyUsd)}/mo against a declared ~${fmtUsd(declaredMonthlyUsd)}/mo (${discrepancyPct}%). Partially verified.`;
+                reconciliationExplanation = declaredCoverageIsPartial
+                    ? `Submitted documents show ~${fmtUsd(verifiedMonthlyUsd)}/mo against a declared ~${fmtUsd(declaredMonthlyUsd)}/mo. The applicant reports that the evidence covers about ${Math.round(officialShare * 100)}% of total income, so the remaining gap is unverified rather than contradicted.`
+                    : `Documents confirm ~${fmtUsd(verifiedMonthlyUsd)}/mo against a declared ~${fmtUsd(declaredMonthlyUsd)}/mo (${discrepancyPct}%). Partially verified.`;
             } else if (incomeStatus === 'verified') {
                 reconciliationExplanation = declaredInputSuspect
                     ? `Documented income (~${fmtUsd(verifiedMonthlyUsd)}/mo) is verified by bank records. The declared figure (~${fmtUsd(declaredMonthlyUsd)}/mo) appears to be an input typo (e.g. a thousands separator was dropped) and was disregarded — re-enter it as digits only.`
@@ -1467,6 +1479,8 @@ const App: React.FC = () => {
                 discrepancy_pct: declaredInputSuspect ? null : discrepancyPct,
                 declared_input_suspect: declaredInputSuspect,
                 evidence_factor: incomeEvidenceFactor,
+                declared_documentation_share: officialShare,
+                evidence_coverage_partial: declaredCoverageIsPartial,
                 is_provisional: isProvisional,
                 has_usable_docs: (documentSummary.usable_documents || 0) > 0,
                 // v34.12 — manual-input reduction: surfaces render provenance, not blanks.
@@ -1771,14 +1785,23 @@ const App: React.FC = () => {
             });
 
             const identityDocs = extractedDocuments.filter((d: any) => /identity/i.test(String(d.field_label || d.document_type || '')));
-            const identityUsable = identityDocs.some((d: any) => d.is_usable === true && !(d.authenticity_concerns || []).some((x: any) => /synthetic|specimen|test document|not government issued/i.test(String(x))));
-            const identityRejected = identityDocs.some((d: any) => d.is_usable === false || (d.authenticity_concerns || []).some((x: any) => /synthetic|specimen|test document|not government issued/i.test(String(x))));
-            parsedResult.identity_verification_status = identityUsable
-                ? 'Identity evidence submitted — automated checks passed'
-                : identityRejected
-                    ? 'Identity evidence rejected — review or replacement required'
-                    : 'Identity verification pending';
-            parsedResult.identity_document_status = identityUsable ? 'passed' : identityRejected ? 'failed' : 'missing';
+            const syntheticIdentityPattern = /synthetic|specimen|test document|not government issued/i;
+            const qaFixtureMode = import.meta.env.VITE_QA_FIXTURE_MODE === 'true';
+            const hasSyntheticIdentity = identityDocs.some((d: any) =>
+                (d.authenticity_concerns || []).some((x: any) => syntheticIdentityPattern.test(String(x)))
+            );
+            const identityUsable = identityDocs.some((d: any) => d.is_usable === true && !(d.authenticity_concerns || []).some((x: any) => syntheticIdentityPattern.test(String(x))));
+            const identityRejected = identityDocs.some((d: any) => d.is_usable === false || (d.authenticity_concerns || []).some((x: any) => syntheticIdentityPattern.test(String(x))));
+            const qaSyntheticAccepted = qaFixtureMode && hasSyntheticIdentity;
+            parsedResult.identity_verification_status = qaSyntheticAccepted
+                ? 'QA FIXTURE — synthetic identity accepted for sandbox pipeline testing only; not identity-verified'
+                : identityUsable
+                    ? 'Identity evidence submitted — automated checks passed'
+                    : identityRejected
+                        ? 'Identity evidence rejected — review or replacement required'
+                        : 'Identity verification pending';
+            parsedResult.identity_document_status = qaSyntheticAccepted ? 'qa_fixture' : identityUsable ? 'passed' : identityRejected ? 'failed' : 'missing';
+            parsedResult.is_qa_fixture_assessment = qaSyntheticAccepted;
 
             // Map results to dossier
             parsedResult.score = scoringResult.finalScore;

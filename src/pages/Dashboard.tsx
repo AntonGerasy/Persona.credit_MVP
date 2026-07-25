@@ -886,7 +886,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                             <div className="flex flex-col items-end gap-4">
                                 <div className="text-right">
                                     <p className="text-[10px] font-bold text-brand-gray/50 uppercase tracking-widest mb-1">Identity Verification</p>
-                                    <Badge variant={isContradicted ? 'warning' : 'positive'} className="text-lg py-1 px-4">{isContradicted ? 'Contested — Income Disputed' : ((data as any).identity_verification_status || 'Identity verification pending')}</Badge>
+                                    <Badge variant={String((data as any).identity_document_status || '') === 'passed' ? 'positive' : 'warning'} className="text-lg py-1 px-4">{(data as any).identity_verification_status || 'Identity verification pending'}</Badge>
                                 </div>
                                 <button 
                                     onClick={handleDownloadPDF}
