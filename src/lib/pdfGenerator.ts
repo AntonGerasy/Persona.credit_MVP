@@ -188,6 +188,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
     ['Employment Type', empType],
     ['Analysis Confidence', `${((data.confidence || 0) * 100).toFixed(0)}%`],
     ['TransferScore™', `${data.score || 0} / 1000 — ${data.level || 'Assessed'}`],
+    ...((data as any).economic_score != null ? [['Economic Evidence Score', `${(data as any).economic_score} / 1000 — identity status shown separately`]] : []),
     ['Identity Verification', (data as any).identity_verification_status || 'Identity verification pending'],
     ...((data as any).is_qa_fixture_assessment ? [['Assessment Mode', 'SYNTHETIC QA FIXTURE — NOT FOR REAL-WORLD USE']] : []),
   ]);

@@ -50,6 +50,7 @@ export interface FileData {
     file: File;
     validationStatus?: 'validating' | 'valid' | 'invalid' | 'error';
     validationReason?: string;
+    qaFixtureAccepted?: boolean;
 }
 
 export interface RepeaterItem {

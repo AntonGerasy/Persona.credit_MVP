@@ -270,6 +270,9 @@ const AlphaBuildView: React.FC<{ data: any }> = ({ data }) => {
                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
                             <p className="text-[10px] font-semibold text-cyber-silver/40 uppercase tracking-apple-label mb-1">Index</p>
                             <p className="text-3xl font-bold text-white tracking-apple-tight leading-none italic">{data.score}</p>
+                            {(data as any).economic_score != null && (
+                                <p className="mt-2 text-[10px] font-semibold text-white/70 uppercase tracking-widest">Economic Evidence {(data as any).economic_score} / 1000 · identity shown separately</p>
+                            )}
                         </div>
                     </div>
                     <div className="flex-1 text-center md:text-left space-y-6">

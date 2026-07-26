@@ -159,25 +159,74 @@ const employerTokenOverlap = (counterpartyNorm: string, employerTokens: string[]
   return hits >= Math.max(1, Math.ceil(employerTokens.length * 0.6));
 };
 
-const NON_INCOME_CREDIT_MARKERS = [
-  'tax refund', 'franchise tax bd', 'franchise tax board', 'cashback', 'cash back',
-  'reversal', 'reversed transaction', 'chargeback', 'rebate', 'refund',
-  'devolucion', 'reembolso', 'estorno', 'remboursement', 'erstattung',
-  'повернення', 'возврат', '退款', '退税', 'hoan tien',
+const STRONG_REFUND_PHRASES = [
+  'tax refund', 'franchise tax bd', 'franchise tax board', 'purchase reversal',
+  'card purchase reversal', 'payment reversal', 'reversed transaction', 'chargeback',
+  'cash back reward', 'cashback reward', 'refund processed', 'refund issued',
+  'devolucion compra', 'reembolso compra', 'estorno compra', 'estorno cartao',
+  'remboursement achat', 'erstattung kauf', 'повернення покупки', 'возврат покупки',
+  'hoan tien mua hang',
 ].map(normTxt);
 
 const CJK_NON_INCOME_CREDIT_MARKERS = new Set(['退款', '退税'].map(normTxt));
-const GENERIC_REFUND_WORDS = new Set(['refund', 'rebate', 'reversal', 'cashback'].map(normTxt));
-const hasNonIncomeCreditMarker = (description: string, counterparty: string): boolean => {
+const GENERIC_REFUND_WORDS = ['refund', 'rebate', 'reversal', 'cashback', 'estorno', 'reembolso', 'devolucion'].map(normTxt);
+const EARNED_INCOME_MARKERS = [
+  'salary', 'monthly salary', 'payroll', 'wage', 'wages', 'salary payment',
+  'client project payment', 'project payment', 'consulting invoice', 'consulting payment',
+  'invoice payment', 'contractor payment', 'freelance payment', 'professional services',
+  'salario', 'salário', 'sueldo', 'nomina', 'nómina', 'honorarios', 'honorários',
+  'зарплата', 'заробітна плата', 'гонорар', 'оплата послуг',
+  '工资', '薪资', '薪水', '劳务费',
+  'luong', 'tien luong', 'phi tu van',
+].map(normTxt);
+
+const hasAnyMarker = (value: string, markers: string[]): boolean =>
+  markers.some((marker) => containsMarkerSafely(value, marker));
+
+const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const stripCounterpartyFromDescription = (descriptionNorm: string, counterpartyNorm: string): string => {
+  if (!descriptionNorm || !counterpartyNorm) return descriptionNorm;
+  const cpTokens = counterpartyNorm.split(' ').filter((t) => t.length >= 3 && !GENERIC_COMPANY_TOKENS.has(t));
+  let cleaned = ` ${descriptionNorm} `;
+  for (const token of cpTokens) cleaned = cleaned.replace(new RegExp(`\\b${escapeRegex(token)}\\b`, 'g'), ' ');
+  return cleaned.replace(/\s+/g, ' ').trim();
+};
+
+type CreditClassificationSignals = {
+  recurringPayer: boolean;
+  similarRecurringAmounts: boolean;
+  employerRelated: boolean;
+  earnedIncomeContext: boolean;
+};
+
+// Universal rule layer: no credit is excluded because of one word, one payer name,
+// one country, or one model field. Refund/reversal exclusion requires contextual
+// evidence and must yield to a strong earned-income pattern. Ambiguous credits are
+// left out of verified income and surfaced for review instead of being confidently
+// mislabeled.
+const classifyNonIncomeCredit = (
+  description: string,
+  counterparty: string,
+  signals: CreditClassificationSignals,
+): 'refund_or_reversal' | 'review_required' | null => {
   const desc = normTxt(description);
   const cp = normTxt(counterparty);
-  return NON_INCOME_CREDIT_MARKERS.some((marker) => {
-    if (CJK_NON_INCOME_CREDIT_MARKERS.has(marker)) return desc.includes(marker) || cp.includes(marker);
-    // Bare refund words are unsafe in a payer/company name (e.g. Refund Solutions LLC).
-    // Treat them as non-income only when they appear in the transaction description.
-    if (GENERIC_REFUND_WORDS.has(marker)) return containsMarkerSafely(desc, marker);
-    return containsMarkerSafely(desc, marker) || containsMarkerSafely(cp, marker);
-  });
+  const descWithoutPayer = stripCounterpartyFromDescription(desc, cp);
+  const earned = signals.earnedIncomeContext || signals.recurringPayer || signals.similarRecurringAmounts || signals.employerRelated;
+
+  if ([...CJK_NON_INCOME_CREDIT_MARKERS].some((marker) => desc.includes(marker) || cp.includes(marker))) {
+    return earned ? 'review_required' : 'refund_or_reversal';
+  }
+
+  if (hasAnyMarker(descWithoutPayer, STRONG_REFUND_PHRASES) || hasAnyMarker(cp, STRONG_REFUND_PHRASES)) {
+    return earned ? 'review_required' : 'refund_or_reversal';
+  }
+
+  const bareRefund = hasAnyMarker(descWithoutPayer, GENERIC_REFUND_WORDS);
+  if (bareRefund) return earned ? 'review_required' : 'refund_or_reversal';
+
+  return null;
 };
 
 // v34.5: month-name dictionary — statements print "21/ABR", "05-Apr-2026", "5 мая" etc.
@@ -303,25 +352,54 @@ const runIncomeEngine = (
     ? normTxt(employerName).split(' ').filter((t) => t.length >= 4 && !GENERIC_COMPANY_TOKENS.has(t))
     : [];
 
+  // Pre-compute payer recurrence and amount similarity before classification so a
+  // legitimate payroll pattern can protect against keyword collisions in company names.
+  const allPayerAmounts = new Map<string, number[]>();
+  for (const tx of txs) {
+    const key = normTxt(tx.counterparty);
+    if (!key) continue;
+    const arr = allPayerAmounts.get(key) || [];
+    arr.push(tx.amount);
+    allPayerAmounts.set(key, arr);
+  }
+
   const counted: AuditEntry[] = [];
   const excluded: AuditEntry[] = [];
+  const reviewRequired: AuditEntry[] = [];
   for (const tx of txs) {
     const cpNorm = normTxt(tx.counterparty);
-    const allNorm = `${normTxt(tx.description)} ${cpNorm}`;
+    const descNorm = normTxt(tx.description);
+    const allNorm = `${descNorm} ${cpNorm}`;
+    const payerAmounts = allPayerAmounts.get(cpNorm) || [];
+    const recurringPayer = payerAmounts.length >= 2;
+    const similarRecurringAmounts = payerAmounts.length >= 2 && Math.min(...payerAmounts) / Math.max(...payerAmounts) >= 0.75;
+    const employerRelated = employerTokenOverlap(cpNorm, employerTokens);
+    const earnedIncomeContext = hasAnyMarker(descNorm, EARNED_INCOME_MARKERS);
     const entry: AuditEntry = { date: tx.date, counterparty: tx.counterparty || tx.description.slice(0, 60), amount: tx.amount };
+
     if (SELF_TRANSFER_MARKERS.some((mk) => allNorm.includes(mk))) {
       excluded.push({ ...entry, reason: 'self_transfer_marker' });
     } else if (INTEREST_MARKERS.some((mk) => allNorm.includes(mk))) {
       excluded.push({ ...entry, reason: 'bank_interest' });
     } else if (senderIsApplicant(cpNorm, applicantTokens)) {
       excluded.push({ ...entry, reason: 'sender_is_applicant' });
-    } else if (hasNonIncomeCreditMarker(tx.description, tx.counterparty)) {
-      excluded.push({ ...entry, reason: 'refund_or_reversal' });
     } else {
-      counted.push({
-        ...entry,
-        ...(employerTokenOverlap(cpNorm, employerTokens) ? { reason: 'declared_business_or_employer_payment' } : {}),
+      const nonIncomeClass = classifyNonIncomeCredit(tx.description, tx.counterparty, {
+        recurringPayer,
+        similarRecurringAmounts,
+        employerRelated,
+        earnedIncomeContext,
       });
+      if (nonIncomeClass === 'refund_or_reversal') {
+        excluded.push({ ...entry, reason: 'refund_or_reversal' });
+      } else if (nonIncomeClass === 'review_required') {
+        reviewRequired.push({ ...entry, reason: 'ambiguous_credit_review_required' });
+      } else {
+        counted.push({
+          ...entry,
+          ...(employerRelated ? { reason: 'declared_business_or_employer_payment' } : {}),
+        });
+      }
     }
   }
 
@@ -372,8 +450,10 @@ const runIncomeEngine = (
       counted_total: Math.round(countedTotal),
       counted_count: counted.length,
       excluded_count: excluded.length,
+      review_required_count: reviewRequired.length,
       counted: counted.slice(0, 60),
       excluded: excluded.slice(0, 30),
+      review_required: reviewRequired.slice(0, 30),
     },
   };
 };

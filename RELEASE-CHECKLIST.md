@@ -57,3 +57,11 @@ Verdict: PASSED = public launch approved (technically).
 - Confirm `PERSONA_QA_FIXTURE_MODE=false` in Production.
 - Confirm `VITE_QA_FIXTURE_MODE=false` in Production.
 - QA fixture deployments must be visibly separated from public production.
+
+
+## v34.34 QA guards
+- [ ] PERSONA_QA_FIXTURE_MODE=false in production
+- [ ] VITE_QA_FIXTURE_MODE=false in production
+- [ ] João salary counted; genuine estorno excluded
+- [ ] Amara/João/Chen fixture status consistent
+- [ ] Real contradiction negative control remains penalized

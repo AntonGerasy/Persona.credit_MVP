@@ -540,7 +540,7 @@ const App: React.FC = () => {
             reader.onerror = error => reject(error);
         });
 
-    const handleFileValidation = useCallback(async (file: File, field: Field): Promise<{ isValid: boolean; reason: string }> => {
+    const handleFileValidation = useCallback(async (file: File, field: Field): Promise<{ isValid: boolean; reason: string; qaFixtureAccepted?: boolean }> => {
         try {
             const base64Data = await fileToBase64(file);
             const isOriginTrack = field.id.includes('origin');
@@ -900,15 +900,19 @@ const App: React.FC = () => {
                 // Form fields store uploads as FileData wrappers ({ file, validationStatus }),
                 // NOT raw File objects. Unwrap to File and skip anything explicitly invalid,
                 // otherwise extraction silently receives garbage and yields zero documents.
-                const pickFiles = (key: string): File[] => {
+                type UploadEntry = { file: File; qaFixtureAccepted: boolean };
+                const pickFiles = (key: string): UploadEntry[] => {
                     const raw = (formData[key] as any[]) || [];
                     return raw
                         .filter((item: any) => item && (item instanceof File || item.validationStatus !== 'invalid'))
-                        .map((item: any) => (item instanceof File ? item : item?.file))
-                        .filter((f: any): f is File => f instanceof File);
+                        .map((item: any) => ({
+                            file: item instanceof File ? item : item?.file,
+                            qaFixtureAccepted: item instanceof File ? false : item?.qaFixtureAccepted === true,
+                        }))
+                        .filter((item: any): item is UploadEntry => item.file instanceof File);
                 };
 
-                const allDocumentEntries: { key: string; label: string; files: File[] }[] = [
+                const allDocumentEntries: { key: string; label: string; files: UploadEntry[] }[] = [
                     { key: 'identity_document',       label: 'Government-Issued Identity Document', files: pickFiles('identity_document') },
                     { key: 'bank_statements_origin', label: 'Origin Country Bank Statement', files: pickFiles('bank_statements_origin') },
                     { key: 'bank_statements_us',     label: 'Destination Country Bank Statement', files: pickFiles('bank_statements_us') },
@@ -918,7 +922,8 @@ const App: React.FC = () => {
                 for (const entry of allDocumentEntries) {
                     if (!entry.files || entry.files.length === 0) continue;
 
-                    for (const file of entry.files) {
+                    for (const upload of entry.files) {
+                        const file = upload.file;
                         try {
                             const base64Data = await fileToBase64(file);
 
@@ -944,6 +949,12 @@ const App: React.FC = () => {
 
                             const parsed = await response.json() as ExtractedDocument;
                             if (parsed && parsed.document_type) {
+                                (parsed as any).source_file_name = file.name;
+                                if (entry.key === 'identity_document' && upload.qaFixtureAccepted) {
+                                    (parsed as any).qa_fixture = true;
+                                    (parsed as any).is_usable = false;
+                                    (parsed as any).verification_display_status = 'QA Fixture — accepted for pipeline testing; not identity-verified';
+                                }
                                 results.push(parsed);
                             }
                         } catch (err) {
@@ -1677,13 +1688,23 @@ const App: React.FC = () => {
             parsedResult.aggregated_strengths = (parsedResult.aggregated_strengths || []).map(lenderSafeText).filter(Boolean);
             parsedResult.aggregated_risks = (parsedResult.aggregated_risks || []).map(lenderSafeText).filter(Boolean);
 
-            const humanizeBehavior = (value: string): string => String(value || '')
-                .replace(/_/g, ' ')
-                .replace(/\bhas documents\b/gi, 'Submitted documents are available')
-                .replace(/\bdeclared income consistent with documents\b/gi, 'Declared income is consistent with submitted documents')
-                .replace(/\s*\.\s*/g, '. ')
-                .trim();
-            parsedResult.behavioral_summary.narrative_consistency = humanizeBehavior(parsedResult.behavioral_summary.narrative_consistency);
+            const humanizeBehavior = (value: string): string => {
+                const banned = /\b(flag|contradiction score|income contradiction|field name|debug|internal|snake case)\b|_/i;
+                const safeSentences = String(value || '')
+                    .split(/[.!?]+/)
+                    .map((sentence) => sentence.trim())
+                    .filter(Boolean)
+                    .filter((sentence) => !banned.test(sentence))
+                    .map((sentence) => sentence
+                        .replace(/\bhas documents\b/gi, 'Submitted documents are available')
+                        .replace(/\bdeclared income consistent with documents\b/gi, 'Declared income is consistent with submitted documents')
+                        .replace(/\bdeclared income consistent with docs\b/gi, 'Declared income is consistent with submitted documents'));
+                return safeSentences.slice(0, 4)
+                    .map((sentence) => `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}`)
+                    .join('. ');
+            };
+            parsedResult.behavioral_summary.narrative_consistency = humanizeBehavior(parsedResult.behavioral_summary.narrative_consistency)
+                || 'Behavioral observations are limited to the submitted evidence.';
 
             const obligationDocs = extractedDocuments.filter((d: any) => d.is_usable && Number(d.estimated_monthly_obligations) > 0);
             const observedObligationsLocal = obligationDocs.length
@@ -1840,14 +1861,10 @@ const App: React.FC = () => {
             });
 
             const identityDocs = extractedDocuments.filter((d: any) => /identity/i.test(String(d.field_label || d.document_type || '')));
-            const syntheticIdentityPattern = /synthetic|specimen|test document|not government issued/i;
             const qaFixtureMode = import.meta.env.VITE_QA_FIXTURE_MODE === 'true';
-            const hasSyntheticIdentity = identityDocs.some((d: any) =>
-                (d.authenticity_concerns || []).some((x: any) => syntheticIdentityPattern.test(String(x)))
-            );
-            const identityUsable = identityDocs.some((d: any) => d.is_usable === true && !(d.authenticity_concerns || []).some((x: any) => syntheticIdentityPattern.test(String(x))));
-            const identityRejected = identityDocs.some((d: any) => d.is_usable === false || (d.authenticity_concerns || []).some((x: any) => syntheticIdentityPattern.test(String(x))));
-            const qaSyntheticAccepted = qaFixtureMode && hasSyntheticIdentity;
+            const qaSyntheticAccepted = qaFixtureMode && identityDocs.some((d: any) => d.qa_fixture === true);
+            const identityUsable = identityDocs.some((d: any) => d.is_usable === true && d.qa_fixture !== true);
+            const identityRejected = identityDocs.length > 0 && !identityUsable && !qaSyntheticAccepted;
             parsedResult.identity_verification_status = qaSyntheticAccepted
                 ? 'QA FIXTURE — synthetic identity accepted for sandbox pipeline testing only; not identity-verified'
                 : identityUsable
@@ -1858,13 +1875,21 @@ const App: React.FC = () => {
             parsedResult.identity_document_status = qaSyntheticAccepted ? 'qa_fixture' : identityUsable ? 'passed' : identityRejected ? 'failed' : 'missing';
             parsedResult.is_qa_fixture_assessment = qaSyntheticAccepted;
             if (qaSyntheticAccepted) {
-                extractedDocuments.forEach((d: any) => {
-                    if (/identity/i.test(String(d.field_label || d.document_type || ''))) {
-                        d.qa_fixture = true;
+                identityDocs.forEach((d: any) => {
+                    if (d.qa_fixture === true) {
                         d.verification_display_status = 'QA Fixture — accepted for pipeline testing; not identity-verified';
                     }
                 });
             }
+
+            const economicBase = (
+                (Number(finNode.financial_stability ?? 50) * incomeEvidenceFactor * 0.26) +
+                (Number(finNode.migration_resilience ?? 50) * incomeEvidenceFactor * 0.14) +
+                (Number(countryNode.country_transferability ?? 50) * 0.16) +
+                (Number(behNode.behavioral_consistency ?? 50) * 0.10)
+            ) / 0.66;
+            parsedResult.economic_score = Math.round(Math.max(0, Math.min(100, economicBase)) * 10);
+            parsedResult.economic_score_note = 'Financial and cross-border evidence only; identity verification is shown separately and remains required for real-world use.';
 
             // Map results to dossier
             parsedResult.score = scoringResult.finalScore;
@@ -1984,6 +2009,11 @@ const App: React.FC = () => {
                     fraudIntegrityScore: identityUsable ? Math.max(0, 100 - Number(fraudNode.fraud_risk ?? 50)) : null
                 }
             };
+            (finalResult as any).identity_verification_status = parsedResult.identity_verification_status;
+            (finalResult as any).identity_document_status = parsedResult.identity_document_status;
+            (finalResult as any).is_qa_fixture_assessment = parsedResult.is_qa_fixture_assessment;
+            (finalResult as any).economic_score = parsedResult.economic_score;
+            (finalResult as any).economic_score_note = parsedResult.economic_score_note;
 
             // --- Terminal Home top cards (underwriting pillars + PPP/inflation widgets) ---
             // These were never wired into the agent pipeline, so they always showed $0/0%.

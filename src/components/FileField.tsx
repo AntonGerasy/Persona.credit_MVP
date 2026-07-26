@@ -12,7 +12,7 @@ interface FileFieldProps {
     multiple?: boolean;
     accept?: string[];
     required?: boolean;
-    onFileValidation?: (file: File, field: Field) => Promise<{ isValid: boolean; reason:string }>;
+    onFileValidation?: (file: File, field: Field) => Promise<{ isValid: boolean; reason:string; qaFixtureAccepted?: boolean }>;
     field: Field;
     tooltip?: string;
 }
@@ -94,6 +94,7 @@ const FileField: React.FC<FileFieldProps> = ({ id, label, value, error, onChange
                             ...fileData,
                             validationStatus: result.isValid ? 'valid' : 'invalid',
                             validationReason: result.reason,
+                            qaFixtureAccepted: result.qaFixtureAccepted === true,
                         };
                     }
                     return fileData;

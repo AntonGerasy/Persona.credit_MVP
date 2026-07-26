@@ -1,7 +1,7 @@
 {
   "name": "persona-credit",
   "private": true,
-  "version": "34.33.0",
+  "version": "34.34.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
