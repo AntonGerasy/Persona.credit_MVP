@@ -760,8 +760,8 @@ export const generateDossierPDF = async (data: DashboardData) => {
     doc.text(vnLines, margin + 2, y); y += vnLines.length * 4 + 4;
 
     const internalAssessment = score < 500
-      ? 'Current score reflects insufficient evidence. Achieve Prime status via expanded professional documentation.'
-      : `Persona.Credit provides cross-border income contextualisation. Their TransferScore of ${score} / 1000 represents an established economic integrity pattern.`;
+      ? 'Current score reflects limited evidence. Additional independently verifiable documentation may improve assessment completeness.'
+      : `Persona.Credit provides cross-border financial-evidence contextualisation. The TransferScore of ${score} / 1000 summarizes the submitted evidence and identified uncertainty; it is not a credit decision.`;
     subLabel('Internal Assessment:');
     doc.setFontSize(7.5); doc.setFont('helvetica', 'italic'); doc.setTextColor(...C.dark);
     vnLines = doc.splitTextToSize(`"${internalAssessment}"`, contentWidth - 4);

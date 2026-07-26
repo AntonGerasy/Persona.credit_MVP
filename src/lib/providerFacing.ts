@@ -4,6 +4,8 @@ const INTERNAL_QA_PATTERNS = [
   /fabricated data/i,
   /qa[-\s]?only/i,
   /not for real[-\s]?world use/i,
+  /prime thresholds?/i,
+  /superior socio-economic resilience/i,
   /^\[\*\]$/,
 ];
 

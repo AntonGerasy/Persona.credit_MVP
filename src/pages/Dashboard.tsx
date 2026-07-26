@@ -1822,7 +1822,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                 {data.reconciliation && (() => {
                     const rec = data.reconciliation;
                     const statusMap: Record<string, { label: string; bg: string; fg: string }> = {
-                        verified:     { label: 'Document-Verified', bg: '#ECFDF5', fg: '#047857' },
+                        verified:     { label: 'Evidence Reconciled', bg: '#ECFDF5', fg: '#047857' },
                         partial:      { label: 'Partially Verified', bg: '#FEFCE8', fg: '#A16207' },
                         declared:     { label: 'Declared (unverified)', bg: '#FFF7ED', fg: '#C2410C' },
                         contradicted: { label: 'Contradicted', bg: '#FEF2F2', fg: '#B91C1C' },
@@ -2458,10 +2458,10 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                 </div>
                                                 <p className="text-xs text-brand-dark/80 font-bold leading-relaxed italic">
                                                     {comparison.scoreDiff > 20 
-                                                        ? "Exceptional profile velocity. The subject is successfully demonstrating superior socio-economic resilience patterns through higher evidence fidelity."
+                                                        ? "The evidence profile improved materially across assessment cycles, supported by higher documentation fidelity."
                                                         : comparison.scoreDiff > 0
-                                                        ? "Consistent positive momentum. The integrity dossier is strengthening as evidence nodes converge towards Prime thresholds."
-                                                        : "The financial identity narrative remains stable across analysis cycles, maintaining institutional consistency."
+                                                        ? "The evidence profile shows positive movement across assessment cycles, with improved documentation consistency."
+                                                        : "The evidence profile remains broadly stable across assessment cycles."
                                                     }
                                                 </p>
                                             </div>

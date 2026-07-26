@@ -175,7 +175,13 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
               <Pill label="Limited Evidence — Review Recommended" variant="amber" />
             )}
             {data.analysis_status === 'success' && hasDocuments && (
-              <Pill label="Document-Verified" variant="green" />
+              <Pill label="Evidence Reconciled" variant="green" />
+            )}
+            {(data as any).decision_status === 'CONTRADICTED' && (
+              <Pill label="Material Evidence Conflict" variant="red" />
+            )}
+            {(data as any).decision_status === 'REVIEW REQUIRED' && (
+              <Pill label="Manual Review Required" variant="amber" />
             )}
           </div>
 
@@ -190,7 +196,7 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
                   strokeWidth="10" fill="none"
                   strokeDasharray={2 * Math.PI * 72}
                   initial={{ strokeDashoffset: 2 * Math.PI * 72 }}
-                  animate={{ strokeDashoffset: 2 * Math.PI * 72 * (1 - (score - 300) / 550) }}
+                  animate={{ strokeDashoffset: 2 * Math.PI * 72 * (1 - Math.max(0, Math.min(1, score / 1000))) }}
                   transition={{ duration: 1.4, ease: 'easeOut' }}
                 />
               </svg>
@@ -250,9 +256,9 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
                     <div>
                       <p className="text-[9px] font-bold uppercase text-white/40 tracking-widest mb-1">Origin Income Benchmark</p>
                       <p className="text-2xl font-black text-white">
-                        {ca.origin_income_percentile ? `${ca.origin_income_percentile}th percentile` : '—'}
+                        Not benchmarked
                       </p>
-                      <p className="text-[10px] text-white/50 mt-1">in {data.origin_country}</p>
+                      <p className="text-[10px] text-white/50 mt-1">No dated external benchmark attached</p>
                     </div>
                     <div>
                       <p className="text-[9px] font-bold uppercase text-white/40 tracking-widest mb-1">Documents Analysed</p>

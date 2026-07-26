@@ -1,7 +1,7 @@
 {
   "name": "persona-credit",
   "private": true,
-  "version": "35.1.0",
+  "version": "35.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,7 +12,8 @@
     "test:targeted": "npm run test:smoke",
     "test:security:live": "node scripts/live-security-lifecycle-test.mjs",
     "test:release": "npm run test:smoke && npm run lint",
-    "test:polish": "node scripts/release-polish-check.mjs"
+    "test:polish": "node scripts/release-polish-check.mjs",
+    "test:provider": "node scripts/provider-acceptance-check.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.29.1",
