@@ -226,7 +226,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
       incomeRows.push(['Declared (unverified claim)', `$${fmt(rec.declared_monthly_usd)}/month — ${rec.discrepancy_pct}% vs documented`]);
     }
     incomeRows.push(
-      ['Income Percentile in Origin', (ca.raw_data_table?.income_percentile_label) || (ca.origin_income_percentile ? `${ca.origin_income_percentile}th percentile in ${data.origin_country}` : '—')],
+      ['Origin Income Benchmark', ca.raw_data_table?.income_percentile_label || 'Not independently benchmarked'],
       ['Documents Analysed', `${usableDocs.length} document(s)`],
       ['Coverage Period', fv.document_coverage_months ? `~${fv.document_coverage_months} months` : '—'],
       ['Sector Demand (Destination)', ca.sector_demand_in_destination || '—'],
@@ -398,7 +398,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
 
       // v34.4 — deterministic income audit: which credits counted, which were excluded and why.
       const audit = docItem.income_audit;
-      if (audit && audit.engine === 'deterministic' && (audit.counted?.length || audit.excluded?.length)) {
+      if (audit && audit.engine === 'deterministic' && (audit.counted?.length || audit.excluded?.length || audit.review_required?.length)) {
         if (y > 230) { doc.addPage(); y = 20; }
         doc.setFontSize(7.5);
         doc.setFont('helvetica', 'bold');
@@ -413,16 +413,19 @@ export const generateDossierPDF = async (data: DashboardData) => {
           bank_interest: 'Excluded: bank interest (not income)',
         };
         const MAX_ROWS = 20;
+        const displayParty = (v: any) => /\[\*\]/.test(String(v || '')) ? 'Masked Counterparty' : (String(v || '-') || '-');
         const countedRows = (audit.counted || []).slice(0, MAX_ROWS).map((t: any) =>
-          [t.date || '-', t.counterparty || '-', fmt(t.amount, docItem.currency_code), 'Counted']);
+          [t.date || '-', displayParty(t.counterparty), fmt(t.amount, docItem.currency_code), 'Counted']);
         const excludedRows = (audit.excluded || []).slice(0, 10).map((t: any) =>
-          [t.date || '-', t.counterparty || '-', fmt(t.amount, docItem.currency_code), REASON_LABEL[t.reason] || 'Excluded']);
+          [t.date || '-', displayParty(t.counterparty), fmt(t.amount, docItem.currency_code), REASON_LABEL[t.reason] || (t.reason === 'refund_or_reversal' ? 'Excluded: refund / reversal' : 'Excluded')]);
+        const reviewRows = (audit.review_required || []).slice(0, 10).map((t: any) =>
+          [t.date || '-', displayParty(t.counterparty), fmt(t.amount, docItem.currency_code), 'Review required: ambiguous credit']);
         const overflow = Math.max(0, (audit.counted?.length || 0) - MAX_ROWS);
 
         safeAutoTable(doc, {
           startY: y,
           head: [['Date', 'Payer', 'Amount', 'Status']],
-          body: [...countedRows, ...excludedRows],
+          body: [...countedRows, ...excludedRows, ...reviewRows],
           theme: 'striped',
           margin: { left: margin + 4, right: margin },
           styles: { fontSize: 6.5, cellPadding: 1.5, textColor: C.dark },
@@ -434,7 +437,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
         doc.setFontSize(7);
         doc.setFont('helvetica', 'italic');
         doc.setTextColor(...C.slate);
-        const totalLine = `Counted ${audit.counted_count} credit(s), ${fmt(audit.counted_total, docItem.currency_code)} over ${audit.period_months_used} month(s); excluded ${audit.excluded_count} non-income credit(s)${overflow > 0 ? `; +${overflow} counted row(s) not shown` : ''}.`;
+        const totalLine = `Counted ${audit.counted_count} credit(s), ${fmt(audit.counted_total, docItem.currency_code)} over ${audit.period_months_used} month(s); excluded ${audit.excluded_count} non-income credit(s); ${audit.review_required_count || 0} credit(s) require manual review${overflow > 0 ? `; +${overflow} counted row(s) not shown` : ''}.`;
         const tLines = doc.splitTextToSize(totalLine, contentWidth - 6);
         doc.text(tLines, margin + 4, y);
         y += tLines.length * 4 + 4;
@@ -730,11 +733,14 @@ export const generateDossierPDF = async (data: DashboardData) => {
       ? sharedConsistencyConcerns
       : (Array.isArray(beh.consistency_patterns) && beh.consistency_patterns.length
           ? beh.consistency_patterns
-          : [isContested ? 'Income consistency contested — declared figure not supported by documents' : 'No consistency issues detected in provided data']);
+          : [isContested ? 'Income consistency contested — declared figure not supported by documents' : ((data as any).review_required_count > 0 ? 'Ambiguous transaction evidence requires manual review' : 'No material financial reconciliation contradiction detected')]);
     subLabel('Consistency Patterns:'); bullets(consistencyPatterns, 3);
 
-    const strongestEvidence: string[] = (data as any).dossier_analysis?.evidence_summary?.strongest_evidence || [];
-    if (strongestEvidence.length) { subLabel('Prime Evidence Nodes:', C.green); bullets(strongestEvidence, 4); }
+    let strongestEvidence: string[] = (data as any).dossier_analysis?.evidence_summary?.strongest_evidence || [];
+    if ((data as any).is_qa_fixture_assessment) {
+      strongestEvidence = strongestEvidence.map((e: string) => /identity|government-issued|security bureau|NIMC/i.test(e) ? 'Synthetic QA Identity Fixture — pipeline accepted; not authenticity-verified' : e);
+    }
+    if (strongestEvidence.length) { subLabel('Evidence Nodes:', C.green); bullets(strongestEvidence, 4); }
 
     // Verification note — same 3-branch logic as the dashboard.
     const verificationNote = isContested

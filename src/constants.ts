@@ -139,7 +139,7 @@ export const formSchema: FormSchema = {
         },
         {
           "id": "identity_document",
-          "label": "Government-Issued Identity Document",
+          "label": "Identity Document",
           "subLabel": "Upload a passport, national identity card, residence permit, or driver license. PDF or clear photo. Any language accepted.",
           "type": "file",
           "multiple": false,

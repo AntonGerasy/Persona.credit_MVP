@@ -9,6 +9,7 @@ import { authClient } from './lib/authClient';
 import { getSession } from './lib/session';
 import { formSchema, PROFESSIONAL_LOADING_MESSAGES, PROVIDER_LOADING_MESSAGES } from './constants';
 import { calculateTransferScore } from './scoreEngine';
+import { deriveDecisionStatus, deterministicIdentityReliability } from './lib/universalDecision';
 import { db, storage } from './lib/storage';
 import { getInitialFormData } from './lib/formUtils';
 import { ExtractedDocument } from './lib/agents/documentExtractor';
@@ -913,7 +914,7 @@ const App: React.FC = () => {
                 };
 
                 const allDocumentEntries: { key: string; label: string; files: UploadEntry[] }[] = [
-                    { key: 'identity_document',       label: 'Government-Issued Identity Document', files: pickFiles('identity_document') },
+                    { key: 'identity_document',       label: 'Identity Document', files: pickFiles('identity_document') },
                     { key: 'bank_statements_origin', label: 'Origin Country Bank Statement', files: pickFiles('bank_statements_origin') },
                     { key: 'bank_statements_us',     label: 'Destination Country Bank Statement', files: pickFiles('bank_statements_us') },
                     { key: 'asset_evidence',         label: 'Asset / Property Document', files: pickFiles('asset_evidence') },
@@ -1001,6 +1002,7 @@ const App: React.FC = () => {
                             engine: d.income_audit.engine,
                             counted_count: d.income_audit.counted_count,
                             excluded_count: d.income_audit.excluded_count,
+                            review_required_count: d.income_audit.review_required_count || 0,
                         } : undefined,
                         // v34.10: deterministic obligations engine summary (full counted/excluded
                         // detail stays in document_extractions for the UI/PDF audit table).
@@ -1396,6 +1398,15 @@ const App: React.FC = () => {
                 countryNode.income_transfer_narrative = stripUnsourcedBenchmarks(countryNode.income_transfer_narrative);
                 countryNode.sector_demand_in_destination = stripUnsourcedBenchmarks(countryNode.sector_demand_in_destination);
                 rdtNode.sector_benchmark_note = stripUnsourcedBenchmarks(rdtNode.sector_benchmark_note);
+
+                // v34.35: unsourced percentile/median/demand claims are presentation-only noise.
+                // Until a dated benchmark source exists, do not expose or score them.
+                countryNode.origin_income_percentile = null;
+                rdtNode.income_percentile_label = 'Not independently benchmarked';
+                rdtNode.income_vs_national_median = 'No dated external benchmark attached';
+                countryNode.sector_demand_in_destination = 'Destination-market demand was not independently benchmarked for this report.';
+                countryNode.origin_income_context = 'Documented income is presented from the submitted evidence. Relative national standing was not independently benchmarked.';
+                countryNode.income_transfer_narrative = 'Documented income and observed statement-based obligations are available for review. Destination affordability and lending thresholds were not independently benchmarked.';
             }
 
             // ============================================================
@@ -1680,6 +1691,8 @@ const App: React.FC = () => {
                 .replace(/moderate to good capacity for repayment/gi, 'documented income and observed obligations available for review')
                 .replace(/moderate capacity for repayment/gi, 'documented income available for review')
                 .replace(/existing obligations are unknown/gi, 'the complete liabilities picture is not established from the submitted evidence')
+                .replace(/no information on existing obligations[^.]*\.?/gi, 'Statement-based recurring payments were observed; outstanding balances, contractual schedules, and exact DTI are not established.')
+                .replace(/[^.]*\b(?:top \d+%|\d+(?:st|nd|rd|th) percentile|\d+x (?:monthly )?rent|median salar(?:y|ies)|middle-income bracket|\d+(?:st|nd|rd|th) decile)\b[^.]*\.?/gi, '')
                 .replace(/\.\.+/g, '.')
                 .replace(/\s{2,}/g, ' ')
                 .trim();
@@ -1841,13 +1854,29 @@ const App: React.FC = () => {
                 strong_evidence_areas: []
             };
 
+            // --- Deterministic identity state before scoring ---
+            // Universal rule: an LLM-proposed identity_reliability value never controls
+            // a QA fixture. QA identity is a fixed state; production identity remains evidence-driven.
+            const identityDocs = extractedDocuments.filter((d: any) => /identity/i.test(String(d.field_label || d.document_type || '')));
+            const qaFixtureMode = import.meta.env.VITE_QA_FIXTURE_MODE === 'true';
+            const qaSyntheticAccepted = qaFixtureMode && identityDocs.some((d: any) => d.qa_fixture === true);
+            const identityUsable = identityDocs.some((d: any) => d.is_usable === true && d.qa_fixture !== true);
+            const identityRejected = identityDocs.length > 0 && !identityUsable && !qaSyntheticAccepted;
+            const deterministicIdentityScore = deterministicIdentityReliability({
+                qaSyntheticAccepted,
+                identityUsable,
+                identityRejected,
+                extractedReliability: idNode.identity_reliability,
+            });
+            idNode.identity_reliability = deterministicIdentityScore;
+
             // --- Deterministic Weighted Risk Scoring Engine (Hardened Frontend Module) ---
             const agents = [idNode, finNode, fraudNode, countryNode, behNode];
             const evidence_strength = agents.reduce((acc, agent) => acc + (agent.evidence_strength ?? 50), 0) / agents.length;
             const overall_uncertainty = parsedResult.uncertainty_analysis?.overall_uncertainty ?? 50;
 
             const scoringResult = calculateTransferScore({
-                identity_reliability: idNode.identity_reliability ?? 50,
+                identity_reliability: deterministicIdentityScore,
                 financial_stability: finNode.financial_stability ?? 50,
                 migration_resilience: finNode.migration_resilience ?? 50,
                 country_transferability: countryNode.country_transferability ?? 50,
@@ -1859,12 +1888,6 @@ const App: React.FC = () => {
                 overall_uncertainty: overall_uncertainty,
                 income_evidence_factor: incomeEvidenceFactor
             });
-
-            const identityDocs = extractedDocuments.filter((d: any) => /identity/i.test(String(d.field_label || d.document_type || '')));
-            const qaFixtureMode = import.meta.env.VITE_QA_FIXTURE_MODE === 'true';
-            const qaSyntheticAccepted = qaFixtureMode && identityDocs.some((d: any) => d.qa_fixture === true);
-            const identityUsable = identityDocs.some((d: any) => d.is_usable === true && d.qa_fixture !== true);
-            const identityRejected = identityDocs.length > 0 && !identityUsable && !qaSyntheticAccepted;
             parsedResult.identity_verification_status = qaSyntheticAccepted
                 ? 'QA FIXTURE — synthetic identity accepted for sandbox pipeline testing only; not identity-verified'
                 : identityUsable
@@ -1890,6 +1913,14 @@ const App: React.FC = () => {
             ) / 0.66;
             parsedResult.economic_score = Math.round(Math.max(0, Math.min(100, economicBase)) * 10);
             parsedResult.economic_score_note = 'Financial and cross-border evidence only; identity verification is shown separately and remains required for real-world use.';
+            const reviewRequiredCount = extractedDocuments.reduce((sum: number, d: any) => sum + Number(d.income_audit?.review_required_count || 0), 0);
+            parsedResult.review_required_count = reviewRequiredCount;
+            parsedResult.decision_status = deriveDecisionStatus({
+                contradictionScore: Number(fraudNode.contradiction_score ?? 0),
+                reviewRequiredCount,
+                qaSyntheticAccepted,
+                identityUsable,
+            });
 
             // Map results to dossier
             parsedResult.score = scoringResult.finalScore;
@@ -1905,7 +1936,7 @@ const App: React.FC = () => {
             parsedResult.analysis_status = analysisStatus;
 
             parsedResult.analysis = {
-                identity_reliability: idNode.identity_reliability ?? 50,
+                identity_reliability: deterministicIdentityScore,
                 financial_stability: finNode.financial_stability ?? 50,
                 migration_resilience: finNode.migration_resilience ?? 50,
                 fraud_risk: fraudNode.fraud_risk ?? 0,
@@ -1919,7 +1950,7 @@ const App: React.FC = () => {
                 evidence_quality: { overall_quality: evidence_strength, missing_critical_evidence: [], weak_evidence_areas: [], strong_evidence_areas: [] },
                 fraud_risk_score: fraudNode.fraud_risk ?? 0,
                 contradiction_score: fraudNode.contradiction_score ?? 0,
-                overall_integrity_risk: ((fraudNode.fraud_risk ?? 0) + (100 - (idNode.identity_reliability ?? 50))) / 2,
+                overall_integrity_risk: ((fraudNode.fraud_risk ?? 0) + (100 - deterministicIdentityScore)) / 2,
                 contradictions: fraudNode.contradictions,
                 risk_patterns: fraudNode.risk_patterns,
                 plausibility_analysis: { overall_plausibility: 100 - overall_uncertainty, weakest_areas: [], strongest_areas: [] },

@@ -244,7 +244,7 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
                       </p>
                     </div>
                     <div>
-                      <p className="text-[9px] font-bold uppercase text-white/40 tracking-widest mb-1">Income Percentile (Origin)</p>
+                      <p className="text-[9px] font-bold uppercase text-white/40 tracking-widest mb-1">Origin Income Benchmark</p>
                       <p className="text-2xl font-black text-white">
                         {ca.origin_income_percentile ? `${ca.origin_income_percentile}th percentile` : '—'}
                       </p>

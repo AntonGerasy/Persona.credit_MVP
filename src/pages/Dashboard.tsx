@@ -856,7 +856,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                             <div className="p-10 border-t border-brand-border bg-slate-50/50 flex flex-col sm:flex-row gap-6 justify-between items-center relative z-10">
                                 <div className="flex items-center gap-4">
                                     <div className="w-12 h-12 rounded-full bg-emerald-50 border-4 border-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-xl">✓</div>
-                                    <p className="text-[10px] font-bold text-brand-gray uppercase tracking-widest">Authentication Validation: SUCCESS</p>
+                                    <p className="text-[10px] font-bold text-brand-gray uppercase tracking-widest">{data.is_qa_fixture_assessment ? 'QA PIPELINE ACCEPTED — IDENTITY NOT AUTHENTICITY-VERIFIED' : 'AUTHENTICATION VALIDATION: SUCCESS'}</p>
                                 </div>
                                 <div className="flex gap-4">
                                     <button 
@@ -1046,7 +1046,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                         <Card className="bg-slate-50 border-brand-border">
                                             <CardHeader className="bg-slate-100/50"><CardTitle>Consistency Patterns</CardTitle></CardHeader>
                                             <CardContent className="space-y-4">
-                                                {(data.behavioral_analysis?.consistency_patterns || (hasConsistencyConcern ? ["Material consistency or evidence conflict requires review"] : ["No consistency issues detected in provided data"])).map((pattern, i) => (
+                                                {(data.behavioral_analysis?.consistency_patterns || (hasConsistencyConcern ? ["Material consistency or evidence conflict requires review"] : ["No material financial reconciliation contradiction detected"])).map((pattern, i) => (
                                                     <div key={i} className="flex gap-3 items-center text-xs text-brand-dark font-black italic p-3 bg-white border border-brand-border rounded-xl">
                                                         <div className={`w-5 h-5 flex items-center justify-center rounded-full border ${hasConsistencyConcern ? 'bg-amber-500/10 text-amber-600 border-amber-500/20' : 'bg-brand-blue/10 text-brand-blue border-brand-blue/20'}`}>
                                                             {hasConsistencyConcern ? <AlertTriangle className="w-2.5 h-2.5" /> : <Check className="w-2.5 h-2.5" />}
@@ -1156,7 +1156,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                 </div>
                                                 <div className="space-y-4">
                                                     <div>
-                                                        <p className="text-[9px] font-black text-brand-success uppercase tracking-widest mb-2">Prime Evidence Nodes</p>
+                                                        <p className="text-[9px] font-black text-brand-success uppercase tracking-widest mb-2">Evidence Nodes</p>
                                                         <ul className="text-[10px] space-y-1.5">
                                                             {data.dossier_analysis?.evidence_summary?.strongest_evidence?.map((e: string, i: number) => (
                                                                 <li key={i} className="flex items-center gap-2 font-black text-brand-dark italic">
@@ -2117,11 +2117,19 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
                                                                 <td className="px-3 py-2 text-[10px] font-bold text-amber-700 whitespace-nowrap">Excluded — {REASON_LABEL[t.reason] || t.reason || 'rule'}</td>
                                                             </tr>
                                                         ))}
+                                                        {(audit.review_required || []).map((t: any, i: number) => (
+                                                            <tr key={`r${i}`} className="border-t border-amber-200 bg-amber-50/70">
+                                                                <td className="px-3 py-2 text-[11px] text-brand-gray whitespace-nowrap">{t.date || '—'}</td>
+                                                                <td className="px-3 py-2 text-[11px] text-brand-dark">{/\[\*\]/.test(String(t.counterparty || '')) ? 'Masked Counterparty' : t.counterparty}</td>
+                                                                <td className="px-3 py-2 text-[11px] font-semibold text-brand-dark text-right whitespace-nowrap">{fmtAmt(t.amount)}</td>
+                                                                <td className="px-3 py-2 text-[10px] font-bold text-amber-700">Review required — ambiguous credit</td>
+                                                            </tr>
+                                                        ))}
                                                     </tbody>
                                                 </table>
                                             </div>
                                             <p className="text-[11px] text-brand-gray">
-                                                Counted {audit.counted_count} credit(s) totalling <span className="font-semibold text-brand-dark">{fmtAmt(audit.counted_total)}</span> over {audit.period_months_used} month(s) → <span className="font-semibold text-brand-dark">{fmtAmt(Math.round((audit.counted_total || 0) / (audit.period_months_used || 1)))}/mo</span>{audit.excluded_count > 0 ? `; excluded ${audit.excluded_count} non-income credit(s).` : '; nothing excluded.'}
+                                                Counted {audit.counted_count} credit(s) totalling <span className="font-semibold text-brand-dark">{fmtAmt(audit.counted_total)}</span> over {audit.period_months_used} month(s) → <span className="font-semibold text-brand-dark">{fmtAmt(Math.round((audit.counted_total || 0) / (audit.period_months_used || 1)))}/mo</span>; excluded {audit.excluded_count || 0} non-income credit(s); <span className={audit.review_required_count > 0 ? 'font-bold text-amber-700' : ''}>{audit.review_required_count || 0} require manual review</span>.
                                             </p>
                                         </div>
                                     );

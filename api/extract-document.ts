@@ -327,7 +327,7 @@ const deriveReliablePeriod = (
   return { months: 1, source: 'default_no_period_evidence' };
 };
 
-const runIncomeEngine = (
+export const runIncomeEngine = (
   rawTxs: any[],
   applicantName: string,
   employerName: string,
