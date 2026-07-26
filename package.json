@@ -1,7 +1,7 @@
 {
   "name": "persona-credit",
   "private": true,
-  "version": "34.37.0",
+  "version": "35.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,7 +9,8 @@
     "lint": "tsc --noEmit",
     "preview": "vite preview",
     "test:smoke": "tsx tests/golden-engine-smoke.ts",
-    "test:targeted": "npm run test:smoke"
+    "test:targeted": "npm run test:smoke",
+    "test:security:live": "node scripts/live-security-lifecycle-test.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.29.1",

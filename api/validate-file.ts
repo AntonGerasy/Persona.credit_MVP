@@ -35,6 +35,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const { fileBase64, mimeType, fieldLabel, fieldSubLabel, applicantName, qaFixtureMode } = req.body;
   const serverQaMode = process.env.PERSONA_QA_FIXTURE_MODE === 'true';
+  const isProduction = process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production';
+
+  // P0 production guard: a deployment with the server QA bypass enabled must
+  // refuse document validation rather than silently accepting synthetic IDs.
+  if (isProduction && serverQaMode) {
+    console.error('PRODUCTION SAFETY GUARD: PERSONA_QA_FIXTURE_MODE must be false in production');
+    return res.status(503).json({
+      isValid: false,
+      reason: 'Production safety configuration error. Document processing is temporarily unavailable.',
+      productionGuardTriggered: true,
+    });
+  }
   const qaFixtureEnabled = serverQaMode && qaFixtureMode === true;
 
   // Deterministic QA gate. The marker is read from the uploaded bytes (PDF metadata/text)

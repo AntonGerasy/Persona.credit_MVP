@@ -69,6 +69,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // unguessable token in the URL is the access credential.
   const isPublicShareGet = op === 'get' && typeof key === 'string' && key.startsWith('pc:share:');
 
+  if (isPublicShareGet) {
+    // Financial reports must never be cached by shared proxies or indexed.
+    res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  }
+
   let session: { kind: string; email: string; providerId?: string; v?: number } | null = null;
   if (!isPublicShareGet) {
     const token = req.headers['x-pc-session'];
@@ -120,7 +127,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case 'get': {
         if (!isValidKey(key)) return res.status(400).json({ error: 'Invalid key' });
         if (!canAccessKey(key)) return res.status(403).json({ error: 'Access denied for this key' });
-        const data = await kv.get(key);
+        const data: any = await kv.get(key);
+        if (key.startsWith('pc:share:') && data && typeof data === 'object') {
+          if (data.revoked === true || (typeof data.expiresAt === 'number' && Date.now() >= data.expiresAt)) {
+            return res.status(404).json({ value: null, error: 'Share link expired or revoked' });
+          }
+        }
         return res.status(200).json({ value: data });
       }
 
