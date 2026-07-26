@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Shield, Calendar, CheckCircle, AlertCircle, Clock, TrendingUp, MapPin, Briefcase, DollarSign, FileText } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { DashboardData } from '../types';
+import { providerFacingConcerns, normalizeProviderNarrative } from '../lib/providerFacing';
 
 interface ReportViewerPageProps {
   data: DashboardData;
@@ -118,8 +119,8 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
   const bd = data.breakdown;
 
   // Strengths and risks
-  const strengths: string[] = data.strengths || data.analysis?.strengths || [];
-  const risks: string[] = data.risks || data.analysis?.risks || [];
+  const strengths: string[] = (data.strengths || data.analysis?.strengths || []).map(normalizeProviderNarrative).filter(Boolean);
+  const risks: string[] = (data.risks || data.analysis?.risks || []).map(normalizeProviderNarrative).filter(Boolean).filter((r: string) => providerFacingConcerns([r]).length > 0);
   const uncertainties: string[] = data.uncertaintyAnalysis?.high_uncertainty_areas || [];
 
   // Purpose
@@ -128,6 +129,9 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
 
   return (
     <div className="min-h-screen bg-brand-bg text-brand-dark font-sans pb-20">
+      <div className="relative z-[60] bg-amber-50 border-b border-amber-200 px-5 py-3 text-center text-[11px] leading-5 text-amber-900">
+        You are viewing an informational financial-evidence summary shared by an individual. It is not a credit report or credit score and must not be used as the sole basis for a credit, housing, or employment decision. Independent verification is recommended.
+      </div>
 
       {/* Watermark */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden -z-0 opacity-[0.025] rotate-[-20deg] scale-150 flex flex-wrap gap-16 items-center justify-center">
@@ -506,11 +510,11 @@ const ReportViewerPage: React.FC<ReportViewerPageProps> = ({ data, token }) => {
                         </p>
                       )}
 
-                      {doc.authenticity_concerns && doc.authenticity_concerns.length > 0 && (
+                      {providerFacingConcerns(doc.authenticity_concerns).length > 0 && (
                         <div className="mt-3 bg-amber-50 rounded-lg p-3">
-                          <p className="text-[10px] font-bold text-amber-700 mb-1">Document Notes</p>
-                          {doc.authenticity_concerns.map((c: string, i: number) => (
-                            <p key={i} className="text-[10px] text-amber-600">{c}</p>
+                          <p className="text-[10px] font-bold text-amber-700 mb-1">Evidence Review Notes</p>
+                          {providerFacingConcerns(doc.authenticity_concerns).map((c: string, i: number) => (
+                            <p key={i} className="text-[10px] text-amber-600">{normalizeProviderNarrative(c)}</p>
                           ))}
                         </div>
                       )}

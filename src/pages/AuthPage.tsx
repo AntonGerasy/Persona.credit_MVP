@@ -145,7 +145,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ title, onLogin, onSignUp, onBack })
 
           {/* Privacy note */}
           <p className="text-[10px] text-slate-400 text-center leading-relaxed">
-            Your data is processed securely. We do not share your information without your explicit consent.
+            By continuing, you agree to the <a href="/terms" className="underline hover:text-slate-600">Terms of Service</a> and acknowledge the <a href="/privacy" className="underline hover:text-slate-600">Privacy Policy</a>. Persona.credit is informational decision-support, not a credit bureau or lending decision.
           </p>
         </div>
 

@@ -32,6 +32,7 @@ import PartnerDashboard from './pages/PartnerDashboard';
 import PartnerLanding from './pages/PartnerLanding';
 import PricingPage from './pages/PricingPage';
 import ReportViewerPage from './pages/ReportViewerPage';
+import LegalPage from './pages/LegalPage';
 
 // v34.14: styled password-change modal (no window.prompt/confirm). Self-contained:
 // talks to authClient directly; on success the server revokes every other session.
@@ -132,7 +133,7 @@ const App: React.FC = () => {
     const [userSession, setUserSession] = useState<string | null>(null);
     const [userProfile, setUserProfile] = useState<UserDossier | null>(null);
     const [currentProviderUser, setCurrentProviderUser] = useState<ProviderUser | null>(null);
-    type View = 'landing' | 'auth' | 'form' | 'dashboard' | 'providerOnboarding' | 'providerDashboard' | 'helpCenter' | 'report' | 'partner' | 'partnerLanding' | 'pricing';
+    type View = 'landing' | 'auth' | 'form' | 'dashboard' | 'providerOnboarding' | 'providerDashboard' | 'helpCenter' | 'report' | 'partner' | 'partnerLanding' | 'pricing' | 'privacy' | 'terms';
     const [view, setView] = useState<View>('landing');
     const [isInitializing, setIsInitializing] = useState(true);
     const [isPaid, setIsPaid] = useState(true); // MVP: all features open
@@ -174,6 +175,15 @@ const App: React.FC = () => {
         // Check for report route — a public capability URL: the unguessable token
         // in the path is the credential, no login required.
         const path = window.location.pathname;
+        if (path === '/privacy' || path === '/privacy-policy') {
+            setView('privacy');
+            return;
+        }
+        if (path === '/terms' || path === '/terms-of-service') {
+            setView('terms');
+            return;
+        }
+
         if (path.startsWith('/report/')) {
             const token = path.replace('/report/', '');
             if (token) {
@@ -2419,6 +2429,8 @@ const App: React.FC = () => {
             onGoToProvider={() => { setAuthMode('provider'); setView('auth'); }} 
             onGoToHelp={handleGoToHelp}
             onGoToPricing={handleGoToPricing}
+            onGoToPrivacy={() => { window.history.pushState({}, '', '/privacy'); setView('privacy'); }}
+            onGoToTerms={() => { window.history.pushState({}, '', '/terms'); setView('terms'); }}
             onGoToPartner={() => {
                 if (userProfile) {
                     setView('partner');
@@ -2430,6 +2442,13 @@ const App: React.FC = () => {
         </>;
     }
     
+    if (view === 'privacy' || view === 'terms') {
+        return <LegalPage
+            kind={view}
+            onBack={() => { window.history.pushState({}, '', '/'); setView('landing'); }}
+        />;
+    }
+
     if (view === 'auth') {
         const isUser = authMode === 'user';
         return <AuthPage 

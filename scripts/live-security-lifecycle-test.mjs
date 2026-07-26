@@ -1,5 +1,4 @@
-const base = (process.env.BASE_URL || '').replace(/\/$/, '');
-if (!base) throw new Error('Set BASE_URL, e.g. BASE_URL=https://www.persona.credit npm run test:security:live');
+const base = (process.env.BASE_URL || 'https://www.persona.credit').replace(/\/$/, '');
 
 const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const emailA = `security-a-${suffix}@example.com`;
@@ -65,6 +64,8 @@ try {
 
   const deleted = await json('/api/auth', { action: 'delete_account', token: tokenA, password: password2 });
   ok(deleted.r.ok, 'account A deletion succeeds');
+  ok(deleted.data.deletionEvidence?.deletedUserRecord === true, 'account deletion removes stored user/report/document record');
+  ok(Number(deleted.data.deletionEvidence?.deletedHistoryCount || 0) >= 5, 'account deletion removes assessment history records');
   ok((await json('/api/auth', { action: 'login', email: emailA, password: password2 })).r.status === 401, 'deleted account cannot log in');
   ok((await json('/api/kv', { op: 'get', key: shareKey })).r.status === 200 && (await json('/api/kv', { op: 'get', key: shareKey })).data.value === null, 'account deletion revokes share link');
 

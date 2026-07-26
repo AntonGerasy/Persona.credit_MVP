@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { DashboardData } from '../types';
+import { providerFacingConcerns, normalizeProviderNarrative } from './providerFacing';
 
 interface jsPDFWithAutoTable extends jsPDF {
   autoTable: (options: any) => void;
@@ -493,12 +494,14 @@ export const generateDossierPDF = async (data: DashboardData) => {
         y += oblTLines.length * 4 + 4;
       }
 
-      if (docItem.authenticity_concerns && docItem.authenticity_concerns.length > 0) {
+      const visibleConcerns = providerFacingConcerns(docItem.authenticity_concerns);
+      if (visibleConcerns.length > 0) {
         doc.setFontSize(7);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(...C.amber);
-        doc.text(`⚠ Document Notes: ${docItem.authenticity_concerns.join('; ')}`, margin + 4, y);
-        y += 6;
+        const concernLines = doc.splitTextToSize(`Evidence Review Notes: ${visibleConcerns.map(normalizeProviderNarrative).join('; ')}`, contentWidth - 6);
+        doc.text(concernLines, margin + 4, y);
+        y += concernLines.length * 4 + 2;
       }
 
       y += 4;
@@ -544,8 +547,8 @@ export const generateDossierPDF = async (data: DashboardData) => {
   if (y > 220) { doc.addPage(); y = 20; }
   sectionHeader('VI. Strengths & Considerations');
 
-  const strengths: string[] = data.strengths || data.analysis?.strengths || [];
-  const risks: string[] = data.risks || data.analysis?.risks || [];
+  const strengths: string[] = (data.strengths || data.analysis?.strengths || []).map(normalizeProviderNarrative).filter(Boolean);
+  const risks: string[] = (data.risks || data.analysis?.risks || []).map(normalizeProviderNarrative).filter(Boolean).filter((r: string) => providerFacingConcerns([r]).length > 0);
 
   if (strengths.length > 0) {
     doc.setFontSize(7.5);

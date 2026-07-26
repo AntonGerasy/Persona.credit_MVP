@@ -357,6 +357,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(401).json({ error: 'Password is incorrect.' });
         }
 
+        let deletedUserRecord = false;
+        let deletedHistoryCount = 0;
+        let revokedShareCount = 0;
         try {
           if (isProvider) {
             const pid = String(auth.providerId || session.providerId || '');
@@ -377,7 +380,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const userRecord: any = await kv.get(`pc:user:${session.email}`);
             const shareId = userRecord?.dashboardResult?.shareId;
             await kv.del(`pc:user:${session.email}`);
-            if (shareId) await kv.del(`pc:share:${shareId}`);
+            deletedUserRecord = true;
+            if (shareId) { await kv.del(`pc:share:${shareId}`); revokedShareCount += 1; }
             // Assessment history — and v34.24 (P0): every historical entry may carry
             // its OWN published share link, so collect and revoke all of them before
             // deleting the history keys. Otherwise old /report/PC-… links stay live
@@ -387,9 +391,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               try {
                 const entry: any = await kv.get(hk);
                 const sid = entry?.data?.shareId || entry?.shareId;
-                if (sid) await kv.del(`pc:share:${sid}`);
+                if (sid) { await kv.del(`pc:share:${sid}`); revokedShareCount += 1; }
               } catch { /* best-effort per entry */ }
               await kv.del(hk);
+              deletedHistoryCount += 1;
             }
             // Permissions/tickets referencing this user in the shared blob
             const shared: any = await kv.get('pc:shared');
@@ -411,7 +416,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         await kv.del(authKey);            // kills the login itself
         await kv.del(`pc:session:${token}`); // other tokens die on their next check (auth record gone)
-        return res.status(200).json({ ok: true });
+        return res.status(200).json({ ok: true, deletionEvidence: { deletedUserRecord, deletedHistoryCount, revokedShareCount } });
       }
 
       default:

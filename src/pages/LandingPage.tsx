@@ -21,6 +21,8 @@ interface LandingPageProps {
   onGoToHelp: () => void;
   onGoToPartner: () => void;
   onGoToPricing: () => void;
+  onGoToPrivacy: () => void;
+  onGoToTerms: () => void;
 }
 
 const TooltipItem: React.FC<{ feature: string; description: string }> = ({ feature, description }) => {
@@ -74,7 +76,7 @@ const membershipFeatures = [
     { name: 'Priority Verification Node', desc: 'Skip the standard audit queue. Your documents are routed to dedicated verification specialists for accelerated finalization.' }
 ];
 
-const LandingPage: React.FC<LandingPageProps> = ({ onStartApplication, onGoToHelp, onGoToPartner, onGoToPricing }) => {
+const LandingPage: React.FC<LandingPageProps> = ({ onStartApplication, onGoToHelp, onGoToPartner, onGoToPricing, onGoToPrivacy, onGoToTerms }) => {
   return (
     <div className="min-h-screen bg-brand-bg flex flex-col font-sans selection:bg-brand-blue/15 selection:text-brand-dark relative overflow-x-hidden">
       {/* Ambient blooms — purely decorative */}
@@ -270,13 +272,16 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStartApplication, onGoToHel
                     <div className="space-y-6 text-left">
                         <p className="text-[10px] font-semibold text-brand-dark uppercase tracking-[0.18em]">Protocols</p>
                         <div className="flex flex-col gap-4">
-                            <button onClick={onGoToHelp} className="text-[11px] font-medium text-brand-gray hover:text-brand-dark transition-colors text-left">Privacy Charter</button>
-                            <button onClick={onGoToHelp} className="text-[11px] font-medium text-brand-gray hover:text-brand-dark transition-colors text-left">Internal Standards</button>
+                            <button onClick={onGoToPrivacy} className="text-[11px] font-medium text-brand-gray hover:text-brand-dark transition-colors text-left">Privacy Policy</button>
+                            <button onClick={onGoToTerms} className="text-[11px] font-medium text-brand-gray hover:text-brand-dark transition-colors text-left">Terms of Service</button>
                         </div>
                     </div>
                   </div>
               </div>
-              <div className="flex flex-col md:flex-row justify-between items-center mt-14 pt-8 border-t border-brand-border gap-6">
+              <div className="mt-12 rounded-2xl border border-brand-border bg-white/70 px-5 py-4 text-[10px] leading-5 text-brand-gray">
+                Persona.credit provides an informational cross-border financial-evidence summary. It is not a credit bureau report, not a FICO score, and not a lending, tenancy, or employment decision. Any decision remains solely with the recipient.
+              </div>
+              <div className="flex flex-col md:flex-row justify-between items-center mt-8 pt-8 border-t border-brand-border gap-6">
                 <p className="text-[10px] font-medium tracking-wide text-brand-gray/70">
                     &copy; 2026 Persona.Credit &bull; Registered Financial Verification Protocol &bull; compliance@persona.credit
                 </p>
