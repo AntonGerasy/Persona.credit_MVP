@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { runIncomeEngine } from '../api/extract-document';
 import { deriveDecisionStatus, deterministicIdentityReliability } from '../src/lib/universalDecision';
 import { calculateTransferScore } from '../src/scoreEngine';
-
+import { evaluateIdentitySlotCompatibility } from '../shared/documentSlotValidation';
 type Tx = { date: string; description: string; counterparty: string; amount: number };
 
 const run = (txs: Tx[], applicant = 'Test Applicant', employer = '', employment = 'Full-Time Employee') =>
@@ -110,4 +110,39 @@ assert.match(deriveDecisionStatus({
   identityUsable: true,
 }), /^CONTRADICTED/);
 
-console.log('Golden engine smoke: 10 universal class guards passed.');
+// C011 — cross-slot document type acceptance. A financial document cannot become
+// a green Identity-slot success merely because it contains the applicant name.
+const bankStatementInIdentitySlot = evaluateIdentitySlotCompatibility({
+  documentCategory: 'bank_statement',
+  identityDocumentStructure: false,
+  issuingAuthorityPresent: false,
+  holderIdentityPresent: true, // statements commonly contain the applicant name
+  transactionActivityPresent: true,
+  accountStatementStructurePresent: true,
+  financialAccountPresent: true,
+});
+assert.equal(bankStatementInIdentitySlot.decision, 'reject');
+
+const genuineIdentity = evaluateIdentitySlotCompatibility({
+  documentCategory: 'identity',
+  identityDocumentStructure: true,
+  issuingAuthorityPresent: true,
+  holderIdentityPresent: true,
+  transactionActivityPresent: false,
+  accountStatementStructurePresent: false,
+  financialAccountPresent: false,
+});
+assert.equal(genuineIdentity.decision, 'accept');
+
+const ambiguousIdentity = evaluateIdentitySlotCompatibility({
+  documentCategory: 'unknown',
+  identityDocumentStructure: true,
+  issuingAuthorityPresent: false,
+  holderIdentityPresent: true,
+  transactionActivityPresent: false,
+  accountStatementStructurePresent: false,
+  financialAccountPresent: false,
+});
+assert.equal(ambiguousIdentity.decision, 'review');
+
+console.log('Golden engine smoke: 13 universal class guards passed.');

@@ -17,23 +17,29 @@ export const maxDuration = 60; // Vercel Hobby supports up to 60s via module-lev
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI, Type } from '@google/genai';
+import { evaluateIdentitySlotCompatibility } from '../shared/documentSlotValidation';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  const { fileBase64, mimeType, fieldLabel, fieldSubLabel, fieldId, applicantName, qaFixtureMode } = req.body;
+  const isIdentityField = fieldId === 'identity_document' || /^identity document$/i.test(String(fieldLabel || '').trim());
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     console.error('GEMINI_API_KEY not set in Vercel environment');
-    // Fail-open: accept the file, flag it for manual review
+    // Identity is a gating document: never show a green success when the service
+    // could not establish slot compatibility. Other evidence preserves legacy fail-open behavior.
     return res.status(200).json({
-      isValid: true,
-      reason: 'Document accepted. AI scan unavailable — ensure GEMINI_API_KEY is set in Vercel environment variables.',
+      isValid: !isIdentityField,
+      reviewRequired: isIdentityField,
+      reason: isIdentityField
+        ? 'Identity document type could not be confirmed because the validation service is unavailable. Please try again.'
+        : 'Document accepted. AI scan unavailable — ensure GEMINI_API_KEY is set in Vercel environment variables.',
     });
   }
-
-  const { fileBase64, mimeType, fieldLabel, fieldSubLabel, applicantName, qaFixtureMode } = req.body;
   const serverQaMode = process.env.PERSONA_QA_FIXTURE_MODE === 'true';
   const isProduction = process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production';
 
@@ -56,7 +62,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try { return Buffer.from(String(fileBase64 || ''), 'base64').toString('latin1'); } catch { return ''; }
   })();
   const explicitQaMarker = /QA[_\s-]*FIXTURE|SYNTHETIC[ _-]*QA[ _-]*FIXTURE|TEST[ _-]*FIXTURE/i.test(decodedText);
-  const deterministicQaFixture = qaFixtureEnabled && explicitQaMarker;
+  const deterministicQaFixture = qaFixtureEnabled && isIdentityField && explicitQaMarker;
 
   if (!fileBase64 || !mimeType || !fieldLabel) {
     return res.status(400).json({ error: 'Missing required fields: fileBase64, mimeType, fieldLabel' });
@@ -84,8 +90,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       isValid: { type: Type.BOOLEAN },
       reason: { type: Type.STRING },
       qaFixtureAccepted: { type: Type.BOOLEAN },
+      documentCategory: { type: Type.STRING },
+      identityDocumentStructure: { type: Type.BOOLEAN },
+      issuingAuthorityPresent: { type: Type.BOOLEAN },
+      holderIdentityPresent: { type: Type.BOOLEAN },
+      transactionActivityPresent: { type: Type.BOOLEAN },
+      accountStatementStructurePresent: { type: Type.BOOLEAN },
+      financialAccountPresent: { type: Type.BOOLEAN },
     },
-    required: ['isValid', 'reason'],
+    required: ['isValid', 'reason', 'documentCategory', 'identityDocumentStructure', 'issuingAuthorityPresent', 'holderIdentityPresent', 'transactionActivityPresent', 'accountStatementStructurePresent', 'financialAccountPresent'],
   };
 
   const today = new Date().toISOString().slice(0, 10);
@@ -96,12 +109,22 @@ Applicant name on file: ${applicantName || 'Unknown'}.
 
 IMPORTANT — TODAY'S DATE IS ${today}. Any date on or BEFORE ${today} is in the PAST and is valid. Only a date STRICTLY AFTER ${today} is "future-dated". Do not rely on your own assumptions about the current date; use ${today} as the present.
 
-TASK: Determine if this document is usable for financial verification purposes.
+TASK: Determine the document class and whether it is appropriate for the SPECIFIC upload field "${fieldLabel}".
 
-1. RELEVANCE: Is this document appropriate for "${fieldLabel}"?
-   - Bank statements, payslips, tax documents, property deeds, investment statements = valid.
+0. DOCUMENT CLASSIFICATION — populate these structured fields from visible document evidence:
+   - documentCategory: one of identity, bank_statement, payslip, tax_document, asset_document, investment_statement, other_financial, unknown.
+   - identityDocumentStructure: true only when the document structurally resembles a passport, national identity card, residence permit, driver license, or equivalent government identity credential.
+   - issuingAuthorityPresent: true only when a government/official issuing authority is visible.
+   - holderIdentityPresent: true only when the holder's identity details (such as name plus DOB/document number/photo) are visible.
+   - transactionActivityPresent: true when transactions/credits/debits/account activity are present.
+   - accountStatementStructurePresent: true when account number/balance/statement period/transaction ledger structure is present.
+   - financialAccountPresent: true when the document is clearly about a bank/payment/investment account.
+
+1. SLOT RELEVANCE: Is this document appropriate for "${fieldLabel}"?
+   - If the field is Identity Document, ONLY a passport, national identity card, residence permit, driver license, or equivalent government-issued identity credential is appropriate. A bank statement, payslip, tax document, invoice, asset statement, or other financial evidence is NOT an identity document even if it contains the applicant's name/address.
+   - For financial-document fields, use the requested field label to assess relevance.
    - Photos of people, animals, landscapes, blank pages, memes, unrelated receipts = invalid.
-   - If irrelevant: reason = "Irrelevant document — this does not appear to be a ${fieldLabel}."
+   - If irrelevant: explain the actual detected class and the required class.
 
 2. RECENCY (compare against TODAY = ${today}):
    - Origin country documents: 2022 through ${today} are acceptable (wartime/economic disruption context considered).
@@ -143,21 +166,47 @@ Respond STRICTLY in valid JSON only. No conversational text.`;
     }
 
     const result = JSON.parse(jsonStr);
-    const modelIdentifiedFixture = qaFixtureEnabled && /qa fixture|synthetic|specimen|fabricated|test fixture|not a genuine|not a real|ai[- ]generated/i.test(String(result.reason || ''));
+    const modelIdentifiedFixture = isIdentityField && qaFixtureEnabled && /qa fixture|synthetic|specimen|fabricated|test fixture|not a genuine|not a real|ai[- ]generated/i.test(String(result.reason || ''));
+
+    if (modelIdentifiedFixture) {
+      return res.status(200).json({
+        ...result,
+        isValid: true,
+        qaFixtureAccepted: true,
+        reason: 'QA FIXTURE — synthetic identity accepted for sandbox pipeline testing only; not identity-verified.',
+      });
+    }
+
+    // C011: deterministic cross-slot boundary. The model supplies structured
+    // observations; code — not free-form model judgement — decides whether an
+    // Identity-slot upload may receive a green success state.
+    if (isIdentityField) {
+      const slotDecision = evaluateIdentitySlotCompatibility(result);
+      return res.status(200).json({
+        ...result,
+        isValid: slotDecision.decision === 'accept',
+        reviewRequired: slotDecision.decision === 'review',
+        slotCompatibility: slotDecision.decision,
+        qaFixtureAccepted: false,
+        reason: slotDecision.reason,
+      });
+    }
+
     return res.status(200).json({
       ...result,
-      isValid: modelIdentifiedFixture ? true : result.isValid,
-      qaFixtureAccepted: deterministicQaFixture || modelIdentifiedFixture || result.qaFixtureAccepted === true,
-      reason: modelIdentifiedFixture
-        ? 'QA FIXTURE — synthetic identity accepted for sandbox pipeline testing only; not identity-verified.'
-        : result.reason,
+      qaFixtureAccepted: false,
     });
   } catch (err) {
     console.error('validate-file error:', err);
-    // Fail-open on API errors — don't block file upload
+    // Identity is fail-safe on validation errors: an unclassified upload must
+    // never receive a green identity-success state. Other evidence keeps the
+    // existing fail-open behavior to avoid unrelated regressions.
     return res.status(200).json({
-      isValid: true,
-      reason: 'Document accepted (AI scan encountered an error — will be reviewed manually).',
+      isValid: !isIdentityField,
+      reviewRequired: isIdentityField,
+      reason: isIdentityField
+        ? 'Identity document type could not be confirmed automatically. Please try again with a clear passport, national identity card, residence permit, or driver license.'
+        : 'Document accepted (AI scan encountered an error — will be reviewed manually).',
     });
   }
 }

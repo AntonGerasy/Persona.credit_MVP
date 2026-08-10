@@ -27,3 +27,5 @@ A new input must resolve to **correct** or **review_required**, never confidentl
 Live persona runs are required when extraction prompts or file-processing behavior changes. Deterministic engine changes use golden extraction fixtures first.
 
 | C010 | Full-score pipeline coupling regression | Closed | Golden smoke covers clean verified scoring and material contradiction penalty/decision precedence. |
+
+| C011 | Cross-slot document type acceptance | CLOSED | Identity-slot success requires multiple structured identity signals; financial documents reject; ambiguous inputs never receive green success |

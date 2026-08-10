@@ -564,6 +564,7 @@ const App: React.FC = () => {
                     mimeType: file.type || 'application/octet-stream',
                     fieldLabel: field.label,
                     fieldSubLabel: field.subLabel || '',
+                    fieldId: field.id,
                     applicantName: formData['full_name'] || 'Unknown',
                     isOriginTrack,
                     qaFixtureMode: import.meta.env.VITE_QA_FIXTURE_MODE === 'true',
@@ -573,14 +574,18 @@ const App: React.FC = () => {
             if (!response.ok) {
                 const err = await response.json().catch(() => ({}));
                 console.warn('validate-file error:', err);
-                return { isValid: true, reason: 'Document accepted (scan service temporarily unavailable).' };
+                return field.id === 'identity_document'
+                    ? { isValid: false, reason: 'Identity document type could not be confirmed because the validation service is unavailable. Please try again.' }
+                    : { isValid: true, reason: 'Document accepted (scan service temporarily unavailable).' };
             }
 
             return response.json();
         } catch (error) {
             console.error('File validation error:', error);
             // Fail-open — don't block user from uploading
-            return { isValid: true, reason: 'Document accepted (scan encountered an error — will be reviewed).' };
+            return field.id === 'identity_document'
+                ? { isValid: false, reason: 'Identity document type could not be confirmed automatically. Please try again with a clear identity document.' }
+                : { isValid: true, reason: 'Document accepted (scan encountered an error — will be reviewed).' };
         }
     }, [formData]);
     
