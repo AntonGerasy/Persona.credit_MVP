@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { evaluateIdentitySlotCompatibility, resolveIdentityValidation } from '../shared/documentSlotValidation.ts';
+import { evaluateIdentitySlotCompatibility, resolveIdentityValidation } from '../api/_lib/documentSlotValidation.ts';
 
 const bankSignals = {
   documentCategory: 'bank_statement',

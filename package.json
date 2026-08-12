@@ -1,7 +1,7 @@
 {
   "name": "persona-credit",
   "private": true,
-  "version": "35.2.6",
+  "version": "35.2.7",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -16,8 +16,9 @@
     "test:provider": "node scripts/provider-acceptance-check.mjs",
     "test:slot": "node --experimental-strip-types tests/document-slot-validation.ts",
     "typecheck:server": "tsc -p tsconfig.server.json --noEmit",
-    "test:pb1": "npm run test:smoke && npm run test:slot && npm run test:reliability && npm run typecheck:server && npm run build",
-    "test:reliability": "node --experimental-strip-types tests/extraction-reliability.ts"
+    "test:pb1": "npm run test:smoke && npm run test:slot && npm run test:reliability && npm run test:api-bundle && npm run typecheck:server && npm run build",
+    "test:reliability": "node --experimental-strip-types tests/extraction-reliability.ts",
+    "test:api-bundle": "node scripts/check-api-bundle.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.29.1",

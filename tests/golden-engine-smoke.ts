@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { runIncomeEngine } from '../api/extract-document';
 import { deriveDecisionStatus, deterministicIdentityReliability } from '../src/lib/universalDecision';
 import { calculateTransferScore } from '../src/scoreEngine';
-import { evaluateIdentitySlotCompatibility } from '../shared/documentSlotValidation';
+import { evaluateIdentitySlotCompatibility } from '../api/_lib/documentSlotValidation';
 type Tx = { date: string; description: string; counterparty: string; amount: number };
 
 const run = (txs: Tx[], applicant = 'Test Applicant', employer = '', employment = 'Full-Time Employee') =>

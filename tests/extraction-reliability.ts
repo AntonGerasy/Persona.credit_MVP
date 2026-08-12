@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { evaluateExtractionReliability } from '../shared/extractionReliability.ts';
+import { evaluateExtractionReliability } from '../api/_lib/extractionReliability.ts';
 
 const complete = evaluateExtractionReliability([]);
 assert.equal(complete.complete, true);

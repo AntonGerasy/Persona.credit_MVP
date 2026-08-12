@@ -8,7 +8,7 @@
 export const maxDuration = 60; // Vercel Hobby supports up to 60s via module-level export
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { requireAiSession } from '../shared/aiEndpointSecurity';
+import { requireAiSession } from './_lib/aiEndpointSecurity';
 import { GoogleGenAI, Type } from '@google/genai';
 
 const schema = {

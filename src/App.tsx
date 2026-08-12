@@ -34,7 +34,7 @@ import PublicInfoPage from './pages/PublicInfoPage';
 import PricingPage from './pages/PricingPage';
 import ReportViewerPage from './pages/ReportViewerPage';
 import LegalPage from './pages/LegalPage';
-import { evaluateExtractionReliability } from '../shared/extractionReliability';
+import { evaluateExtractionReliability } from '../api/_lib/extractionReliability';
 
 // v34.14: styled password-change modal (no window.prompt/confirm). Self-contained:
 // talks to authClient directly; on success the server revokes every other session.
