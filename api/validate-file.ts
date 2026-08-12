@@ -17,12 +17,16 @@ export const maxDuration = 60; // Vercel Hobby supports up to 60s via module-lev
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI, Type } from '@google/genai';
-import { evaluateIdentitySlotCompatibility } from '../shared/documentSlotValidation';
+import { kv } from '@vercel/kv';
+import { resolveIdentityValidation } from '../shared/documentSlotValidation';
+import { requireAiSession } from '../shared/aiEndpointSecurity';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
+
+  if (!(await requireAiSession(req, res, 'validate-file', 40, 60))) return;
 
   const { fileBase64, mimeType, fieldLabel, fieldSubLabel, fieldId, applicantName, qaFixtureMode } = req.body;
   const isIdentityField = fieldId === 'identity_document' || /^identity document$/i.test(String(fieldLabel || '').trim());
@@ -181,14 +185,40 @@ Respond STRICTLY in valid JSON only. No conversational text.`;
     // observations; code — not free-form model judgement — decides whether an
     // Identity-slot upload may receive a green success state.
     if (isIdentityField) {
-      const slotDecision = evaluateIdentitySlotCompatibility(result);
+      const resolved = resolveIdentityValidation(result);
+
+      // C013 PB1 telemetry: count slot outcomes without storing PII or document text.
+      // Telemetry must never affect validation availability, so failures are swallowed.
+      const finalDecision = resolved.isValid ? 'accept' : resolved.reviewRequired ? 'review' : 'reject';
+      const normalizedCategory = String(result.documentCategory || 'unknown').trim().toLowerCase().replace(/[\s-]+/g, '_').slice(0, 48);
+      const structuralTelemetry = {
+        identityDocumentStructure: result.identityDocumentStructure === true,
+        issuingAuthorityPresent: result.issuingAuthorityPresent === true,
+        holderIdentityPresent: result.holderIdentityPresent === true,
+        financialStructurePresent: result.transactionActivityPresent === true || result.accountStatementStructurePresent === true || result.financialAccountPresent === true,
+      };
+      try {
+        const day = new Date().toISOString().slice(0, 10);
+        const key = `pc:telemetry:slot:${finalDecision}:${day}`;
+        const count = await kv.incr(key);
+        if (count === 1) await kv.expire(key, 90 * 24 * 60 * 60);
+        console.log('[identity-slot-telemetry]', {
+          slotCompatibility: resolved.slotCompatibility,
+          documentCategory: normalizedCategory,
+          decision: finalDecision,
+          ...structuralTelemetry,
+        });
+      } catch (telemetryErr) {
+        console.warn('identity slot telemetry unavailable:', telemetryErr instanceof Error ? telemetryErr.message : 'unknown error');
+      }
+
       return res.status(200).json({
         ...result,
-        isValid: slotDecision.decision === 'accept',
-        reviewRequired: slotDecision.decision === 'review',
-        slotCompatibility: slotDecision.decision,
+        isValid: resolved.isValid,
+        reviewRequired: resolved.reviewRequired,
+        slotCompatibility: resolved.slotCompatibility,
         qaFixtureAccepted: false,
-        reason: slotDecision.reason,
+        reason: resolved.reason,
       });
     }
 

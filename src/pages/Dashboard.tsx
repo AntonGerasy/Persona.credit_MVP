@@ -464,8 +464,31 @@ const PaywallOverlay: React.FC<{ onUnlock: () => void }> = ({ onUnlock }) => (
     </div>
 );
 
-const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, referralCode, isPaid, plan, onReset, onLogout, onGoToPricing, onExitToLanding, isAdmin, onChangePassword }) => {
-  const rawData = useMemo(() => propData || profile?.scores || SOPHISTICATED_DEMO_DATA, [propData, profile]);
+const ProcessingIncompletePanel: React.FC<{ onReset: () => void; onLogout: () => void }> = ({ onReset, onLogout }) => (
+    <div className="min-h-screen bg-brand-light flex items-center justify-center px-6 py-16">
+        <div className="w-full max-w-2xl bg-white border border-brand-border rounded-[2rem] p-8 md:p-12 shadow-sm">
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center mb-7">
+                <AlertTriangle className="w-6 h-6 text-amber-600" />
+            </div>
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-700 mb-3">Assessment not completed</p>
+            <h1 className="text-3xl md:text-4xl font-bold tracking-apple-tight text-brand-dark mb-5">Processing Incomplete — Retry Required</h1>
+            <p className="text-sm md:text-base leading-7 text-brand-gray mb-8">
+                We couldn't process all of your documents, so no TransferScore was generated. Your answers have been saved, but uploaded files are never stored on our servers — you'll need to attach them again. Sign in and re-upload to continue.
+            </p>
+            <div className="flex flex-wrap gap-3">
+                <button onClick={onReset} className="px-5 py-3 rounded-xl bg-brand-blue text-white text-[10px] font-black uppercase tracking-widest hover:bg-brand-blue/90 transition-colors">
+                    Return to application
+                </button>
+                <button onClick={onLogout} className="px-5 py-3 rounded-xl border border-brand-border bg-white text-brand-dark text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-colors">
+                    Sign in again
+                </button>
+            </div>
+        </div>
+    </div>
+);
+
+const DashboardContent: React.FC<DashboardProps> = ({ userId, data: propData, profile, referralCode, isPaid, plan, onReset, onLogout, onGoToPricing, onExitToLanding, isAdmin, onChangePassword }) => {
+  const rawData = propData || profile?.scores || SOPHISTICATED_DEMO_DATA;
 
   // NORMALIZATION LAYER — guarantees all fields the render path touches always exist.
   // Reports built from agent outputs (or fallbacks) may be missing nested objects/arrays;
@@ -2731,6 +2754,16 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, data: propData, profile, 
       </footer>
     </div>
   );
+};
+
+// C019 PB1 surface guard. This wrapper has no hooks, so it can safely short-circuit
+// before DashboardContent's normalization/render path without violating hook order.
+const Dashboard: React.FC<DashboardProps> = (props) => {
+    const rawData = props.data || props.profile?.scores || SOPHISTICATED_DEMO_DATA;
+    if ((rawData as any)?.analysis_status === 'unreliable') {
+        return <ProcessingIncompletePanel onReset={props.onReset} onLogout={props.onLogout} />;
+    }
+    return <DashboardContent {...props} />;
 };
 
 export default Dashboard;

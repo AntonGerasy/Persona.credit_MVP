@@ -18,3 +18,7 @@ View your app in AI Studio: https://ai.studio/apps/1f629960-ab23-470b-8351-22a5b
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+# PB1 Safety RC
+
+Current version: v35.2.4. See PATCH-NOTES-v35.2.4.md and TESTING-STRATEGY.md.

@@ -12,6 +12,7 @@
 export const maxDuration = 60; // Vercel Hobby supports up to 60s via module-level export
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { requireAiSession } from '../shared/aiEndpointSecurity';
 import { GoogleGenAI, Type } from '@google/genai';
 
 const extractSchema = {
@@ -663,6 +664,7 @@ Rules:
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (!(await requireAiSession(req, res, 'extract-document', 30, 60))) return;
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(503).json({ error: 'AI service not configured' });

@@ -86,3 +86,45 @@ export function evaluateIdentitySlotCompatibility(signals: DocumentSlotSignals):
     reason: 'Identity document type could not be confirmed automatically. Please upload a clear passport, national identity card, residence permit, or driver license.',
   };
 }
+
+
+export interface IdentityValidationModelResult extends DocumentSlotSignals {
+  isValid?: boolean;
+  reason?: string;
+}
+
+export interface IdentityValidationDecision {
+  decision: 'accept' | 'reject' | 'review';
+  isValid: boolean;
+  reviewRequired: boolean;
+  slotCompatibility: 'accept' | 'reject' | 'review';
+  reason: string;
+}
+
+/**
+ * C012 composition guard: slot compatibility and document validity are separate
+ * requirements. A structurally correct identity document can only be accepted
+ * when BOTH the deterministic slot guard accepts it AND the validity analysis
+ * did not reject it as expired, illegible, tampered, synthetic/specimen, or
+ * otherwise invalid.
+ */
+export function resolveIdentityValidation(result: IdentityValidationModelResult): IdentityValidationDecision {
+  const slot = evaluateIdentitySlotCompatibility(result);
+  const modelRejected = result.isValid !== true;
+  const decision: 'accept' | 'reject' | 'review' =
+    slot.decision === 'reject' ? 'reject' :
+    modelRejected ? 'review' :
+    slot.decision;
+
+  return {
+    decision,
+    isValid: decision === 'accept',
+    reviewRequired: decision === 'review',
+    slotCompatibility: slot.decision,
+    reason: decision === 'accept'
+      ? slot.reason
+      : slot.decision === 'reject'
+        ? slot.reason
+        : 'This identity document could not be fully validated automatically. Please upload a clear, current, unaltered government-issued identity document that belongs to the applicant.',
+  };
+}

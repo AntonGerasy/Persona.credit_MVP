@@ -25,6 +25,12 @@ try {
   ok(health.data.qaFixtureMode === 'disabled', 'server QA fixture mode is disabled');
   ok(health.data.storageConfigured === true, 'production storage is configured');
 
+  // PB1 AI-cost surface: paid Gemini endpoints must not be callable anonymously.
+  for (const path of ['/api/validate-file', '/api/extract-document', '/api/run-agent', '/api/synthesize']) {
+    const unauth = await json(path, {});
+    ok(unauth.r.status === 401, `${path} rejects unauthenticated requests`);
+  }
+
   const a = await json('/api/auth', { action: 'signup', email: emailA, password });
   const b = await json('/api/auth', { action: 'signup', email: emailB, password });
   ok(a.r.ok && a.data.token, 'account A signup/auth');

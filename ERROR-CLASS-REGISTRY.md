@@ -29,3 +29,13 @@ Live persona runs are required when extraction prompts or file-processing behavi
 | C010 | Full-score pipeline coupling regression | Closed | Golden smoke covers clean verified scoring and material contradiction penalty/decision precedence. |
 
 | C011 | Cross-slot document type acceptance | CLOSED | Identity-slot success requires multiple structured identity signals; financial documents reject; ambiguous inputs never receive green success |
+
+| C012 | Slot compatibility overrides document-validity verdict | CLOSED in v35.2.4 | Identity acceptance is conjunctive: deterministic slot compatibility AND positive validity verdict; handler composition covered by 8/8 slot tests |
+| C013 | Strict identity-category false-review risk | OBSERVE IN PB1 | Keep strict boundary for safety; instrument via returned slotCompatibility/documentCategory and relax only if real review rate proves material |
+| C014 | Identity-slot guard outside CI/type gate | CLOSED in v35.2.4 | `test:slot` is blocking CI; `api/`, `shared/`, and tests have dedicated blocking server typecheck |
+| C015 | Legacy client TypeScript debt breaks CI signal | MITIGATED / DEBT | PB1 gate no longer depends on pre-existing client type debt; legacy `npm run lint` remains visible as non-blocking CI until cleaned |
+| C016 | Conflicting serverless duration sources | CLOSED in v35.2.5 | AI functions and `api/kv.ts` use a single 60s Vercel function duration consistent with module exports |
+| C017 | Review state not surfaced distinctly in upload UI | OPEN P3 | Safe behavior remains non-green; improve UX after PB1 unless real users show material confusion |
+| C018 | Paid AI endpoints callable without session/rate limit | CLOSED in v35.2.4 | All paid AI endpoints require live server session and per-session endpoint quota; live security test asserts anonymous 401 |
+
+| C019 | Infrastructure failure becomes a financial verdict | CLOSED in v35.2.5 | Any document-extraction failure blocks agents/scoring; incomplete evidence never produces CONTRADICTED or any TransferScore |

@@ -34,6 +34,7 @@ import PublicInfoPage from './pages/PublicInfoPage';
 import PricingPage from './pages/PricingPage';
 import ReportViewerPage from './pages/ReportViewerPage';
 import LegalPage from './pages/LegalPage';
+import { evaluateExtractionReliability } from '../shared/extractionReliability';
 
 // v34.14: styled password-change modal (no window.prompt/confirm). Self-contained:
 // talks to authClient directly; on success the server revokes every other session.
@@ -544,6 +545,14 @@ const App: React.FC = () => {
         }
     };
 
+    const aiHeaders = (): Record<string, string> => {
+        const session = getSession();
+        return {
+            'Content-Type': 'application/json',
+            ...(session?.token ? { 'x-pc-session': session.token } : {}),
+        };
+    };
+
     const fileToBase64 = (file: File): Promise<string> =>
         new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -563,7 +572,7 @@ const App: React.FC = () => {
 
             const response = await fetch('/api/validate-file', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: aiHeaders(),
                 body: JSON.stringify({
                     fileBase64: base64Data,
                     mimeType: file.type || 'application/octet-stream',
@@ -579,9 +588,15 @@ const App: React.FC = () => {
             if (!response.ok) {
                 const err = await response.json().catch(() => ({}));
                 console.warn('validate-file error:', err);
+                if (response.status === 401) {
+                    return { isValid: false, reason: 'Your session has expired. Please sign in again before uploading documents.' };
+                }
+                if (response.status === 429) {
+                    return { isValid: false, reason: 'The document validation service is temporarily busy. Please wait a moment and try again.' };
+                }
                 return field.id === 'identity_document'
-                    ? { isValid: false, reason: 'Identity document type could not be confirmed because the validation service is unavailable. Please try again.' }
-                    : { isValid: true, reason: 'Document accepted (scan service temporarily unavailable).' };
+                    ? { isValid: false, reason: 'Identity document validation is temporarily unavailable. Please try again.' }
+                    : { isValid: true, reason: 'Document accepted for later analysis (validation service temporarily unavailable).' };
             }
 
             return response.json();
@@ -774,7 +789,7 @@ const App: React.FC = () => {
             
             const kybResponse = await fetch('/api/run-agent', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: aiHeaders(),
                 body: JSON.stringify({
                     agentName: 'ProviderKYB',
                     promptBase: prompt,
@@ -915,6 +930,8 @@ const App: React.FC = () => {
             // Run before any scoring agents. Each uploaded file is read independently.
             // Results become the primary evidence source for Financial, Identity, and Fraud agents.
 
+            const extractionFailures: { label: string; status?: number; kind: 'session' | 'rate_limit' | 'server' | 'network' }[] = [];
+
             const runDocumentExtraction = async (): Promise<ExtractedDocument[]> => {
                 const results: ExtractedDocument[] = [];
 
@@ -950,7 +967,7 @@ const App: React.FC = () => {
 
                             const response = await fetch('/api/extract-document', {
                                 method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
+                                headers: aiHeaders(),
                                 body: JSON.stringify({
                                     fileBase64: base64Data,
                                     mimeType: file.type || 'application/octet-stream',
@@ -965,6 +982,18 @@ const App: React.FC = () => {
 
                             if (!response.ok) {
                                 console.warn(`extract-document failed for ${entry.label}: ${response.status}`);
+                                extractionFailures.push({
+                                    label: entry.label,
+                                    status: response.status,
+                                    kind: response.status === 401
+                                        ? 'session'
+                                        : response.status === 429
+                                            ? 'rate_limit'
+                                            : 'server',
+                                });
+                                if (response.status === 401) {
+                                    throw new Error('__PERSONA_SESSION_EXPIRED__');
+                                }
                                 continue;
                             }
 
@@ -979,7 +1008,9 @@ const App: React.FC = () => {
                                 results.push(parsed);
                             }
                         } catch (err) {
+                            if (err instanceof Error && err.message === '__PERSONA_SESSION_EXPIRED__') throw err;
                             console.warn(`Document extraction error for ${entry.label}:`, err);
+                            extractionFailures.push({ label: entry.label, kind: 'network' });
                         }
                     }
                 }
@@ -987,7 +1018,23 @@ const App: React.FC = () => {
                 return results;
             };
 
-            const extractedDocuments = await runDocumentExtraction();
+            let extractedDocuments: ExtractedDocument[] = [];
+            try {
+                extractedDocuments = await runDocumentExtraction();
+            } catch (err) {
+                if (err instanceof Error && err.message === '__PERSONA_SESSION_EXPIRED__') {
+                    throw new Error('Your session has expired. Please sign in again before generating the report.');
+                }
+                throw err;
+            }
+
+            // C019: infrastructure failure must never become a financial contradiction.
+            // If even one submitted document could not be extracted, stop before agents/scoring
+            // rather than silently analyzing an incomplete evidence set.
+            const extractionReliability = evaluateExtractionReliability(extractionFailures);
+            if (!extractionReliability.allowFinancialVerdict) {
+                throw new Error(extractionReliability.userMessage || 'Some submitted documents could not be processed. Please retry the assessment.');
+            }
 
             // Build a summary of extracted document data for downstream agents
             const documentSummary = extractedDocuments.length > 0
@@ -1048,21 +1095,28 @@ const App: React.FC = () => {
             // all 6 requests in the same instant and trip the free-tier rate limit.
             const callAgent = async (agentName: string, context: any, staggerMs = 0): Promise<any> => {
                 if (staggerMs > 0) await new Promise(r => setTimeout(r, staggerMs));
+                let resp: Response;
                 try {
-                    const resp = await fetch('/api/run-agent', {
+                    resp = await fetch('/api/run-agent', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: aiHeaders(),
                         body: JSON.stringify({ agentName, context }),
                     });
-                    if (!resp.ok) {
-                        console.warn(`[${agentName}] HTTP ${resp.status}`);
-                        return null;
-                    }
-                    return await resp.json();
                 } catch (err) {
                     console.warn(`[${agentName}] fetch error:`, err);
-                    return null;
+                    const reliability = evaluateExtractionReliability([{ label: `${agentName} agent`, kind: 'network' }]);
+                    throw new Error(reliability.userMessage || 'Some submitted documents could not be processed. Please retry the assessment.');
                 }
+                if (!resp.ok) {
+                    console.warn(`[${agentName}] HTTP ${resp.status}`);
+                    const reliability = evaluateExtractionReliability([{
+                        label: `${agentName} agent`,
+                        status: resp.status,
+                        kind: resp.status === 401 ? 'session' : resp.status === 429 ? 'rate_limit' : 'server',
+                    }]);
+                    throw new Error(reliability.userMessage || 'Some submitted documents could not be processed. Please retry the assessment.');
+                }
+                return await resp.json();
             };
 
             // ── Build contexts ───────────────────────────────────────────
@@ -1583,9 +1637,9 @@ const App: React.FC = () => {
             // Synthesis adds summary_statement and dossier_markdown only — everything else comes from agents
             const buildResultFromAgents = () => ({
                 financial_identity_profile: {
-                    profile_type: finNode.income_reliability > 65 ? 'Stable Income Profile' : 'Variable Income Profile',
+                    profile_type: finNode?.income_reliability > 65 ? 'Stable Income Profile' : 'Variable Income Profile',
                     overall_integrity_level: extractedDocuments.some((d: any) => d.is_usable)
-                        ? (idNode.identity_reliability > 65 ? 'Verified' : 'Partially Verified')
+                        ? (idNode?.identity_reliability > 65 ? 'Verified' : 'Partially Verified')
                         : 'Not Verified',
                     trust_assessment: fraudNode.fraud_risk < 30 ? 'Low Risk' : fraudNode.fraud_risk < 60 ? 'Moderate Risk' : 'Elevated Risk',
                     professional_stability: finNode.financial_stability > 65 ? 'Stable' : 'Variable',
@@ -1610,7 +1664,7 @@ const App: React.FC = () => {
                     transferability_feasibility: countryNode.income_transfer_narrative || 'Assessment based on available data.',
                 },
                 behavioral_summary: {
-                    interaction_stability_score: behNode.behavioral_consistency ?? 50,
+                    interaction_stability_score: behNode?.behavioral_consistency ?? 50,
                     narrative_consistency: (behNode.positive_signals || []).join('. ') || 'Profile assessed.',
                 },
                 evidence_summary: {
@@ -1657,7 +1711,7 @@ const App: React.FC = () => {
 
                 const synthesisResponse = await fetch('/api/synthesize', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: aiHeaders(),
                     signal: synthesisController.signal,
                     body: JSON.stringify({
                         // Only send minimal data — new synthesize.ts uses fin + country + id
@@ -1681,9 +1735,19 @@ const App: React.FC = () => {
                         if (synthesisData.top_strengths?.length) parsedResult.aggregated_strengths = synthesisData.top_strengths;
                         if (synthesisData.top_risks?.length) parsedResult.aggregated_risks = synthesisData.top_risks;
                     }
+                } else {
+                    const reliability = evaluateExtractionReliability([{
+                        label: 'Synthesis',
+                        status: synthesisResponse.status,
+                        kind: synthesisResponse.status === 401 ? 'session' : synthesisResponse.status === 429 ? 'rate_limit' : 'server',
+                    }]);
+                    throw new Error(reliability.userMessage || 'Some submitted documents could not be processed. Please retry the assessment.');
                 }
             } catch (synthesisErr) {
-                // Synthesis timeout or error — use agent-built result, which is already valid
+                const message = synthesisErr instanceof Error ? synthesisErr.message : '';
+                if (/session has expired|could not be processed|temporarily busy/i.test(message)) throw synthesisErr;
+                // A 200 server-side FALLBACK is already a valid synthesis response. Network/timeout
+                // here keeps the existing agent-built result rather than inventing a financial verdict.
                 console.warn('[synthesis] timed out or failed, using agent-built result:', synthesisErr);
             }
 
@@ -1886,9 +1950,9 @@ const App: React.FC = () => {
                 qaSyntheticAccepted,
                 identityUsable,
                 identityRejected,
-                extractedReliability: idNode.identity_reliability,
+                extractedReliability: idNode?.identity_reliability,
             });
-            idNode.identity_reliability = deterministicIdentityScore;
+            if (idNode) idNode.identity_reliability = deterministicIdentityScore;
 
             // --- Deterministic Weighted Risk Scoring Engine (Hardened Frontend Module) ---
             const agents = [idNode, finNode, fraudNode, countryNode, behNode];
@@ -1899,8 +1963,8 @@ const App: React.FC = () => {
                 identity_reliability: deterministicIdentityScore,
                 financial_stability: finNode.financial_stability ?? 50,
                 migration_resilience: finNode.migration_resilience ?? 50,
-                country_transferability: countryNode.country_transferability ?? 50,
-                behavioral_consistency: behNode.behavioral_consistency ?? 50,
+                country_transferability: countryNode?.country_transferability ?? 50,
+                behavioral_consistency: behNode?.behavioral_consistency ?? 50,
                 fraud_risk: fraudNode.fraud_risk ?? 50,
                 contradiction_score: fraudNode.contradiction_score ?? 0,
                 overall_confidence: parsedResult.overall_confidence ?? 0.5,
@@ -1928,8 +1992,8 @@ const App: React.FC = () => {
             const economicBase = (
                 (Number(finNode.financial_stability ?? 50) * incomeEvidenceFactor * 0.26) +
                 (Number(finNode.migration_resilience ?? 50) * incomeEvidenceFactor * 0.14) +
-                (Number(countryNode.country_transferability ?? 50) * 0.16) +
-                (Number(behNode.behavioral_consistency ?? 50) * 0.10)
+                (Number(countryNode?.country_transferability ?? 50) * 0.16) +
+                (Number(behNode?.behavioral_consistency ?? 50) * 0.10)
             ) / 0.66;
             parsedResult.economic_score = Math.round(Math.max(0, Math.min(100, economicBase)) * 10);
             parsedResult.economic_score_note = 'Financial and cross-border evidence only; identity verification is shown separately and remains required for real-world use.';
@@ -1960,8 +2024,8 @@ const App: React.FC = () => {
                 financial_stability: finNode.financial_stability ?? 50,
                 migration_resilience: finNode.migration_resilience ?? 50,
                 fraud_risk: fraudNode.fraud_risk ?? 0,
-                behavioral_consistency: behNode.behavioral_consistency ?? 50,
-                country_transferability: countryNode.country_transferability ?? 50,
+                behavioral_consistency: behNode?.behavioral_consistency ?? 50,
+                country_transferability: countryNode?.country_transferability ?? 50,
                 confidence: parsedResult.confidence,
                 strengths: parsedResult.major_strengths,
                 risks: parsedResult.major_risks,
@@ -1975,9 +2039,9 @@ const App: React.FC = () => {
                 risk_patterns: fraudNode.risk_patterns,
                 plausibility_analysis: { overall_plausibility: 100 - overall_uncertainty, weakest_areas: [], strongest_areas: [] },
                 country_analysis: {
-                    origin_country_risk: 100 - (countryNode.country_transferability ?? 50),
+                    origin_country_risk: 100 - (countryNode?.country_transferability ?? 50),
                     destination_country_alignment: countryNode.destination_alignment,
-                    cross_border_transferability: countryNode.country_transferability,
+                    cross_border_transferability: countryNode?.country_transferability,
                     economic_adaptability: countryNode.economic_adaptability,
                     country_risk_factors: countryNode.risk_factors,
                     country_strengths: countryNode.strengths,
@@ -2027,7 +2091,7 @@ const App: React.FC = () => {
                     income_transfer_narrative: countryNode.income_transfer_narrative ?? null,
                     sector_demand_in_destination: countryNode.sector_demand_in_destination ?? null,
                     currency_risk: countryNode.currency_risk ?? null,
-                    country_transferability: countryNode.country_transferability ?? null,
+                    country_transferability: countryNode?.country_transferability ?? null,
                     raw_data_table: countryNode.raw_data_table ?? null,
                     // Financial culture context (from dedicated Culture agent)
                     financial_culture_context: cultureNode?.financial_culture_context ?? null,
@@ -2051,12 +2115,12 @@ const App: React.FC = () => {
                 origin_country: formData.country_of_origin || null,
                 destination_country: formData.target_jurisdiction || null,
                 breakdown: {
-                    identityScore: idNode.identity_reliability ?? 50,
+                    identityScore: idNode?.identity_reliability ?? 50,
                     incomeScore: finNode.financial_stability ?? 50,
-                    paymentScore: behNode.behavioral_consistency ?? 50,
+                    paymentScore: behNode?.behavioral_consistency ?? 50,
                     savingsScore: finNode.financial_stability ?? 50,
                     housingScore: finNode.migration_resilience ?? 50,
-                    crossBorderScore: countryNode.country_transferability ?? 50,
+                    crossBorderScore: countryNode?.country_transferability ?? 50,
                     fraudIntegrityScore: identityUsable ? Math.max(0, 100 - Number(fraudNode.fraud_risk ?? 50)) : null
                 }
             };
@@ -2086,7 +2150,7 @@ const App: React.FC = () => {
                 purchasingPowerEquivalence: Math.round(Number(pppEquivUsd) || 0),
                 stabilityScore: Math.round(finNode.financial_stability ?? 50),
                 inflationDefenseFactor: currencyRisk <= 35 ? 'Positive' : currencyRisk >= 70 ? 'Negative' : 'Neutral',
-                transferabilityIndex: Math.round(countryNode.country_transferability ?? 50),
+                transferabilityIndex: Math.round(countryNode?.country_transferability ?? 50),
             };
             const countryBenchmarkAvailable = Boolean(originIntel && Object.keys(originIntel).length > 0);
             finalResult.countryBenchmarkAvailable = countryBenchmarkAvailable;
@@ -2207,18 +2271,23 @@ const App: React.FC = () => {
         } catch (error) {
             console.error("Error scoring data:", error);
             
-            // REQUIRED FALLBACK STRUCTURE
+            const errorMessage = error instanceof Error ? error.message : "Internal Evaluation Engine Failure";
+            const isProcessingIncomplete = /session has expired|could not be processed|temporarily busy/i.test(errorMessage);
+
+            // REQUIRED FALLBACK STRUCTURE. C019: infrastructure failure produces NO score/verdict.
             const fallback: Partial<DashboardData> = {
                 analysis_status: 'unreliable',
-                reason: error instanceof Error ? error.message : "Internal Evaluation Engine Failure",
-                missing_critical_information: ["Reliable institutional data signature"],
+                reason: errorMessage,
+                missing_critical_information: isProcessingIncomplete ? ["Complete processing of all submitted documents"] : ["Reliable institutional data signature"],
                 safe_partial_analysis: {},
-                recommendations: [{ text: "Please try submitting your application again with clearer documents.", predictedGain: 0 }],
-                score: 300,
-                level: "Unreliable / Fail",
-                confidence: 0.1,
-                summaryStatement: "SYSTEM ALERT: Evaluation quality became unreliable due to technical constraints or insufficient evidence patterns.",
-                status: "Safety Fallback Engaged",
+                recommendations: [{ text: isProcessingIncomplete ? "Retry the assessment so every submitted document can be processed." : "Please try submitting your application again with clearer documents.", predictedGain: 0 }],
+                score: 0,
+                level: isProcessingIncomplete ? "No Score Generated" : "Unreliable / Fail",
+                confidence: 0,
+                summaryStatement: isProcessingIncomplete
+                    ? "No financial verdict was generated because the submitted evidence set was not processed completely."
+                    : "SYSTEM ALERT: Evaluation quality became unreliable due to technical constraints or insufficient evidence patterns.",
+                status: isProcessingIncomplete ? "Processing Incomplete — Retry Required" : "Safety Fallback Engaged",
                 countryContext: { countryName: formData['country_of_origin'] || "Unknown", medianIncomePPP: 0, costOfLivingIndex: 0, inflation: 0, unemployment: 0 },
                 reasonCodes: [{ label: "Data Integrity Failure", impact: "Negative" }],
                 documentAnalysis: [],
@@ -2226,19 +2295,13 @@ const App: React.FC = () => {
                 dossier: `### Verification Note\nAnalysis quality for this subject became limited during processing.\n\n**Reason:** ${error instanceof Error ? error.message : 'Unknown technical error'}\n\n**Recommendation:** Please review your uploads for legibility and chronological coherence.`
             };
 
-            // CRITICAL: persist the fallback too — so the user's session isn't lost
-            // and they don't get bounced back to an empty form on reload.
+            // C019 UI/persistence: keep ordinary form progress, but an infrastructure
+            // failure is NOT a report. Never overwrite a previous valid dashboardResult
+            // and never add this incomplete run to history/share/PDF surfaces.
             try {
-                if (userSession) {
-                    const failDB = db.load();
-                    if (failDB.users[userSession]) {
-                        failDB.users[userSession].dashboardResult = fallback as DashboardData;
-                        // Keep formData intact so they can retry without re-entering
-                        await db.saveAsync(failDB);
-                    }
-                }
+                handleSaveProgress();
             } catch (saveErr) {
-                console.error("Failed to persist fallback result:", saveErr);
+                console.error("Failed to preserve form progress after incomplete processing:", saveErr);
             }
 
             setResult(fallback as DashboardData);
@@ -2261,6 +2324,10 @@ const App: React.FC = () => {
             // providers can no longer read other users' records directly, so
             // sharing means the user writes an explicit copy of what they share.
             const myRecord = currentDB.users[userSession] || {};
+            if (myRecord.dashboardResult?.analysis_status === 'unreliable') {
+                console.warn('Share blocked: incomplete processing is not a shareable report.');
+                return;
+            }
             currentDB.permissions.push({
                 userId: userSession,
                 providerId,
