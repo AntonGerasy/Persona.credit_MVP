@@ -30,6 +30,7 @@ import ProviderDashboardPage from './pages/provider/ProviderDashboardPage';
 import HelpCenterPage from './pages/HelpCenterPage';
 import PartnerDashboard from './pages/PartnerDashboard';
 import PartnerLanding from './pages/PartnerLanding';
+import PublicInfoPage from './pages/PublicInfoPage';
 import PricingPage from './pages/PricingPage';
 import ReportViewerPage from './pages/ReportViewerPage';
 import LegalPage from './pages/LegalPage';
@@ -133,7 +134,7 @@ const App: React.FC = () => {
     const [userSession, setUserSession] = useState<string | null>(null);
     const [userProfile, setUserProfile] = useState<UserDossier | null>(null);
     const [currentProviderUser, setCurrentProviderUser] = useState<ProviderUser | null>(null);
-    type View = 'landing' | 'auth' | 'form' | 'dashboard' | 'providerOnboarding' | 'providerDashboard' | 'helpCenter' | 'report' | 'partner' | 'partnerLanding' | 'pricing' | 'privacy' | 'terms';
+    type View = 'landing' | 'auth' | 'form' | 'dashboard' | 'providerOnboarding' | 'providerDashboard' | 'helpCenter' | 'report' | 'partner' | 'partnerLanding' | 'pricing' | 'privacy' | 'terms' | 'howItWorks' | 'whatYouGet' | 'security';
     const [view, setView] = useState<View>('landing');
     const [isInitializing, setIsInitializing] = useState(true);
     const [isPaid, setIsPaid] = useState(true); // MVP: all features open
@@ -183,6 +184,10 @@ const App: React.FC = () => {
             setView('terms');
             return;
         }
+        if (path === '/how-it-works') { setView('howItWorks'); return; }
+        if (path === '/what-you-get' || path === '/transferscore') { setView('whatYouGet'); return; }
+        if (path === '/security') { setView('security'); return; }
+        if (path === '/for-partners' || path === '/founding-200' || path === '/founding-50') { setView('partnerLanding'); return; }
 
         if (path.startsWith('/report/')) {
             const token = path.replace('/report/', '');
@@ -2436,17 +2441,16 @@ const App: React.FC = () => {
             onGoToPricing={handleGoToPricing}
             onGoToPrivacy={() => { window.history.pushState({}, '', '/privacy'); setView('privacy'); }}
             onGoToTerms={() => { window.history.pushState({}, '', '/terms'); setView('terms'); }}
-            onGoToPartner={() => {
-                if (userProfile) {
-                    setView('partner');
-                } else {
-                    setView('partnerLanding');
-                }
-            }}
+            onNavigatePublic={(path) => { window.history.pushState({}, '', path); setView(path === '/how-it-works' ? 'howItWorks' : path === '/what-you-get' ? 'whatYouGet' : 'security'); }}
+            onGoToPartner={() => { window.history.pushState({}, '', '/founding-200'); setView('partnerLanding'); }}
         />
         </>;
     }
     
+    if (view === 'howItWorks' || view === 'whatYouGet' || view === 'security') {
+        return <PublicInfoPage kind={view === 'howItWorks' ? 'how' : view === 'whatYouGet' ? 'what' : 'security'} onBack={() => { window.history.pushState({}, '', '/'); setView('landing'); }} onStart={handleStartNewApplication} />;
+    }
+
     if (view === 'privacy' || view === 'terms') {
         return <LegalPage
             kind={view}
@@ -2493,7 +2497,7 @@ const App: React.FC = () => {
 
     if (view === 'partnerLanding') {
         return <PartnerLanding 
-            onBack={() => setView('landing')}
+            onBack={() => { window.history.pushState({}, '', '/'); setView('landing'); }}
             onSignUp={() => { setAuthMode('provider'); setView('auth'); }} // v34.17 (FIX-7): partner CTA leads to the Service Provider Portal, not the applicant one
         />
     }

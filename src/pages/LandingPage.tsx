@@ -1,296 +1,97 @@
 import React from 'react';
-import { 
-    Shield, 
-    ShieldCheck, 
-    FileCheck, 
-    ArrowRight, 
-    Building2, 
-    Briefcase, 
-    Car, 
-    Search,
-    HelpCircle,
-    Check,
-    Globe
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { ArrowRight, Building2, FileCheck2, Globe2, Landmark, Scale, Shield, ShieldCheck, Sparkles, Users } from 'lucide-react';
 import RealmSwitcher from '../components/RealmSwitcher';
 
 interface LandingPageProps {
   onStartApplication: () => void;
-  onGoToProvider: () => void;
   onGoToHelp: () => void;
   onGoToPartner: () => void;
-  onGoToPricing: () => void;
   onGoToPrivacy: () => void;
   onGoToTerms: () => void;
+  onNavigatePublic: (path: '/how-it-works' | '/what-you-get' | '/security') => void;
 }
 
-const TooltipItem: React.FC<{ feature: string; description: string }> = ({ feature, description }) => {
-    const [isOpen, setIsOpen] = React.useState(false);
+const LandingPage: React.FC<LandingPageProps> = ({ onStartApplication, onGoToPartner, onGoToPrivacy, onGoToTerms, onNavigatePublic }) => {
+  return <div className="min-h-screen bg-brand-bg font-sans relative overflow-x-hidden">
+    <div className="bloom w-[560px] h-[560px] -top-48 -right-32 bg-brand-blue/20" />
+    <div className="bloom w-[440px] h-[440px] top-[48rem] -left-40 bg-amber-200/40" />
 
-    return (
-        <li className="relative flex items-center justify-between gap-3 text-sm font-medium group">
-            <div className="flex items-center gap-3">
-                <div className="w-5 h-5 bg-brand-blue/25 rounded-full flex items-center justify-center flex-shrink-0">
-                    <Check className="w-3 h-3 text-brand-blue" />
-                </div>
-                <span>{feature}</span>
-            </div>
-            
-            <div 
-                className="relative flex items-center"
-                onMouseEnter={() => setIsOpen(true)}
-                onMouseLeave={() => setIsOpen(false)}
-                onClick={() => setIsOpen(!isOpen)}
-            >
-                <HelpCircle className="w-3.5 h-3.5 text-stone-500 hover:text-white cursor-pointer transition-all opacity-50 hover:opacity-100" />
-                
-                <AnimatePresence>
-                    {isOpen && (
-                        <motion.div 
-                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                            className="absolute bottom-full right-0 mb-3 w-64 p-4 bg-white rounded-2xl shadow-xl z-[110] pointer-events-none"
-                        >
-                            <div className="relative">
-                                <p className="text-[11px] font-medium leading-relaxed text-stone-600 normal-case tracking-normal">
-                                    {description}
-                                </p>
-                                <div className="absolute -bottom-5 right-2 w-3 h-3 bg-white rotate-45 transform"></div>
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </div>
-        </li>
-    );
-};
-
-const membershipFeatures = [
-    { name: 'Unlimited Dossier Updates', desc: 'Maintain a living financial record. Update your verified data nodes weekly as your career and assets evolve without additional fees.' },
-    { name: 'Active Partner Visibility', desc: 'Opt-in to be discovered by our premium network of international banks, high-end property managers, and luxury relocation agents.' },
-    { name: 'Global Portability Network', desc: 'Your dossier is hashed onto our global verification ledger, making it instantly verifiable across 40+ strategic economic zones.' },
-    { name: 'Alternative Bureau Monitoring', desc: 'We scan secondary data sources including utility payment history, professional tenure, and social financial signatures.' },
-    { name: 'Real-time Credit Signal', desc: 'Deploy a live API-backed trust marker on your profile that lenders can ping 24/7 for instant risk confirmation.' },
-    { name: 'Priority Verification Node', desc: 'Skip the standard audit queue. Your documents are routed to dedicated verification specialists for accelerated finalization.' }
-];
-
-const LandingPage: React.FC<LandingPageProps> = ({ onStartApplication, onGoToHelp, onGoToPartner, onGoToPricing, onGoToPrivacy, onGoToTerms }) => {
-  return (
-    <div className="min-h-screen bg-brand-bg flex flex-col font-sans selection:bg-brand-blue/15 selection:text-brand-dark relative overflow-x-hidden">
-      {/* Ambient blooms — purely decorative */}
-      <div className="bloom w-[520px] h-[520px] -top-40 -right-32 bg-brand-blue/25"></div>
-      <div className="bloom w-[420px] h-[420px] top-[38rem] -left-40 bg-amber-200/40"></div>
-
-      <div className="sticky top-0 z-[100] px-4 sm:px-8 pt-5 pb-2">
-        <nav className="max-w-7xl mx-auto w-full glass-panel rounded-[1.75rem] px-5 sm:px-7 py-4 flex justify-between items-center gap-4">
-           <div className="flex items-center gap-3 shrink-0">
-              <div className="w-11 h-11 bg-brand-blue rounded-2xl flex items-center justify-center text-white shadow-lg shadow-brand-blue/25">
-                  <Shield className="w-5 h-5" />
-              </div>
-              <div>
-                  <h1 className="text-lg font-semibold tracking-tight text-brand-dark leading-none">Persona.Credit</h1>
-                  <p className="text-[9px] font-semibold text-brand-gray uppercase tracking-[0.18em] mt-1.5">Verified Financial Identity</p>
-              </div>
-           </div>
-           <div className="flex gap-2 sm:gap-6 items-center overflow-x-auto no-scrollbar">
-              <button onClick={onGoToPartner} className="hidden md:block text-[11px] font-semibold text-brand-gray hover:text-brand-dark transition-colors whitespace-nowrap">For Partners</button>
-              <button onClick={onGoToPricing} className="hidden md:block text-[11px] font-semibold text-brand-gray hover:text-brand-dark transition-colors whitespace-nowrap">Pricing</button>
-              <button onClick={onGoToHelp} className="hidden md:block text-[11px] font-semibold text-brand-gray hover:text-brand-dark transition-colors whitespace-nowrap">Documentation</button>
-              <button 
-                  onClick={onStartApplication} 
-                  className="px-6 py-3 bg-brand-dark text-white rounded-full text-[11px] font-semibold tracking-wide hover:bg-brand-dark/90 transition-all active:scale-95 whitespace-nowrap shrink-0"
-              >
-                  Open My Report
-              </button>
-           </div>
-        </nav>
-      </div>
-
-      <main className="flex-1 max-w-7xl mx-auto w-full px-6 sm:px-8 flex flex-col items-center justify-center py-16 relative z-10">
-        <div className="max-w-5xl w-full text-center space-y-20">
-            <div className="space-y-8">
-                <div className="inline-flex items-center gap-2.5 px-5 py-2 glass-panel rounded-full">
-                    <div className="w-1.5 h-1.5 bg-brand-blue rounded-full animate-pulse"></div>
-                    <span className="text-[10px] font-semibold text-brand-gray uppercase tracking-[0.18em] leading-none">Global Financial Verification Standard</span>
-                </div>
-                <div className="space-y-4">
-                    <h1 className="font-display text-6xl md:text-8xl font-light text-brand-dark tracking-[-0.03em] leading-[0.92] text-balance">
-                        UNIVERSAL <br /> 
-                        <span className="text-brand-blue font-normal">CREDIT IDENTITY</span>
-                    </h1>
-                </div>
-                <p className="text-lg md:text-xl text-brand-gray font-normal max-w-2xl mx-auto leading-relaxed">
-                    The professional bridge for cross-border verification. Our platform generates 
-                    verified economic dossiers for relocation, banking, and global mobility.
-                </p>
-            </div>
-
-            <div className="flex flex-col items-center justify-center gap-7">
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                    <button
-                        onClick={onStartApplication}
-                        className="group bg-brand-blue text-white px-12 py-5 rounded-full text-[12px] font-semibold tracking-[0.12em] uppercase transition-all hover:scale-[1.03] active:scale-95 shadow-xl shadow-brand-blue/25 flex items-center gap-3"
-                    >
-                        START MY REPORT
-                        <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                    </button>
-                    <button
-                        onClick={onGoToHelp}
-                        className="px-10 py-5 glass-panel text-brand-dark rounded-full text-[11px] font-semibold uppercase tracking-[0.12em] hover:bg-white transition-all"
-                    >
-                        Review Methodology
-                    </button>
-                </div>
-                <p className="text-[10px] font-semibold text-brand-gray/70 uppercase tracking-[0.2em]">
-                    Secure AI-Powered Financial Verification Service
-                </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-12">
-                {[
-                    { title: 'Global Portability', desc: 'Carry your verified history across borders without losing momentum.', icon: <ShieldCheck className="w-6 h-6" /> },
-                    { title: 'Data Sovereignty', desc: 'Your economic truth, verified by AI, controlled exclusively by you.', icon: <FileCheck className="w-6 h-6" /> },
-                    { title: 'Market Benchmarking', desc: 'Instant context for international banks regarding your income and assets.', icon: <Search className="w-6 h-6" /> }
-                ].map(item => (
-                    <div key={item.title} className="text-left space-y-5 p-8 glass-panel rounded-[1.75rem] soft-lift group">
-                        <div className="w-12 h-12 bg-brand-blue/10 text-brand-blue rounded-2xl flex items-center justify-center transition-all group-hover:scale-110">
-                            {item.icon}
-                        </div>
-                        <h3 className="text-base font-semibold text-brand-dark tracking-tight">{item.title}</h3>
-                        <p className="text-sm text-brand-gray leading-relaxed">{item.desc}</p>
-                    </div>
-                ))}
-            </div>
-
-            <div className="pt-20">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-8 opacity-40">
-                    {[
-                        { label: 'Neo-Banking', icon: <Building2 className="w-5 h-5" /> },
-                        { label: 'Asset Management', icon: <Briefcase className="w-5 h-5" /> },
-                        { label: 'Auto Finance', icon: <Car className="w-5 h-5" /> },
-                        { label: 'Bureau Nodes', icon: <Search className="w-5 h-5" /> }
-                    ].map(item => (
-                        <div key={item.label} className="space-y-2.5 flex flex-col items-center text-brand-dark">
-                            {item.icon}
-                            <p className="text-[9px] font-semibold uppercase tracking-[0.18em]">{item.label}</p>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            <div className="pt-24 pb-10">
-                <div className="text-center space-y-4 mb-14">
-                    <h2 className="font-display text-4xl md:text-5xl font-light text-brand-dark tracking-[-0.02em]">Identity Membership</h2>
-                    <p className="text-brand-gray">Ongoing verification for the global professional.</p>
-                </div>
-                
-                <div className="max-w-md mx-auto">
-                    <div className="p-10 bg-stone-950 text-white rounded-[2.5rem] text-left space-y-8 shadow-2xl relative overflow-hidden flex flex-col justify-between">
-                        <div className="absolute top-0 right-0 w-56 h-56 bg-brand-blue/30 blur-3xl -mr-16 -mt-16"></div>
-                        
-                        <div className="space-y-6 relative z-10">
-                            <div className="w-12 h-12 bg-brand-blue rounded-2xl flex items-center justify-center">
-                                <Globe className="w-6 h-6 text-white" />
-                            </div>
-                            <div>
-                                <div className="inline-flex px-3 py-1 bg-brand-blue text-[8px] font-bold uppercase tracking-[0.18em] rounded-full mb-3">RECOMMENDED</div>
-                                <h3 className="font-display text-2xl font-semibold text-white tracking-tight">Global Integrity Membership</h3>
-                                <div className="flex items-baseline gap-1.5 mt-2">
-                                    <span className="font-display text-5xl font-light text-white">$7</span>
-                                    <span className="text-[10px] font-semibold text-stone-400 uppercase tracking-[0.15em]">per month</span>
-                                </div>
-                            </div>
-                            <ul className="space-y-4 text-stone-300">
-                                {membershipFeatures.map((feature) => (
-                                    <TooltipItem 
-                                        key={feature.name} 
-                                        feature={feature.name} 
-                                        description={feature.desc} 
-                                    />
-                                ))}
-                            </ul>
-                        </div>
-                        <button 
-                            onClick={onGoToPricing}
-                            className="w-full mt-8 py-5 bg-white text-stone-950 text-[10px] font-bold uppercase tracking-[0.2em] rounded-2xl hover:bg-stone-100 transition-all flex items-center justify-center gap-2 relative z-10"
-                        >
-                            Claim Your Profile
-                            <ArrowRight className="w-3 h-3" />
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <div className="pt-12">
-                <div className="bg-stone-900 rounded-[2.5rem] p-10 md:p-16 flex flex-col md:flex-row items-center justify-between gap-10 text-left shadow-2xl relative overflow-hidden">
-                    <div className="absolute -bottom-20 -left-10 w-72 h-72 bg-brand-blue/20 blur-3xl"></div>
-                    <div className="space-y-6 max-w-xl relative z-10">
-                        <h2 className="font-display text-4xl md:text-5xl font-light text-white tracking-[-0.02em] leading-tight">
-                            Expand the <br />
-                            <span className="text-brand-blue font-normal">Integrity Network.</span>
-                        </h2>
-                        <p className="text-lg text-stone-300">
-                            Are you a relocation expert or lawyer? Partner with Persona.Credit to provide 
-                            verified financial dossiers for your clients.
-                        </p>
-                    </div>
-                    <button 
-                        onClick={onGoToPartner}
-                        className="group bg-brand-blue text-white px-12 py-5 rounded-full text-[11px] font-semibold uppercase tracking-[0.12em] transition-all hover:bg-brand-blue/90 shadow-xl shadow-brand-blue/25 flex items-center gap-3 whitespace-nowrap relative z-10"
-                    >
-                        Partner Program
-                        <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                    </button>
-                </div>
-            </div>
+    <div className="sticky top-0 z-[100] px-4 sm:px-8 pt-5 pb-2">
+      <nav className="max-w-7xl mx-auto glass-panel rounded-[1.75rem] px-5 sm:px-7 py-4 flex justify-between items-center gap-4">
+        <button onClick={() => window.scrollTo({top:0,behavior:'smooth'})} className="flex items-center gap-3 shrink-0 text-left">
+          <div className="w-11 h-11 bg-brand-blue rounded-2xl flex items-center justify-center text-white shadow-lg shadow-brand-blue/25"><Shield className="w-5 h-5"/></div>
+          <div><div className="text-lg font-semibold tracking-tight leading-none">Persona.Credit</div><div className="text-[9px] font-semibold text-brand-gray uppercase tracking-[0.18em] mt-1.5">Cross-border financial identity</div></div>
+        </button>
+        <div className="flex gap-5 items-center">
+          <button onClick={() => onNavigatePublic('/how-it-works')} className="hidden lg:block text-[11px] font-semibold text-brand-gray hover:text-brand-dark">How It Works</button>
+          <button onClick={() => onNavigatePublic('/what-you-get')} className="hidden lg:block text-[11px] font-semibold text-brand-gray hover:text-brand-dark">TransferScore™</button>
+          <button onClick={() => onNavigatePublic('/security')} className="hidden lg:block text-[11px] font-semibold text-brand-gray hover:text-brand-dark">Security</button>
+          <button onClick={onGoToPartner} className="hidden md:block text-[11px] font-semibold text-brand-gray hover:text-brand-dark">For Partners</button>
+          <button onClick={onStartApplication} className="px-6 py-3 bg-brand-dark text-white rounded-full text-[11px] font-semibold tracking-wide hover:opacity-90">Create My Report</button>
         </div>
-      </main>
-
-      <footer className="max-w-7xl mx-auto w-full px-6 sm:px-8 py-20 mt-10 relative z-10">
-          <div className="glass-panel rounded-[2rem] p-10 md:p-14">
-              <div className="flex flex-col md:flex-row justify-between items-start gap-12">
-                  <div className="space-y-5 max-w-lg">
-                      <div className="flex items-center gap-3">
-                           <div className="w-9 h-9 bg-brand-dark rounded-xl flex items-center justify-center text-white text-[10px] font-bold">DG</div>
-                           <span className="text-xs font-semibold uppercase tracking-[0.15em] text-brand-dark">Persona.Credit Verification Node</span>
-                      </div>
-                      <p className="text-[11px] font-medium leading-relaxed text-brand-gray">
-                          Persona.Credit is a professional protocol for financial validation. Powered by TransferScore™ technology, 
-                          we generate verified dossiers for cross-border economic identity.
-                      </p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-12 md:gap-20">
-                    <div className="space-y-6 text-left">
-                        <p className="text-[10px] font-semibold text-brand-dark uppercase tracking-[0.18em]">Network</p>
-                        <div className="flex flex-col gap-4">
-                            <button onClick={onGoToPartner} className="text-[11px] font-medium text-brand-gray hover:text-brand-blue transition-colors text-left">Partner Program</button>
-                            <button onClick={onGoToPartner} className="text-[11px] font-medium text-brand-gray hover:text-brand-blue transition-colors text-left">Referral Node</button>
-                        </div>
-                    </div>
-                    <div className="space-y-6 text-left">
-                        <p className="text-[10px] font-semibold text-brand-dark uppercase tracking-[0.18em]">Protocols</p>
-                        <div className="flex flex-col gap-4">
-                            <button onClick={onGoToPrivacy} className="text-[11px] font-medium text-brand-gray hover:text-brand-dark transition-colors text-left">Privacy Policy</button>
-                            <button onClick={onGoToTerms} className="text-[11px] font-medium text-brand-gray hover:text-brand-dark transition-colors text-left">Terms of Service</button>
-                        </div>
-                    </div>
-                  </div>
-              </div>
-              <div className="mt-12 rounded-2xl border border-brand-border bg-white/70 px-5 py-4 text-[10px] leading-5 text-brand-gray">
-                Persona.credit provides an informational cross-border financial-evidence summary. It is not a credit bureau report, not a FICO score, and not a lending, tenancy, or employment decision. Any decision remains solely with the recipient.
-              </div>
-              <div className="flex flex-col md:flex-row justify-between items-center mt-8 pt-8 border-t border-brand-border gap-6">
-                <p className="text-[10px] font-medium tracking-wide text-brand-gray/70">
-                    &copy; 2026 Persona.Credit &bull; Registered Financial Verification Protocol &bull; compliance@persona.credit
-                </p>
-                <RealmSwitcher />
-              </div>
-          </div>
-      </footer>
+      </nav>
     </div>
-  );
-};
 
+    <main className="max-w-7xl mx-auto px-6 sm:px-8 relative z-10">
+      <section className="min-h-[720px] flex items-center justify-center text-center py-20">
+        <div className="max-w-5xl">
+          <div className="inline-flex items-center gap-2 px-5 py-2 glass-panel rounded-full mb-8"><span className="w-1.5 h-1.5 rounded-full bg-brand-blue"/><span className="text-[10px] font-semibold text-brand-gray uppercase tracking-[0.18em]">Financial history should travel with you</span></div>
+          <h1 className="font-display text-5xl sm:text-6xl md:text-[5.5rem] font-light tracking-[-0.045em] leading-[0.96] text-balance">
+            Alternative To The Outdated<br/><span className="text-brand-blue font-normal">Credit Scoring Comes Now</span>
+          </h1>
+          <p className="mt-8 text-lg md:text-xl text-brand-gray max-w-3xl mx-auto leading-relaxed">PersonaCredit turns financial evidence from the country you came from into a structured, explainable financial identity you can carry into the country where you are going.</p>
+          <p className="mt-4 text-sm md:text-base text-brand-gray/90 max-w-2xl mx-auto leading-relaxed">Bank statements, income evidence and identity documents become one clear report — including TransferScore™ — built to help another person understand the financial history that ordinary domestic credit systems often cannot see.</p>
+          <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4">
+            <button onClick={onStartApplication} className="group bg-brand-blue text-white px-10 py-5 rounded-full text-[11px] font-semibold uppercase tracking-[0.13em] shadow-xl shadow-brand-blue/25 flex items-center justify-center gap-3">Create My Report <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform"/></button>
+            <button onClick={() => onNavigatePublic('/how-it-works')} className="px-9 py-5 glass-panel rounded-full text-[11px] font-semibold uppercase tracking-[0.13em]">See How It Works</button>
+          </div>
+          <p className="mt-6 text-[10px] text-brand-gray uppercase tracking-[0.16em]">Informational financial-evidence analysis — not FICO, a credit bureau record, or an approval decision.</p>
+        </div>
+      </section>
+
+      <section className="py-24 border-t border-brand-border/70">
+        <div className="max-w-4xl mx-auto text-center mb-14"><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand-blue">The problem</p><h2 className="mt-4 font-display text-4xl md:text-6xl font-light tracking-[-0.035em]">Your financial life does not begin again when you cross a border.</h2><p className="mt-6 text-lg text-brand-gray leading-relaxed">Yet traditional credit systems are largely national. A person can arrive with years of income, savings and responsible financial behavior — and still look almost invisible to the next system.</p></div>
+        <div className="grid md:grid-cols-3 gap-6">
+          {[
+            ['Bring the evidence', 'Use financial records you already have from another country.', <FileCheck2 className="w-6 h-6"/>],
+            ['Make it understandable', 'PersonaCredit reconciles the evidence into a consistent, structured view.', <Globe2 className="w-6 h-6"/>],
+            ['Share the context', 'Create a report you control and can share with a recipient when it is useful.', <Landmark className="w-6 h-6"/>]
+          ].map(([t,d,i]: any) => <div key={t} className="glass-panel rounded-[1.75rem] p-8 soft-lift"><div className="w-12 h-12 rounded-2xl bg-brand-blue/10 text-brand-blue flex items-center justify-center">{i}</div><h3 className="mt-6 text-lg font-semibold">{t}</h3><p className="mt-3 text-sm text-brand-gray leading-relaxed">{d}</p></div>)}
+        </div>
+      </section>
+
+      <section className="py-24">
+        <div className="rounded-[2.5rem] bg-stone-950 text-white p-9 md:p-16 relative overflow-hidden">
+          <div className="absolute -top-28 -right-20 w-80 h-80 bg-brand-blue/30 blur-3xl rounded-full"/>
+          <div className="relative z-10 grid lg:grid-cols-[1.05fr_.95fr] gap-12 items-center">
+            <div><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand-blue">TransferScore™</p><h2 className="mt-4 font-display text-4xl md:text-6xl font-light text-white tracking-[-0.035em]">A new metric for financial evidence that crosses borders.</h2><p className="mt-6 text-stone-300 text-lg leading-relaxed">TransferScore™ is PersonaCredit's proprietary 0–1000 evidence score. It summarizes the strength, consistency and completeness of the financial evidence submitted to the platform.</p><p className="mt-4 text-stone-400 text-sm leading-relaxed">It is deliberately not a copy of a domestic credit score. It does not replace FICO, a credit bureau, underwriting or the recipient's judgment. It gives cross-border financial evidence a common language where one often does not exist.</p><button onClick={() => onNavigatePublic('/what-you-get')} className="mt-8 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-white">Understand TransferScore™ <ArrowRight className="w-4 h-4"/></button></div>
+            <div className="glass-panel rounded-[2rem] p-8 text-brand-dark"><div className="flex justify-between items-end"><div><p className="text-[9px] uppercase tracking-[0.18em] text-brand-gray font-bold">One portable signal</p><div className="font-display text-6xl font-light mt-2">0–1000</div></div><Sparkles className="w-8 h-8 text-brand-blue"/></div><div className="mt-7 h-2 rounded-full bg-stone-200 overflow-hidden"><div className="h-full w-[72%] bg-brand-blue rounded-full"/></div><p className="mt-5 text-xs text-brand-gray leading-relaxed">Designed to sit beside the underlying evidence, not hide it. A recipient can see the score and the facts that produced it.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section className="py-24">
+        <div className="grid lg:grid-cols-2 gap-8 items-stretch">
+          <div className="glass-panel rounded-[2.25rem] p-9 md:p-12"><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand-blue">Where it can help</p><h2 className="mt-4 font-display text-4xl md:text-5xl font-light">One financial identity. Many moments that depend on trust.</h2><div className="mt-9 grid sm:grid-cols-2 gap-5 text-sm">{['Housing & rentals','Banking & lending','Auto finance','Utilities & mobile','Insurance','Professional & relocation contexts'].map(x=><div key={x} className="flex gap-3 items-center"><div className="w-8 h-8 rounded-xl bg-white flex items-center justify-center"><Building2 className="w-4 h-4 text-brand-blue"/></div><span className="font-medium">{x}</span></div>)}</div></div>
+          <div className="glass-panel rounded-[2.25rem] p-9 md:p-12"><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand-blue">Built for explainability</p><h2 className="mt-4 font-display text-4xl md:text-5xl font-light">The score is not the product. The evidence is.</h2><p className="mt-6 text-brand-gray leading-relaxed">PersonaCredit is designed around deterministic rules for critical classifications, reconciliation and contradiction handling. When evidence conflicts or cannot be resolved confidently, the system can flag review rather than pretending certainty.</p><button onClick={() => onNavigatePublic('/how-it-works')} className="mt-8 text-[11px] font-bold uppercase tracking-[0.14em] inline-flex items-center gap-2">Explore the methodology <ArrowRight className="w-4 h-4"/></button></div>
+        </div>
+      </section>
+
+      <section className="py-24">
+        <div className="glass-panel-strong rounded-[2.5rem] p-9 md:p-14 grid lg:grid-cols-[.8fr_1.2fr] gap-10 items-center">
+          <div className="flex justify-center"><div className="w-44 h-44 rounded-[2.5rem] bg-brand-dark text-white flex flex-col items-center justify-center shadow-2xl relative"><ShieldCheck className="w-16 h-16 text-brand-blue"/><span className="mt-3 text-[9px] font-bold uppercase tracking-[0.2em]">Data Protection</span><span className="text-[8px] text-stone-400 mt-1">PersonaCredit Assurance</span></div></div>
+          <div><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand-blue">Your data is treated as sensitive by design</p><h2 className="mt-4 font-display text-4xl md:text-5xl font-light">Protected with Google Cloud safeguards.</h2><p className="mt-6 text-brand-gray leading-relaxed">PersonaCredit does not keep original uploaded documents in a separate persistent file store. Documents are sent to the paid Google Gemini API for analysis; under Google's paid-service terms, submitted content is not used to train or improve Google's models. Account records and report links are isolated and can be deleted.</p><p className="mt-4 text-[10px] text-brand-gray leading-relaxed">The shield shown here is a PersonaCredit assurance mark. It is not an independent Google certification or endorsement.</p><button onClick={() => onNavigatePublic('/security')} className="mt-7 text-[11px] font-bold uppercase tracking-[0.14em] inline-flex items-center gap-2">How we protect your information <ArrowRight className="w-4 h-4"/></button></div>
+        </div>
+      </section>
+
+      <section className="py-24">
+        <div className="bg-stone-900 rounded-[2.5rem] p-10 md:p-16 text-white grid lg:grid-cols-[1.15fr_.85fr] gap-10 items-center relative overflow-hidden"><div className="absolute -bottom-28 -left-20 w-80 h-80 bg-brand-blue/20 blur-3xl rounded-full"/><div className="relative z-10"><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand-blue">The Founding 200</p><h2 className="mt-4 font-display text-4xl md:text-6xl font-light text-white">Before a new standard becomes familiar, someone has to believe it should exist.</h2><p className="mt-6 text-stone-300 leading-relaxed max-w-2xl">We are inviting a limited group of trusted professionals and organizations — including immigration attorneys, relocation experts, educators, accelerators and community leaders — to introduce PersonaCredit to the first communities who can benefit from it.</p></div><div className="relative z-10 lg:text-right"><button onClick={onGoToPartner} className="bg-brand-blue text-white px-10 py-5 rounded-full text-[11px] font-bold uppercase tracking-[0.14em] inline-flex items-center gap-3">Explore The Founding 200 <ArrowRight className="w-4 h-4"/></button><p className="mt-5 text-[10px] text-stone-500">General access remains available. The Founding 200 is a separate Charter Partner program.</p></div></div>
+      </section>
+
+      <section className="py-28 text-center"><Scale className="w-7 h-7 text-brand-blue mx-auto"/><h2 className="mt-5 font-display text-4xl md:text-6xl font-light">Your past should still count when your future crosses a border.</h2><p className="mt-6 text-brand-gray max-w-2xl mx-auto">Build a financial identity from the evidence you already have — and decide when to share it.</p><button onClick={onStartApplication} className="mt-9 bg-brand-blue text-white px-11 py-5 rounded-full text-[11px] font-bold uppercase tracking-[0.14em]">Create My Report</button></section>
+    </main>
+
+    <footer className="max-w-7xl mx-auto px-6 sm:px-8 pb-12"><div className="glass-panel rounded-[2rem] p-8 md:p-10"><div className="flex flex-col md:flex-row justify-between gap-8"><div className="max-w-lg"><div className="font-semibold">Persona.Credit</div><p className="mt-3 text-xs text-brand-gray leading-relaxed">Cross-border financial evidence, made understandable. TransferScore™ is proprietary to PersonaCredit and is not a FICO score or credit bureau record.</p></div><div className="flex flex-wrap gap-x-8 gap-y-3 text-[11px]"><button onClick={() => onNavigatePublic('/how-it-works')}>How It Works</button><button onClick={() => onNavigatePublic('/security')}>Security</button><button onClick={onGoToPartner}>The Founding 200</button><button onClick={onGoToPrivacy}>Privacy Policy</button><button onClick={onGoToTerms}>Terms of Service</button></div></div><div className="mt-8 pt-7 border-t border-brand-border flex flex-col md:flex-row justify-between gap-4 text-[10px] text-brand-gray"><span>© 2026 Persona.Credit · compliance@persona.credit</span><RealmSwitcher/></div></div></footer>
+  </div>;
+};
 export default LandingPage;
