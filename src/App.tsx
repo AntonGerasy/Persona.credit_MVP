@@ -3,6 +3,7 @@ import { Shield, ChevronLeft, AlertCircle } from 'lucide-react';
 // GoogleGenAI is now server-side only (Vercel Functions in /api/)
 // All AI calls go through fetch('/api/...') — API key never in browser bundle
 import { Type } from '@google/genai';
+import { PDFDocument } from 'pdf-lib';
 // v34.13: bcrypt removed from the client — password hashing/verification is
 // server-side only (/api/auth). The client holds an opaque session token.
 import { authClient } from './lib/authClient';
@@ -991,7 +992,6 @@ const App: React.FC = () => {
 
                     for (const upload of entry.files) {
                         const file = upload.file;
-                        const base64Data = await fileToBase64(file);
                         const commonPayload = {
                             fieldLabel: entry.label,
                             applicantName: formData.full_name || 'Unknown',
@@ -1005,61 +1005,117 @@ const App: React.FC = () => {
                         const isPdf = file.type === 'application/pdf' || file.type === 'application/octet-stream' || /\.pdf$/i.test(file.name);
 
                         if (isPdf) {
-                            // C024: every PDF follows the same fixed page-window path. No bank/country/language heuristics.
+                            // v35.3.0 / C025: physically split every PDF in the browser. The model never
+                            // receives pages outside the requested chunk, so chunk boundaries are a property
+                            // of the bytes, not an instruction we hope the model follows.
+                            const sourcePdf = await PDFDocument.load(await file.arrayBuffer());
+                            const pageCount = Math.max(1, sourcePdf.getPageCount());
                             const chunkSize = 2;
-                            const firstChunk = await requestExtraction(entry.label, {
-                                ...commonPayload,
-                                fileBase64: base64Data,
-                                mimeType: file.type || 'application/pdf',
-                                chunkMode: true,
-                                pageStart: 1,
-                                pageEnd: chunkSize,
-                            });
-                            if (!firstChunk) continue;
+                            const chunks: any[] = [];
+                            const chunkDiagnostics: any[] = [];
 
-                            const pageCount = Math.max(1, Math.floor(Number(firstChunk.document_page_count) || Number(firstChunk.chunk_page_end) || 1));
-                            const chunks: any[] = [firstChunk];
-                            let chunkFailed = false;
+                            for (let pageStart = 1; pageStart <= pageCount; pageStart += chunkSize) {
+                                const pageEnd = Math.min(pageCount, pageStart + chunkSize - 1);
+                                try {
+                                    const chunkPdf = await PDFDocument.create();
+                                    const indices = Array.from({ length: pageEnd - pageStart + 1 }, (_, i) => pageStart - 1 + i);
+                                    const copied = await chunkPdf.copyPages(sourcePdf, indices);
+                                    copied.forEach((page) => chunkPdf.addPage(page));
+                                    const chunkBytes = await chunkPdf.save();
+                                    const chunkFile = new File([chunkBytes], `${file.name}.pages-${pageStart}-${pageEnd}.pdf`, { type: 'application/pdf' });
+                                    const chunkBase64 = await fileToBase64(chunkFile);
 
-                            for (let pageStart = chunkSize + 1; pageStart <= pageCount; pageStart += chunkSize) {
-                                const chunk = await requestExtraction(entry.label, {
-                                    ...commonPayload,
-                                    fileBase64: base64Data,
-                                    mimeType: file.type || 'application/pdf',
-                                    chunkMode: true,
-                                    pageStart,
-                                    pageEnd: Math.min(pageCount, pageStart + chunkSize - 1),
-                                });
-                                if (!chunk) { chunkFailed = true; break; }
-                                if (Number(chunk.document_page_count) > 0 && Number(chunk.document_page_count) !== pageCount) {
-                                    console.warn(`Inconsistent PDF page count during extraction for ${entry.label}`);
-                                    extractionFailures.push({ label: entry.label, kind: 'server' });
-                                    chunkFailed = true;
-                                    break;
+                                    const chunk = await requestExtraction(entry.label, {
+                                        ...commonPayload,
+                                        fileBase64: chunkBase64,
+                                        mimeType: 'application/pdf',
+                                        chunkMode: true,
+                                        physicalChunk: true,
+                                        pageStart,
+                                        pageEnd,
+                                        sourceDocumentPageCount: pageCount,
+                                    });
+
+                                    if (!chunk) {
+                                        chunkDiagnostics.push({ pages: `${pageStart}-${pageEnd}`, json_ok: false, operations: 0, status: 'failed' });
+                                        continue;
+                                    }
+                                    const opCount = (Array.isArray(chunk.credit_transactions) ? chunk.credit_transactions.length : 0)
+                                        + (Array.isArray(chunk.debit_transactions) ? chunk.debit_transactions.length : 0);
+                                    chunkDiagnostics.push({ pages: `${pageStart}-${pageEnd}`, json_ok: true, operations: opCount, status: 'read' });
+                                    chunks.push(chunk);
+                                } catch (chunkErr) {
+                                    console.warn(`Physical PDF chunk failed for ${entry.label} pages ${pageStart}-${pageEnd}:`, chunkErr);
+                                    chunkDiagnostics.push({ pages: `${pageStart}-${pageEnd}`, json_ok: false, operations: 0, status: 'failed' });
                                 }
-                                chunks.push(chunk);
-                            }
-                            if (chunkFailed) continue;
-
-                            const merged = mergeExtractionChunks(chunks);
-                            if (merged.processing_failed === true) {
-                                extractionFailures.push({ label: entry.label, kind: 'server' });
-                                continue;
-                            }
-                            const controlCheck = reconcileStatementControlTotals(merged);
-                            if (controlCheck.applicable && !controlCheck.complete) {
-                                console.warn(`Statement control totals did not reconcile for ${entry.label}`, controlCheck);
-                                extractionFailures.push({ label: entry.label, kind: 'server' });
-                                continue;
                             }
 
-                            parsed = await requestExtraction(entry.label, {
-                                ...commonPayload,
-                                finalizeChunks: true,
-                                mergedExtraction: merged,
-                            });
+                            if (!chunks.length) {
+                                // One unreadable document must not erase the evidence from other documents.
+                                // Keep a lender-visible placeholder, but never turn a technical failure into
+                                // an authenticity concern or an adverse financial signal.
+                                parsed = {
+                                    document_type: entry.label,
+                                    issuing_institution: 'Could not be read',
+                                    issuing_country: countryOfOrigin || 'Unknown',
+                                    detected_language: 'Unknown',
+                                    period_covered: '',
+                                    period_months: 0,
+                                    account_holder_name: '',
+                                    account_holder_name_match: 'Cannot determine',
+                                    currency_code: '',
+                                    average_monthly_inflow: 0,
+                                    estimated_monthly_obligations: 0,
+                                    ending_balance: 0,
+                                    authenticity_concerns: [],
+                                    is_usable: false,
+                                    extraction_completeness: 'unreadable',
+                                    extraction_diagnostics: { source_pages: pageCount, chunks: chunkDiagnostics, extracted_operations: 0 },
+                                    analyst_note: 'This submitted document could not be read. Figures in this report do not include it.',
+                                    rejection_reason: 'Processing incomplete for this document.',
+                                };
+                            } else {
+                                const merged = mergeExtractionChunks(chunks);
+                                const controlCheck = reconcileStatementControlTotals(merged);
+                                const extractedOperations = (Array.isArray(merged.credit_transactions) ? merged.credit_transactions.length : 0)
+                                    + (Array.isArray(merged.debit_transactions) ? merged.debit_transactions.length : 0);
+                                const hadChunkFailure = chunkDiagnostics.some((d: any) => d.status === 'failed');
+                                const looksLikeBankStatement = /bank|statement/i.test(String(merged.document_type || entry.label));
+                                const completeness = hadChunkFailure
+                                    ? 'partial'
+                                    : looksLikeBankStatement && controlCheck.applicable && !controlCheck.complete
+                                        ? 'partial'
+                                        : looksLikeBankStatement && !controlCheck.applicable
+                                            ? 'partial'
+                                            : 'complete';
+
+                                (merged as any).extraction_completeness = completeness;
+                                (merged as any).extraction_diagnostics = {
+                                    source_pages: pageCount,
+                                    chunks: chunkDiagnostics,
+                                    extracted_operations: extractedOperations,
+                                    control_reconciliation: controlCheck,
+                                };
+
+                                // Partial evidence remains usable. The deterministic score sees what was
+                                // actually read, while downstream contradiction logic is disabled below.
+                                parsed = await requestExtraction(entry.label, {
+                                    ...commonPayload,
+                                    finalizeChunks: true,
+                                    mergedExtraction: merged,
+                                });
+                                if (parsed) {
+                                    parsed.extraction_completeness = completeness;
+                                    parsed.extraction_diagnostics = (merged as any).extraction_diagnostics;
+                                    if (completeness === 'partial') {
+                                        parsed.income_is_lower_bound = true;
+                                        parsed.analyst_note = `Document was partially read (${extractedOperations} operations extracted). Financial figures may be incomplete and are presented as observed minimums.`;
+                                    }
+                                }
+                            }
                         } else {
                             // A single image is one chunk. It is accepted/rejected by actual extraction quality, not file type.
+                            const base64Data = await fileToBase64(file);
                             parsed = await requestExtraction(entry.label, {
                                 ...commonPayload,
                                 fileBase64: base64Data,
@@ -1068,10 +1124,30 @@ const App: React.FC = () => {
                                 pageStart: 1,
                                 pageEnd: 1,
                             });
+                            if (parsed) {
+                                parsed.extraction_completeness = parsed.processing_failed === true ? 'unreadable' : 'complete';
+                                parsed.extraction_diagnostics = { source_pages: 1, chunks: [{ pages: '1', json_ok: parsed.processing_failed !== true, operations: 0, status: parsed.processing_failed === true ? 'failed' : 'read' }], extracted_operations: 0 };
+                            } else {
+                                parsed = {
+                                    document_type: entry.label,
+                                    issuing_institution: 'Could not be read',
+                                    issuing_country: countryOfOrigin || 'Unknown',
+                                    detected_language: 'Unknown',
+                                    period_covered: '', period_months: 0,
+                                    account_holder_name: '', account_holder_name_match: 'Cannot determine',
+                                    currency_code: '', average_monthly_inflow: 0, estimated_monthly_obligations: 0, ending_balance: 0,
+                                    authenticity_concerns: [], is_usable: false,
+                                    extraction_completeness: 'unreadable',
+                                    extraction_diagnostics: { source_pages: 1, chunks: [{ pages: '1', json_ok: false, operations: 0, status: 'failed' }], extracted_operations: 0 },
+                                    analyst_note: 'This submitted document could not be read. Figures in this report do not include it.',
+                                    rejection_reason: 'Processing incomplete for this document.',
+                                };
+                            }
                         }
 
                         if (parsed?.document_type) {
                             (parsed as any).source_file_name = file.name;
+                            (parsed as any).source_field_label = entry.label;
                             if (entry.key === 'identity_document' && upload.qaFixtureAccepted) {
                                 (parsed as any).qa_fixture = true;
                                 (parsed as any).is_usable = false;
@@ -1095,12 +1171,18 @@ const App: React.FC = () => {
                 throw err;
             }
 
-            // C019: infrastructure failure must never become a financial contradiction.
-            // If even one submitted document could not be extracted, stop before agents/scoring
-            // rather than silently analyzing an incomplete evidence set.
-            const extractionReliability = evaluateExtractionReliability(extractionFailures);
-            if (!extractionReliability.allowFinancialVerdict) {
-                throw new Error(extractionReliability.userMessage || 'Some submitted documents could not be processed. Please retry the assessment.');
+            // v35.3.0: READ, DON'T BLOCK. Completeness is evidence quality, not a gate.
+            // A report is generated from every readable document. Retry is reserved for the case where
+            // submitted financial evidence produced no readable document at all. Session expiry still
+            // exits immediately inside requestExtraction.
+            const financialLabels = new Set(['Origin Country Bank Statement', 'Destination Country Bank Statement']);
+            const countSubmitted = (key: string) => ((formData[key] as any[]) || [])
+                .filter((item: any) => item && (item instanceof File || item.validationStatus !== 'invalid')).length;
+            const submittedFinancialCount = countSubmitted('bank_statements_origin') + countSubmitted('bank_statements_us');
+            const financialExtractions = extractedDocuments.filter((d: any) => financialLabels.has(String(d.source_field_label || '')) || /bank statement/i.test(String(d.document_type || '')));
+            const readableFinancialDocs = financialExtractions.filter((d: any) => d.extraction_completeness !== 'unreadable');
+            if (submittedFinancialCount > 0 && readableFinancialDocs.length === 0) {
+                throw new Error('None of the submitted financial documents could be read. Please re-upload the files and retry.');
             }
 
             // Build a summary of extracted document data for downstream agents
@@ -1128,6 +1210,9 @@ const App: React.FC = () => {
                         legibility: d.legibility_score,
                         authenticity_signals: d.authenticity_signals,
                         authenticity_concerns: d.authenticity_concerns,
+                        source_file_name: (d as any).source_file_name,
+                        extraction_completeness: (d as any).extraction_completeness || 'complete',
+                        extraction_diagnostics: (d as any).extraction_diagnostics || null,
                         is_usable: d.is_usable,
                         analyst_note: d.analyst_note,
                         // v34.4: deterministic income engine summary (full counted/excluded
@@ -1579,6 +1664,13 @@ const App: React.FC = () => {
             const hasVerifiedIncome = verifiedMonthlyUsd > 0;
             const hasDeclaredIncome = declaredMonthlyUsd > 0;
 
+            // Evidence completeness is a quality signal. Partial/unreadable supplied statements
+            // may support a lower bound, but can never prove a contradiction by omission.
+            const financialEvidenceIncomplete = extractedDocuments.some((d: any) =>
+                /bank statement/i.test(String(d.document_type || d.source_field_label || '')) &&
+                String(d.extraction_completeness || 'complete') !== 'complete'
+            ) || extractionFailures.some((f) => /Bank Statement/i.test(f.label));
+
             // Decide status + evidence factor
             let incomeStatus: 'verified' | 'partial' | 'declared' | 'contradicted' | 'unverified' = 'unverified';
             let incomeEvidenceFactor = 0.15;
@@ -1590,7 +1682,11 @@ const App: React.FC = () => {
                     ? documentedMonthlyLocal / declaredMonthlyLocal
                     : verifiedMonthlyUsd / declaredMonthlyUsd;
                 discrepancyPct = Math.round((ratio - 1) * 100);
-                if (ratio >= 0.85) { incomeStatus = 'verified'; incomeEvidenceFactor = 1.0; }      // docs confirm (or exceed) declared
+                if (financialEvidenceIncomplete) {
+                    incomeStatus = 'partial';
+                    incomeEvidenceFactor = Math.max(0.35, Math.min(0.80, ratio));
+                }
+                else if (ratio >= 0.85) { incomeStatus = 'verified'; incomeEvidenceFactor = 1.0; }      // docs confirm (or exceed) declared
                 else if (declaredCoverageIsPartial) {
                     incomeStatus = 'partial';
                     // Incomplete evidence can support only the observed portion; it cannot disprove
@@ -1600,7 +1696,8 @@ const App: React.FC = () => {
                 else if (ratio >= 0.60) { incomeStatus = 'partial'; incomeEvidenceFactor = 0.85; }  // docs somewhat below declared
                 else { incomeStatus = 'contradicted'; incomeEvidenceFactor = 0.0; }                  // full-coverage evidence materially conflicts
             } else if (hasVerifiedIncome && !hasDeclaredIncome) {
-                incomeStatus = 'verified'; incomeEvidenceFactor = 1.0;   // the document speaks for itself
+                incomeStatus = financialEvidenceIncomplete ? 'partial' : 'verified';
+                incomeEvidenceFactor = financialEvidenceIncomplete ? 0.70 : 1.0;   // partial transcript is a lower bound
             } else if (!hasVerifiedIncome && hasDeclaredIncome) {
                 incomeStatus = 'declared'; incomeEvidenceFactor = 0.25;  // claim only, no backing
             } else {
@@ -1634,9 +1731,11 @@ const App: React.FC = () => {
             if (incomeStatus === 'contradicted') {
                 reconciliationExplanation = `Declared income (~${fmtUsd(declaredMonthlyUsd)}/mo) is significantly higher than documented income (~${fmtUsd(verifiedMonthlyUsd)}/mo, ${discrepancyPct}% difference). The gap is unexplained and lowers verified standing.`;
             } else if (incomeStatus === 'partial') {
-                reconciliationExplanation = declaredCoverageIsPartial
-                    ? `Submitted documents show ~${fmtUsd(verifiedMonthlyUsd)}/mo against a declared ~${fmtUsd(declaredMonthlyUsd)}/mo. The applicant reports that the evidence covers about ${Math.round(officialShare * 100)}% of total income, so the remaining gap is unverified rather than contradicted.`
-                    : `Documents confirm ~${fmtUsd(verifiedMonthlyUsd)}/mo against a declared ~${fmtUsd(declaredMonthlyUsd)}/mo (${discrepancyPct}%). Partially verified.`;
+                reconciliationExplanation = financialEvidenceIncomplete
+                    ? `Readable statement data supports at least ~${fmtUsd(verifiedMonthlyUsd)}/mo. Some submitted financial evidence was only partially read, so this is a lower bound and no contradiction is inferred from the remaining gap.`
+                    : declaredCoverageIsPartial
+                        ? `Submitted documents show ~${fmtUsd(verifiedMonthlyUsd)}/mo against a declared ~${fmtUsd(declaredMonthlyUsd)}/mo. The applicant reports that the evidence covers about ${Math.round(officialShare * 100)}% of total income, so the remaining gap is unverified rather than contradicted.`
+                        : `Documents confirm ~${fmtUsd(verifiedMonthlyUsd)}/mo against a declared ~${fmtUsd(declaredMonthlyUsd)}/mo (${discrepancyPct}%). Partially verified.`;
             } else if (incomeStatus === 'verified') {
                 reconciliationExplanation = declaredInputSuspect
                     ? `Documented income (~${fmtUsd(verifiedMonthlyUsd)}/mo) is verified by bank records. The declared figure (~${fmtUsd(declaredMonthlyUsd)}/mo) appears to be an input typo (e.g. a thousands separator was dropped) and was disregarded — re-enter it as digits only.`
@@ -1693,7 +1792,7 @@ const App: React.FC = () => {
                 // Independent document-integrity findings remain represented by fraud_risk/evidence fields.
                 fraudNode.contradiction_score = 0;
             } else if (!nameMismatch && fraudNode && incomeStatus === 'partial') {
-                fraudNode.contradiction_score = Math.min(numOf(fraudNode.contradiction_score), 40);
+                fraudNode.contradiction_score = financialEvidenceIncomplete ? 0 : Math.min(numOf(fraudNode.contradiction_score), 40);
             }
 
             // FINAL SYNTHESIS — Structured Aggregation Engine
@@ -1851,6 +1950,11 @@ const App: React.FC = () => {
             parsedResult.summary_statement = lenderSafeText(parsedResult.summary_statement || '');
             parsedResult.aggregated_strengths = (parsedResult.aggregated_strengths || []).map(lenderSafeText).filter(Boolean);
             parsedResult.aggregated_risks = (parsedResult.aggregated_risks || []).map(lenderSafeText).filter(Boolean);
+            if (financialEvidenceIncomplete) {
+                const adverseByOmission = /no documented income|income is self-declared and not document-verified|only one document|no income documents|documents? (?:are|is) missing|income reliability low due to inability to verify/i;
+                parsedResult.aggregated_risks = (parsedResult.aggregated_risks || []).filter((r: string) => !adverseByOmission.test(String(r)));
+                parsedResult.aggregated_uncertainties = (parsedResult.aggregated_uncertainties || []).filter((r: string) => !adverseByOmission.test(String(r)));
+            }
 
             const humanizeBehavior = (value: string): string => {
                 const banned = /\b(flag|contradiction score|income contradiction|field name|debug|internal|snake case)\b|_/i;
@@ -1904,6 +2008,28 @@ const App: React.FC = () => {
             // Attach document extraction data for lender report (Module 4)
             parsedResult.document_extractions = extractedDocuments;
             parsedResult.document_summary = documentSummary;
+            const partialDocuments = extractedDocuments.filter((d: any) => d.extraction_completeness === 'partial');
+            const unreadableDocuments = extractedDocuments.filter((d: any) => d.extraction_completeness === 'unreadable');
+            parsedResult.extraction_quality = {
+                status: unreadableDocuments.length || partialDocuments.length ? 'partial' : 'complete',
+                partial_documents: partialDocuments.map((d: any) => ({
+                    file: d.source_file_name || d.document_type,
+                    institution: d.issuing_institution || 'Unknown institution',
+                    extracted_operations: Number(d.extraction_diagnostics?.extracted_operations || 0),
+                    pages: Number(d.extraction_diagnostics?.source_pages || 0),
+                })),
+                unreadable_documents: unreadableDocuments.map((d: any) => ({
+                    file: d.source_file_name || d.document_type,
+                    institution: d.issuing_institution || 'Unknown institution',
+                })),
+            };
+            if (partialDocuments.length || unreadableDocuments.length) {
+                const parts: string[] = [];
+                partialDocuments.forEach((d: any) => parts.push(`${d.source_file_name || d.document_type}: ${Number(d.extraction_diagnostics?.extracted_operations || 0)} operations read; figures may be incomplete.`));
+                unreadableDocuments.forEach((d: any) => parts.push(`${d.source_file_name || d.document_type}: could not be read; figures below do not include this document.`));
+                parsedResult.extraction_notice = parts.join(' ');
+                parsedResult.documented_income_is_lower_bound = financialEvidenceIncomplete && hasVerifiedIncome;
+            }
 
             // STRICT MAPPING: Transform Aggregation Output to UI-Compatible Format
             // This ensures the UI remains stable while the Synthesis Engine stays structural.

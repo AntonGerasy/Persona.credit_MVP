@@ -71,9 +71,13 @@ const reconciled = reconcileStatementControlTotals(merged);
 assert.equal(reconciled.applicable, true);
 assert.equal(reconciled.complete, true);
 
-// Missing row -> arithmetic mismatch -> processing must be treated as incomplete.
+// Materially missing rows -> arithmetic mismatch classifies the transcript as partial (not a report blocker).
 const missingOne = { ...merged, credit_transactions: merged.credit_transactions?.slice(0, 5) };
 assert.equal(reconcileStatementControlTotals(missingOne).complete, false);
+
+// Small extraction variance (<1% of statement totals) remains complete; completeness is not penny-perfect OCR.
+const smallVariance = { ...merged, credit_transactions: [...(merged.credit_transactions || []), tx('2026-03-13', 'Rounding/OCR', 100)] };
+assert.equal(reconcileStatementControlTotals(smallVariance).complete, true);
 
 // No controls means check is not applicable, not a failure.
 const withoutControls = mergeExtractionChunks([{ ...chunk1, statement_control_totals: undefined }]);
@@ -86,8 +90,9 @@ const onePage = mergeExtractionChunks([{ ...chunk1, document_page_count: 1, chun
 assert.equal(onePage.document_page_count, 1);
 assert.equal(onePage.chunk_page_end, 1);
 
-// A failed chunk poisons the whole document: COMPLETE or RETRY, never PARTIAL.
+// Defensive merge guard: if a failed payload accidentally reaches merge, it is not silently accepted.
+// The v35.3 orchestrator excludes failed chunks and labels the surviving document PARTIAL.
 const failedMerge = mergeExtractionChunks([chunk1, { ...chunk2, processing_failed: true }]);
 assert.equal(failedMerge.processing_failed, true);
 
-console.log('Extraction reliability + C021/C024 guards: PASSED (13/13)');
+console.log('Extraction reliability + C021/C024/v35.3 guards: PASSED (14/14)');

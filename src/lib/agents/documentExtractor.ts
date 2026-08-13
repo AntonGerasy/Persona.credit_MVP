@@ -103,6 +103,11 @@ export type ExtractedDocument = {
     is_usable: boolean;
     rejection_reason: string;
     analyst_note: string;
+    extraction_completeness?: 'complete' | 'partial' | 'unreadable';
+    extraction_diagnostics?: any;
+    income_is_lower_bound?: boolean;
+    source_file_name?: string;
+    source_field_label?: string;
 };
 
 export const getDocumentExtractorPrompt = (

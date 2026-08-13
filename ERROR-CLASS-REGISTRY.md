@@ -51,3 +51,11 @@ Live persona runs are required when extraction prompts or file-processing behavi
 | C022 Technical error presented as authenticity concern | Closed / regression guarded | canonical technical-failure payload has empty authenticity concerns |
 | C023 Self-transfer marker bypasses multi-signal classification | Closed / regression guarded | external legal entity + marker => `review_required` |
 | C024 Universal long-document extraction | RC / regression guarded | fixed page windows + deterministic merge + control-total reconciliation |
+
+
+## v35.3.0 read-dont-block correction
+
+- **C021/C024:** technical failures remain visible, but document completeness is now a quality state rather than a global report gate.
+- **C025:** closed by physical client-side PDF slicing with `pdf-lib`; each extraction request receives only its own source pages.
+- Partial evidence can support observed/lower-bound figures but can never create a declared-vs-verified contradiction by omission.
+- Retry is reserved for the case where no submitted financial document can be read at all.

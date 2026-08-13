@@ -2721,6 +2721,16 @@ const DashboardContent: React.FC<DashboardProps> = ({ userId, data: propData, pr
 
           {/* Dynamic Content */}
           <div className="lg:col-span-9">
+            {(data as any).extraction_notice && (
+                <div className="mb-8 p-6 bg-amber-50 border border-amber-200 rounded-3xl flex items-start gap-4">
+                    <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+                    <div>
+                        <h4 className="text-[10px] font-bold text-amber-900 uppercase tracking-apple-label">Evidence read with limitations</h4>
+                        <p className="text-xs text-amber-800 mt-2 font-medium leading-5">{(data as any).extraction_notice}</p>
+                        {(data as any).documented_income_is_lower_bound && <p className="text-xs text-amber-800 mt-2 font-semibold">Documented income shown in this report is a minimum observed amount, not a complete total.</p>}
+                    </div>
+                </div>
+            )}
             {(data.status || '').toLowerCase().includes('action') && (
                 <div className="mb-8 p-6 bg-amber-50/50 border border-amber-100 rounded-3xl flex items-center gap-6">
                      <div className="p-3 bg-white rounded-2xl shadow-sm text-amber-500">

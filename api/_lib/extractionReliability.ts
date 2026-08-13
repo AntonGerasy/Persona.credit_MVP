@@ -55,6 +55,9 @@ export interface ExtractionChunkLike {
   chunk_page_start?: number;
   chunk_page_end?: number;
   statement_control_totals?: StatementControlTotals;
+  extraction_completeness?: 'complete' | 'partial' | 'unreadable';
+  extraction_diagnostics?: any;
+  income_is_lower_bound?: boolean;
 }
 
 export interface ControlReconciliationResult {
@@ -231,9 +234,10 @@ export function reconcileStatementControlTotals(merged: ExtractionChunkLike): Co
   const expectedDebits = Number(controls.total_debits) || 0;
   const opening = Number(controls.opening_balance) || 0;
   const closing = Number(controls.closing_balance) || 0;
-  // Currency-native arithmetic. A few cents of OCR/rounding noise is tolerated, but not a missing row.
-  const scale = Math.max(Math.abs(expectedCredits), Math.abs(expectedDebits), Math.abs(opening), Math.abs(closing), 1);
-  const tolerance = Math.max(0.05, scale * 1e-7);
+  // v35.3.0: control totals measure completeness; they do not gate report generation.
+  // A 1% tolerance classifies a transcript as complete vs partial without pretending OCR is exact.
+  const scale = Math.max(Math.abs(expectedCredits), Math.abs(expectedDebits), 1);
+  const tolerance = Math.max(0.05, scale * 0.01);
   const creditDelta = Math.abs(credits - expectedCredits);
   const debitDelta = Math.abs(debits - expectedDebits);
   const balanceDelta = Math.abs((opening + expectedCredits - expectedDebits) - closing);
