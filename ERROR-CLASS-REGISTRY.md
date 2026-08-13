@@ -41,3 +41,13 @@ Live persona runs are required when extraction prompts or file-processing behavi
 | C019 | Infrastructure failure becomes a financial verdict | CLOSED in v35.2.5 | Any document-extraction failure blocks agents/scoring; incomplete evidence never produces CONTRADICTED or any TransferScore |
 
 | C020 | Server-side module resolution outside the function directory | CLOSED in v35.2.7 | Blocking `check-api-bundle` rejects relative imports from `api/*.ts` that escape `api/` or do not resolve |
+
+
+## PB1 document-processing reliability
+
+| Class | Status | Universal guard |
+|---|---|---|
+| C021 HTTP-200 processing failure bypass | Closed / regression guarded | `processing_failed` blocks verdict |
+| C022 Technical error presented as authenticity concern | Closed / regression guarded | canonical technical-failure payload has empty authenticity concerns |
+| C023 Self-transfer marker bypasses multi-signal classification | Closed / regression guarded | external legal entity + marker => `review_required` |
+| C024 Universal long-document extraction | RC / regression guarded | fixed page windows + deterministic merge + control-total reconciliation |

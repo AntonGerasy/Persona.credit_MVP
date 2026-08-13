@@ -41,6 +41,22 @@ const selfTransfer = run([
 ]);
 assert.equal(selfTransfer?.income_audit.excluded[0]?.reason, 'self_transfer_marker');
 
+// C023 — a generic bank self-transfer phrase plus a named external legal entity is ambiguous,
+// not proof of self-funding. Preserve it for manual review.
+const namedEntityTransfer = run([
+  { date: '2026-04-27', description: 'Online transfer from CHK 1632 Confirmation; CODECTIVE INC', counterparty: 'CODECTIVE INC', amount: 4000 },
+], 'Anton Gerasymenko', 'Codective Inc', 'Employed — Full Time');
+assert.equal(namedEntityTransfer?.income_audit.review_required_count, 1);
+assert.equal(namedEntityTransfer?.income_audit.excluded_count, 0);
+
+// Same marker without an external legal entity remains a self-transfer exclusion.
+const plainMarkerTransfer = run([
+  { date: '2026-04-27', description: 'Online transfer from CHK 1632', counterparty: 'Own account', amount: 4000 },
+], 'Anton Gerasymenko', '', 'Employed — Full Time');
+assert.equal(plainMarkerTransfer?.income_audit.review_required_count, 0);
+assert.equal(plainMarkerTransfer?.income_audit.excluded_count, 1);
+
+
 // C003 — QA identity reliability is independent of any model-provided number.
 assert.equal(deterministicIdentityReliability({ qaSyntheticAccepted: true, identityUsable: false, identityRejected: false, extractedReliability: 99 }), 50);
 assert.equal(deterministicIdentityReliability({ qaSyntheticAccepted: true, identityUsable: false, identityRejected: false, extractedReliability: 5 }), 50);
@@ -145,4 +161,4 @@ const ambiguousIdentity = evaluateIdentitySlotCompatibility({
 });
 assert.equal(ambiguousIdentity.decision, 'review');
 
-console.log('Golden engine smoke: 13 universal class guards passed.');
+console.log('Golden engine smoke: 15 universal class guards passed.');

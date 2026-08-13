@@ -34,7 +34,7 @@ import PublicInfoPage from './pages/PublicInfoPage';
 import PricingPage from './pages/PricingPage';
 import ReportViewerPage from './pages/ReportViewerPage';
 import LegalPage from './pages/LegalPage';
-import { evaluateExtractionReliability } from '../api/_lib/extractionReliability';
+import { evaluateExtractionReliability, mergeExtractionChunks, processingFailureFromParsedExtraction, reconcileStatementControlTotals } from '../api/_lib/extractionReliability';
 
 // v34.14: styled password-change modal (no window.prompt/confirm). Self-contained:
 // talks to authClient directly; on success the server revokes every other session.
@@ -935,9 +935,6 @@ const App: React.FC = () => {
             const runDocumentExtraction = async (): Promise<ExtractedDocument[]> => {
                 const results: ExtractedDocument[] = [];
 
-                // Form fields store uploads as FileData wrappers ({ file, validationStatus }),
-                // NOT raw File objects. Unwrap to File and skip anything explicitly invalid,
-                // otherwise extraction silently receives garbage and yields zero documents.
                 type UploadEntry = { file: File; qaFixtureAccepted: boolean };
                 const pickFiles = (key: string): UploadEntry[] => {
                     const raw = (formData[key] as any[]) || [];
@@ -957,60 +954,130 @@ const App: React.FC = () => {
                     { key: 'asset_evidence',         label: 'Asset / Property Document', files: pickFiles('asset_evidence') },
                 ];
 
+                const requestExtraction = async (label: string, payload: Record<string, any>): Promise<any | null> => {
+                    try {
+                        const response = await fetch('/api/extract-document', {
+                            method: 'POST',
+                            headers: aiHeaders(),
+                            body: JSON.stringify(payload),
+                        });
+                        if (!response.ok) {
+                            console.warn(`extract-document failed for ${label}: ${response.status}`);
+                            extractionFailures.push({
+                                label,
+                                status: response.status,
+                                kind: response.status === 401 ? 'session' : response.status === 429 ? 'rate_limit' : 'server',
+                            });
+                            if (response.status === 401) throw new Error('__PERSONA_SESSION_EXPIRED__');
+                            return null;
+                        }
+                        const parsed = await response.json();
+                        const processingFailure = processingFailureFromParsedExtraction(parsed, label);
+                        if (processingFailure) {
+                            extractionFailures.push(processingFailure);
+                            return null;
+                        }
+                        return parsed;
+                    } catch (err) {
+                        if (err instanceof Error && err.message === '__PERSONA_SESSION_EXPIRED__') throw err;
+                        console.warn(`Document extraction error for ${label}:`, err);
+                        extractionFailures.push({ label, kind: 'network' });
+                        return null;
+                    }
+                };
+
                 for (const entry of allDocumentEntries) {
-                    if (!entry.files || entry.files.length === 0) continue;
+                    if (!entry.files?.length) continue;
 
                     for (const upload of entry.files) {
                         const file = upload.file;
-                        try {
-                            const base64Data = await fileToBase64(file);
+                        const base64Data = await fileToBase64(file);
+                        const commonPayload = {
+                            fieldLabel: entry.label,
+                            applicantName: formData.full_name || 'Unknown',
+                            employerName: formData.employer_name || '',
+                            employmentType: formData.employment_type || '',
+                            originCountry: countryOfOrigin,
+                            destinationCountry: destCountry,
+                        };
 
-                            const response = await fetch('/api/extract-document', {
-                                method: 'POST',
-                                headers: aiHeaders(),
-                                body: JSON.stringify({
-                                    fileBase64: base64Data,
-                                    mimeType: file.type || 'application/octet-stream',
-                                    fieldLabel: entry.label,
-                                    applicantName: formData.full_name || 'Unknown',
-                                    employerName: formData.employer_name || '',
-                                    employmentType: formData.employment_type || '',
-                                    originCountry: countryOfOrigin,
-                                    destinationCountry: destCountry,
-                                }),
+                        let parsed: any | null = null;
+                        const isPdf = file.type === 'application/pdf' || file.type === 'application/octet-stream' || /\.pdf$/i.test(file.name);
+
+                        if (isPdf) {
+                            // C024: every PDF follows the same fixed page-window path. No bank/country/language heuristics.
+                            const chunkSize = 2;
+                            const firstChunk = await requestExtraction(entry.label, {
+                                ...commonPayload,
+                                fileBase64: base64Data,
+                                mimeType: file.type || 'application/pdf',
+                                chunkMode: true,
+                                pageStart: 1,
+                                pageEnd: chunkSize,
                             });
+                            if (!firstChunk) continue;
 
-                            if (!response.ok) {
-                                console.warn(`extract-document failed for ${entry.label}: ${response.status}`);
-                                extractionFailures.push({
-                                    label: entry.label,
-                                    status: response.status,
-                                    kind: response.status === 401
-                                        ? 'session'
-                                        : response.status === 429
-                                            ? 'rate_limit'
-                                            : 'server',
+                            const pageCount = Math.max(1, Math.floor(Number(firstChunk.document_page_count) || Number(firstChunk.chunk_page_end) || 1));
+                            const chunks: any[] = [firstChunk];
+                            let chunkFailed = false;
+
+                            for (let pageStart = chunkSize + 1; pageStart <= pageCount; pageStart += chunkSize) {
+                                const chunk = await requestExtraction(entry.label, {
+                                    ...commonPayload,
+                                    fileBase64: base64Data,
+                                    mimeType: file.type || 'application/pdf',
+                                    chunkMode: true,
+                                    pageStart,
+                                    pageEnd: Math.min(pageCount, pageStart + chunkSize - 1),
                                 });
-                                if (response.status === 401) {
-                                    throw new Error('__PERSONA_SESSION_EXPIRED__');
+                                if (!chunk) { chunkFailed = true; break; }
+                                if (Number(chunk.document_page_count) > 0 && Number(chunk.document_page_count) !== pageCount) {
+                                    console.warn(`Inconsistent PDF page count during extraction for ${entry.label}`);
+                                    extractionFailures.push({ label: entry.label, kind: 'server' });
+                                    chunkFailed = true;
+                                    break;
                                 }
+                                chunks.push(chunk);
+                            }
+                            if (chunkFailed) continue;
+
+                            const merged = mergeExtractionChunks(chunks);
+                            if (merged.processing_failed === true) {
+                                extractionFailures.push({ label: entry.label, kind: 'server' });
+                                continue;
+                            }
+                            const controlCheck = reconcileStatementControlTotals(merged);
+                            if (controlCheck.applicable && !controlCheck.complete) {
+                                console.warn(`Statement control totals did not reconcile for ${entry.label}`, controlCheck);
+                                extractionFailures.push({ label: entry.label, kind: 'server' });
                                 continue;
                             }
 
-                            const parsed = await response.json() as ExtractedDocument;
-                            if (parsed && parsed.document_type) {
-                                (parsed as any).source_file_name = file.name;
-                                if (entry.key === 'identity_document' && upload.qaFixtureAccepted) {
-                                    (parsed as any).qa_fixture = true;
-                                    (parsed as any).is_usable = false;
-                                    (parsed as any).verification_display_status = 'QA Fixture — accepted for pipeline testing; not identity-verified';
-                                }
-                                results.push(parsed);
+                            parsed = await requestExtraction(entry.label, {
+                                ...commonPayload,
+                                finalizeChunks: true,
+                                mergedExtraction: merged,
+                            });
+                        } else {
+                            // A single image is one chunk. It is accepted/rejected by actual extraction quality, not file type.
+                            parsed = await requestExtraction(entry.label, {
+                                ...commonPayload,
+                                fileBase64: base64Data,
+                                mimeType: file.type || 'application/octet-stream',
+                                chunkMode: false,
+                                pageStart: 1,
+                                pageEnd: 1,
+                            });
+                        }
+
+                        if (parsed?.document_type) {
+                            (parsed as any).source_file_name = file.name;
+                            if (entry.key === 'identity_document' && upload.qaFixtureAccepted) {
+                                (parsed as any).qa_fixture = true;
+                                (parsed as any).is_usable = false;
+                                (parsed as any).verification_display_status = 'QA Fixture — accepted for pipeline testing; not identity-verified';
                             }
-                        } catch (err) {
-                            if (err instanceof Error && err.message === '__PERSONA_SESSION_EXPIRED__') throw err;
-                            console.warn(`Document extraction error for ${entry.label}:`, err);
-                            extractionFailures.push({ label: entry.label, kind: 'network' });
+                            results.push(parsed as ExtractedDocument);
                         }
                     }
                 }

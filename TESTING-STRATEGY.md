@@ -36,3 +36,9 @@ Do not rerun every historical persona after a presentation-only change. The safe
 
 ## C020 serverless packaging blind spot — closed
 Before v35.2.7, `test:pb1` did not validate serverless function packaging: Vite builds the client, TypeScript checks types, and Node tests resolve source-tree imports directly. `test:api-bundle` now blocks any top-level `api/*.ts` relative import that escapes the `api/` directory or points to a missing module.
+
+## v35.2.9 — C024 long-document reliability gate
+
+Long-document regression is deterministic and network-free in CI. `test:reliability` validates chunk assembly, exact preservation of duplicate transaction rows, statement control-total reconciliation, failed-chunk poisoning, no-control behavior, one-page behavior, and HTTP-200 `processing_failed` handling. `test:smoke` carries C023 classification guards.
+
+The synthetic P8 PDF is a manual QA asset only. Live Gemini validation is never part of CI. Release invariant: every accepted document is COMPLETE or RETRY; PARTIAL evidence may never reach scoring.
