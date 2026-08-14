@@ -95,6 +95,8 @@ Rules:
       config: {
         responseMimeType: 'application/json',
         responseSchema: schema,
+        temperature: 0,
+        seed: 42,
         thinkingConfig: { thinkingBudget: 0 },
         maxOutputTokens: 500,
       },

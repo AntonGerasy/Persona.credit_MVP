@@ -116,7 +116,10 @@ export const generateDossierPDF = async (data: DashboardData) => {
 
   const fv = data.financial_verified || {};
   const ca = data.country_analysis || {};
-  const usableDocs = (data.document_extractions || []).filter((d: any) => d.is_usable);
+  const allDocs = (data.document_extractions || []);
+  const usableDocs = allDocs.filter((d: any) => d.is_usable);
+  const partialDocs = allDocs.filter((d: any) => d.extraction_completeness === 'partial');
+  const unreadableDocs = allDocs.filter((d: any) => d.extraction_completeness === 'unreadable' || d.processing_failed === true);
   const purpose = purposeLabel[data.verification_purpose || ''] || 'Financial Verification';
   const empType = employmentLabel[data.employment_type || ''] || data.employment_type || '—';
   const shareId = data.shareId || 'PC-' + Math.random().toString(36).substring(2, 10).toUpperCase();
@@ -268,8 +271,42 @@ export const generateDossierPDF = async (data: DashboardData) => {
     doc.setFontSize(8);
     doc.setFont('helvetica', 'italic');
     doc.setTextColor(...C.slate);
-    doc.text('No documents were uploaded. Income figures below are self-declared by the applicant.', margin, y);
+    doc.text(
+      allDocs.length > 0
+        ? 'Submitted financial documents could not be read; they are not included in the figures below.'
+        : 'No documents were uploaded. Income figures below are self-declared by the applicant.',
+      margin, y
+    );
     y += 10;
+  }
+
+  // v35.3.5 — extraction provenance belongs next to the financial figures, not hidden
+  // at the end of the report. Partial documents are lower bounds; unreadable submitted
+  // documents remain visible so a recipient can distinguish "not submitted" from "not read".
+  if (partialDocs.length > 0 || unreadableDocs.length > 0) {
+    if (y > 242) { doc.addPage(); y = 20; }
+    doc.setFillColor(255, 251, 235);
+    const coverageLines: string[] = [];
+    partialDocs.forEach((d: any) => {
+      const label = d.source_file_name || d.issuing_institution || d.document_type || 'Submitted statement';
+      const ops = Number(d.extraction_diagnostics?.extracted_operations || 0);
+      coverageLines.push(`Extraction coverage — ${label}: ${ops} transactions read from the submitted statement. Where extraction is marked partial, figures derived from this document are observed minimums.`);
+    });
+    unreadableDocs.forEach((d: any) => {
+      const label = d.source_file_name || d.issuing_institution || d.document_type || 'Submitted document';
+      coverageLines.push(`${label}: Submitted; could not be read — not included in the figures.`);
+    });
+    const wrapped = coverageLines.flatMap((line) => doc.splitTextToSize(line, contentWidth - 8));
+    const boxHeight = Math.max(18, wrapped.length * 4.2 + 10);
+    doc.roundedRect(margin, y, contentWidth, boxHeight, 2, 2, 'F');
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...C.amber);
+    doc.text('Extraction Coverage', margin + 4, y + 6);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.dark);
+    doc.text(wrapped, margin + 4, y + 11);
+    y += boxHeight + 8;
   }
 
   // ── Original Document Raw Data table ──────────────────────────────────────

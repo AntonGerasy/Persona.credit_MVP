@@ -169,6 +169,7 @@ Rules: numbers are 0-100 except income figures. Return JSON only.`,
 
   Fraud: (ctx) => `Fraud analyst. Compare declared data vs document extractions.
 Flag contradictions only if supported by data. Missing docs ≠ fraud.
+HARD RULE: if income_gap_reportable is false, do NOT report, quantify, request an explanation for, or characterize any difference between declared income and document-observed income as a discrepancy, shortfall, inconsistency, or applicant risk. Partially read evidence is a LOWER BOUND and must be described only as an evidence limitation.
 Data: ${JSON.stringify(ctx)}
 Rules: fraud_risk and contradiction_score are 0-100. Return JSON only.`,
 
@@ -286,6 +287,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           config: {
             responseMimeType: 'application/json',
             responseSchema: schema,
+            temperature: 0,
+            seed: 42,
             thinkingConfig: { thinkingBudget: 0 },
             // v34.11: 1024 truncated the Country agent's JSON mid-output on verbose runs
             // ("Unexpected end of JSON input" → fallback). 2048 gives headroom; schemas

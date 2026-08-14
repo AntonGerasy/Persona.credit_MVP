@@ -1475,6 +1475,12 @@ const App: React.FC = () => {
                 (verifiedMonthlyUsd / declaredMonthlyUsdPreRaw) > 20;
             const declaredMonthlyUsdPre = declaredPreSuspect ? 0 : declaredMonthlyUsdPreRaw;
             const declaredCoverageIsPartial = officialShare < 0.999;
+            // Pre-agent evidence completeness: partial/unreadable submitted bank evidence is a
+            // lower bound and cannot support a declared-vs-observed discrepancy allegation.
+            const financialEvidenceIncomplete = extractedDocuments.some((d: any) =>
+                /bank statement/i.test(String(d.document_type || d.source_field_label || '')) &&
+                String(d.extraction_completeness || 'complete') !== 'complete'
+            ) || extractionFailures.some((f) => /Bank Statement/i.test(f.label));
             const incomeContradictedPre =
                 !declaredCoverageIsPartial &&
                 verifiedMonthlyUsd > 0 && declaredMonthlyUsdPre > 0 &&
@@ -1486,6 +1492,7 @@ const App: React.FC = () => {
 
             const fraudContext = {
                 document_extractions: documentSummary,
+                income_gap_reportable: incomeContradictedPre && !financialEvidenceIncomplete,
                 self_declared: {
                     declared_monthly_income_usd: declaredMonthlyUsdPre || null,
                     declared_input_suspect: declaredPreSuspect || undefined,
@@ -1664,13 +1671,6 @@ const App: React.FC = () => {
             const hasVerifiedIncome = verifiedMonthlyUsd > 0;
             const hasDeclaredIncome = declaredMonthlyUsd > 0;
 
-            // Evidence completeness is a quality signal. Partial/unreadable supplied statements
-            // may support a lower bound, but can never prove a contradiction by omission.
-            const financialEvidenceIncomplete = extractedDocuments.some((d: any) =>
-                /bank statement/i.test(String(d.document_type || d.source_field_label || '')) &&
-                String(d.extraction_completeness || 'complete') !== 'complete'
-            ) || extractionFailures.some((f) => /Bank Statement/i.test(f.label));
-
             // Decide status + evidence factor
             let incomeStatus: 'verified' | 'partial' | 'declared' | 'contradicted' | 'unverified' = 'unverified';
             let incomeEvidenceFactor = 0.15;
@@ -1754,7 +1754,7 @@ const App: React.FC = () => {
                 // dashboard — null the declared side so surfaces render docs-only.
                 declared_monthly_usd: declaredInputSuspect ? null : Math.round(declaredMonthlyUsd),
                 verified_monthly_usd: Math.round(verifiedMonthlyUsd),
-                discrepancy_pct: declaredInputSuspect ? null : discrepancyPct,
+                discrepancy_pct: declaredInputSuspect || financialEvidenceIncomplete ? null : discrepancyPct,
                 declared_input_suspect: declaredInputSuspect,
                 evidence_factor: incomeEvidenceFactor,
                 declared_documentation_share: officialShare,
@@ -1950,13 +1950,36 @@ const App: React.FC = () => {
             parsedResult.summary_statement = lenderSafeText(parsedResult.summary_statement || '');
             parsedResult.aggregated_strengths = (parsedResult.aggregated_strengths || []).map(lenderSafeText).filter(Boolean);
             parsedResult.aggregated_risks = (parsedResult.aggregated_risks || []).map(lenderSafeText).filter(Boolean);
+
+            // v35.3.5 — a declared-vs-observed gap is reportable only when the deterministic
+            // reconciliation has actually reached `contradicted`. This is intentionally based
+            // on the FORM of the assertion, not a brittle phrase list, so it generalizes across
+            // banks, countries, currencies, and model wording.
+            const impliesIncomeGap = (value: string): boolean => {
+                const t = String(value || '');
+                return /\b(declared|self[- ]?reported|stated)\b/i.test(t)
+                    && /\b(document(ed|s)?|verified|observed|statement)\b/i.test(t)
+                    && /(lower|below|less than|short of|discrepan|shortfall|gap|[-−]\s?\d+(\.\d+)?\s?%|\d+(\.\d+)?\s?%\s*(lower|below|gap|discrepan))/i.test(t);
+            };
+            if (incomeStatus !== 'contradicted') {
+                parsedResult.aggregated_risks = (parsedResult.aggregated_risks || []).filter((r: string) => !impliesIncomeGap(r));
+                parsedResult.aggregated_uncertainties = (parsedResult.aggregated_uncertainties || []).filter((r: string) => !impliesIncomeGap(r));
+                if (parsedResult.score_explanation?.top_negative_drivers) {
+                    parsedResult.score_explanation.top_negative_drivers = parsedResult.score_explanation.top_negative_drivers
+                        .filter((r: string) => !impliesIncomeGap(r));
+                }
+            }
+
             if (financialEvidenceIncomplete) {
                 // A partial transcript is a lower bound, not evidence that the applicant overstated income.
-                // Remove agent prose that re-introduces an adverse discrepancy after the deterministic
-                // reconciliation has explicitly suppressed contradiction.
-                const adverseByPartialRead = /no documented income|income is self-declared and not document-verified|only one document|no income documents|documents? (?:are|is) missing|income reliability low due to inability to verify|documented monthly income[^.]{0,160}(?:lower than|below)[^.]{0,160}declared|(?:-|−)?\d+% discrepancy|needs reconciliation|poses? a risk to[^.]*loan performance|repayment capacity remains unconfirmed/i;
+                // Remove stale claims that imply missing evidence means an adverse applicant finding.
+                const adverseByPartialRead = /no documented income|income is self-declared and not document-verified|only one document|no income documents|documents? (?:are|is) missing|income reliability low due to inability to verify|needs reconciliation|poses? a risk to[^.]*loan performance|repayment capacity remains unconfirmed/i;
                 parsedResult.aggregated_risks = (parsedResult.aggregated_risks || []).filter((r: string) => !adverseByPartialRead.test(String(r)));
                 parsedResult.aggregated_uncertainties = (parsedResult.aggregated_uncertainties || []).filter((r: string) => !adverseByPartialRead.test(String(r)));
+                if (parsedResult.score_explanation?.top_negative_drivers) {
+                    parsedResult.score_explanation.top_negative_drivers = parsedResult.score_explanation.top_negative_drivers
+                        .filter((r: string) => !adverseByPartialRead.test(String(r)));
+                }
                 // Replace model-written exact-income strengths with the deterministic lower-bound wording.
                 parsedResult.aggregated_strengths = (parsedResult.aggregated_strengths || []).filter((r: string) => !/documented monthly income|verified monthly income/i.test(String(r)));
                 if (hasVerifiedIncome) parsedResult.aggregated_strengths.unshift(`Readable statement data supports at least ~${fmtUsd(verifiedMonthlyUsd)}/month in observed income.`);

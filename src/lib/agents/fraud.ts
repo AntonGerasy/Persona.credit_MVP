@@ -52,6 +52,8 @@ THIS IS YOUR PRIMARY FUNCTION — comparing two data sources:
 1. DOCUMENT EXTRACTIONS: what the documents actually show
 2. SELF-DECLARED FORM DATA: what the applicant typed
 
+HARD RULE: if income_gap_reportable is false, you MUST NOT report, quantify or request an explanation for any difference between declared and document-observed income. Observed income from partially read evidence is a LOWER BOUND. Record it as an evidence limitation, never as a discrepancy attributable to the applicant.
+
 SPECIFIC CONTRADICTIONS TO CHECK:
 - Income mismatch: declared monthly income vs document average_monthly_inflow.
   Flag if difference > 30%. Example: "Declared $3,000/mo but bank shows avg $800/mo inflow."

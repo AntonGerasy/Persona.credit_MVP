@@ -944,6 +944,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       config: {
         responseMimeType: 'application/json',
         responseSchema: extractSchema,
+        temperature: 0,
+        seed: 42,
         thinkingConfig: { thinkingBudget: 0 },
         // Chunking is the primary capacity control; this is only headroom for dense 1-2 page chunks.
         maxOutputTokens: 20000,
