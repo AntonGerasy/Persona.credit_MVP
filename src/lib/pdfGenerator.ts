@@ -756,7 +756,7 @@ export const generateDossierPDF = async (data: DashboardData) => {
     if (up.inflationDefenseFactor) pmRows.push(['Inflation Defense', `${up.inflationDefenseFactor}`]);
     if ((data as any).countryBenchmarkAvailable !== false && infOffset !== undefined && infOffset !== null) pmRows.push(['Inflation Offset', `${Number(infOffset) > 0 ? '+' : ''}${infOffset}%`]);
     pmRows.push(['Interaction Stability', `${beh.behavioral_consistency || 85}%`]);
-    if (evidenceQualityPct !== null) pmRows.push(['Evidence Quality (Fidelity)', `${evidenceQualityPct}%`]);
+    if (evidenceQualityPct !== null) pmRows.push(['Evidence Quality (Document Read Fidelity)', `${evidenceQualityPct}%`]);
     pmRows.push(['Market Readiness — Target Territory', `${data.destination_country || '—'} (fit signal: ${fitSignal})`]);
     safeAutoTable(doc, {
       startY: y, body: pmRows, theme: 'plain',

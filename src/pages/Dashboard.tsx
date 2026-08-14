@@ -333,7 +333,7 @@ const AlphaBuildView: React.FC<{ data: any }> = ({ data }) => {
 
 // --- Dashboard Sub-components ---
 
-const Gauge: React.FC<{ score: number, size?: number, label?: string }> = ({ score, size = 180, label = "Integrity Index" }) => {
+const Gauge: React.FC<{ score: number, size?: number, label?: string, lightSurface?: boolean }> = ({ score, size = 180, label = "Integrity Index", lightSurface = false }) => {
     const r = (size / 2) - 10;
     const circumference = 2 * Math.PI * r;
     const percentage = Math.max(0, Math.min(100, ((score - 300) / (850 - 300)) * 100));
@@ -363,8 +363,8 @@ const Gauge: React.FC<{ score: number, size?: number, label?: string }> = ({ sco
                 />
             </svg>
             <div className="absolute flex flex-col items-center">
-                <span className="text-4xl font-bold text-white tracking-apple-tight tabular-nums">{Math.round(score)}</span>
-                <span className="text-[9px] font-semibold text-cyber-silver uppercase tracking-apple-label mt-1">{label}</span>
+                <span className={`text-4xl font-bold tracking-apple-tight tabular-nums ${lightSurface ? 'text-brand-dark' : 'text-white'}`}>{Math.round(score)}</span>
+                <span className={`text-[9px] font-semibold uppercase tracking-apple-label mt-1 ${lightSurface ? 'text-brand-gray' : 'text-cyber-silver'}`}>{label}</span>
             </div>
         </div>
     );
@@ -1175,7 +1175,7 @@ const DashboardContent: React.FC<DashboardProps> = ({ userId, data: propData, pr
                                             <CardContent className="space-y-8">
                                                 <div className="flex flex-col items-center justify-center p-6 bg-slate-50 rounded-full w-32 h-32 mx-auto border-4 border-brand-blue/10">
                                                     <span className="text-3xl font-black text-brand-dark leading-none">{evidenceQualityPct}%</span>
-                                                    <span className="text-[9px] font-black text-brand-gray uppercase mt-1">Fidelity</span>
+                                                    <span className="text-[9px] font-black text-brand-gray uppercase mt-1">Document Read Fidelity</span>
                                                 </div>
                                                 <div className="space-y-4">
                                                     <div>
@@ -1478,7 +1478,7 @@ const DashboardContent: React.FC<DashboardProps> = ({ userId, data: propData, pr
                                                     )}
                                                 </div>
                                                 <div className="flex flex-col items-center justify-center p-4 min-w-[120px] bg-brand-blue/5 rounded-2xl border border-brand-blue/10 group-hover:bg-brand-blue group-hover:border-brand-blue transition-all group-hover:text-white">
-                                                    <span className="text-[9px] font-bold text-brand-gray uppercase tracking-widest mb-1 group-hover:text-white/70">Fidelity</span>
+                                                    <span className="text-[9px] font-bold text-brand-gray uppercase tracking-widest mb-1 group-hover:text-white/70">Document Read Fidelity</span>
                                                     <span className="text-2xl font-bold italic">{(doc.trustLevel * 100).toFixed(0)}%</span>
                                                 </div>
                                             </div>
@@ -2635,7 +2635,7 @@ const DashboardContent: React.FC<DashboardProps> = ({ userId, data: propData, pr
                     </div>
 
                 <div className="inline-flex items-center justify-center">
-                    <Gauge score={data.score} size={220} />
+                    <Gauge score={data.score} size={220} lightSurface />
                 </div>
                 
                 <div className="space-y-4 text-center">

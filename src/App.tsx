@@ -1481,8 +1481,15 @@ const App: React.FC = () => {
                 /bank statement/i.test(String(d.document_type || d.source_field_label || '')) &&
                 String(d.extraction_completeness || 'complete') !== 'complete'
             ) || extractionFailures.some((f) => /Bank Statement/i.test(f.label));
+            // An unclassified incoming credit is unresolved evidence, not proof against the applicant.
+            // This is universal across banks/countries: while the audit itself says a credit could not
+            // be classified, the report may not assert that the declared figure is contradicted.
+            const unresolvedIncomeEvidence = extractedDocuments.some(
+                (d: any) => Number(d.income_audit?.review_required_count) > 0
+            );
             const incomeContradictedPre =
                 !declaredCoverageIsPartial &&
+                !unresolvedIncomeEvidence &&
                 verifiedMonthlyUsd > 0 && declaredMonthlyUsdPre > 0 &&
                 (verifiedMonthlyUsd / declaredMonthlyUsdPre) < 0.60;
             const incomeDiscrepancyPctPre =
@@ -1686,6 +1693,10 @@ const App: React.FC = () => {
                     incomeStatus = 'partial';
                     incomeEvidenceFactor = Math.max(0.35, Math.min(0.80, ratio));
                 }
+                else if (unresolvedIncomeEvidence) {
+                    incomeStatus = 'partial';
+                    incomeEvidenceFactor = Math.max(0.35, Math.min(0.80, ratio));
+                }
                 else if (ratio >= 0.85) { incomeStatus = 'verified'; incomeEvidenceFactor = 1.0; }      // docs confirm (or exceed) declared
                 else if (declaredCoverageIsPartial) {
                     incomeStatus = 'partial';
@@ -1731,7 +1742,9 @@ const App: React.FC = () => {
             if (incomeStatus === 'contradicted') {
                 reconciliationExplanation = `Declared income (~${fmtUsd(declaredMonthlyUsd)}/mo) is significantly higher than documented income (~${fmtUsd(verifiedMonthlyUsd)}/mo, ${discrepancyPct}% difference). The gap is unexplained and lowers verified standing.`;
             } else if (incomeStatus === 'partial') {
-                reconciliationExplanation = financialEvidenceIncomplete
+                reconciliationExplanation = unresolvedIncomeEvidence
+                    ? `Documents confirm ~${fmtUsd(verifiedMonthlyUsd)}/mo against a declared ~${fmtUsd(declaredMonthlyUsd)}/mo. Credits that the engine could not classify remain under manual review, so the remaining difference is unresolved rather than contradicted.`
+                    : financialEvidenceIncomplete
                     ? `Readable statement data supports at least ~${fmtUsd(verifiedMonthlyUsd)}/mo. Some submitted financial evidence was only partially read, so this is a lower bound and no contradiction is inferred from the remaining gap.`
                     : declaredCoverageIsPartial
                         ? `Submitted documents show ~${fmtUsd(verifiedMonthlyUsd)}/mo against a declared ~${fmtUsd(declaredMonthlyUsd)}/mo. The applicant reports that the evidence covers about ${Math.round(officialShare * 100)}% of total income, so the remaining gap is unverified rather than contradicted.`
@@ -1754,7 +1767,7 @@ const App: React.FC = () => {
                 // dashboard — null the declared side so surfaces render docs-only.
                 declared_monthly_usd: declaredInputSuspect ? null : Math.round(declaredMonthlyUsd),
                 verified_monthly_usd: Math.round(verifiedMonthlyUsd),
-                discrepancy_pct: declaredInputSuspect || financialEvidenceIncomplete ? null : discrepancyPct,
+                discrepancy_pct: declaredInputSuspect || financialEvidenceIncomplete || unresolvedIncomeEvidence ? null : discrepancyPct,
                 declared_input_suspect: declaredInputSuspect,
                 evidence_factor: incomeEvidenceFactor,
                 declared_documentation_share: officialShare,
@@ -1792,7 +1805,9 @@ const App: React.FC = () => {
                 // Independent document-integrity findings remain represented by fraud_risk/evidence fields.
                 fraudNode.contradiction_score = 0;
             } else if (!nameMismatch && fraudNode && incomeStatus === 'partial') {
-                fraudNode.contradiction_score = financialEvidenceIncomplete ? 0 : Math.min(numOf(fraudNode.contradiction_score), 40);
+                fraudNode.contradiction_score = (financialEvidenceIncomplete || unresolvedIncomeEvidence)
+                    ? 0
+                    : Math.min(numOf(fraudNode.contradiction_score), 40);
             }
 
             // FINAL SYNTHESIS — Structured Aggregation Engine
@@ -2200,6 +2215,10 @@ const App: React.FC = () => {
             const evidence_strength = agents.reduce((acc, agent) => acc + (agent.evidence_strength ?? 50), 0) / agents.length;
             const overall_uncertainty = parsedResult.uncertainty_analysis?.overall_uncertainty ?? 50;
 
+            // Quantize the three confidence-only inputs to 5-point steps. This preserves the
+            // score formula and pillar sources while preventing harmless model-confidence jitter from
+            // moving TransferScore materially between identical runs.
+            const q5 = (v: number, d = 50) => Math.round((Number(v ?? d)) / 5) * 5;
             const scoringResult = calculateTransferScore({
                 identity_reliability: deterministicIdentityScore,
                 financial_stability: finNode.financial_stability ?? 50,
@@ -2208,9 +2227,9 @@ const App: React.FC = () => {
                 behavioral_consistency: behNode?.behavioral_consistency ?? 50,
                 fraud_risk: fraudNode.fraud_risk ?? 50,
                 contradiction_score: fraudNode.contradiction_score ?? 0,
-                overall_confidence: parsedResult.overall_confidence ?? 0.5,
-                evidence_strength: evidence_strength,
-                overall_uncertainty: overall_uncertainty,
+                overall_confidence: q5((parsedResult.overall_confidence ?? 0.5) * 100) / 100,
+                evidence_strength: q5(evidence_strength),
+                overall_uncertainty: q5(overall_uncertainty),
                 income_evidence_factor: incomeEvidenceFactor
             });
             parsedResult.identity_verification_status = qaSyntheticAccepted
@@ -2221,6 +2240,25 @@ const App: React.FC = () => {
                         ? 'Identity evidence rejected — review or replacement required'
                         : 'Identity verification pending';
             parsedResult.identity_document_status = qaSyntheticAccepted ? 'qa_fixture' : identityUsable ? 'passed' : identityRejected ? 'failed' : 'missing';
+
+            // Do not present model-written identity-verification claims as strengths unless the
+            // deterministic identity-document status has actually passed. Read fidelity and agent
+            // confidence are separate concepts from identity verification.
+            if (parsedResult.identity_document_status !== 'passed') {
+                const impliesVerifiedIdentity = (value: string): boolean =>
+                    /strong identity verification|identity (?:is|was|has been) verified|verified identity|strong identity assurance|identity verification (?:is )?(?:strong|confirmed|complete)/i.test(String(value || ''));
+                parsedResult.aggregated_strengths = (parsedResult.aggregated_strengths || []).filter((s: string) => !impliesVerifiedIdentity(s));
+                parsedResult.strengths = parsedResult.aggregated_strengths;
+                parsedResult.major_strengths = parsedResult.aggregated_strengths;
+                if (parsedResult.dossier_analysis?.strengths) {
+                    parsedResult.dossier_analysis.strengths = parsedResult.dossier_analysis.strengths.filter((s: any) => !impliesVerifiedIdentity(s?.title || s));
+                }
+                if (parsedResult.dossier_markdown) {
+                    const safeStrengths = (parsedResult.aggregated_strengths || []).slice(0, 3).join('; ');
+                    parsedResult.dossier_markdown = parsedResult.dossier_markdown
+                        .replace(/\*\*Strengths:\*\*[\s\S]*?(?=\n\n\*\*Considerations:\*\*)/i, `**Strengths:** ${safeStrengths}`);
+                }
+            }
             parsedResult.is_qa_fixture_assessment = qaSyntheticAccepted;
             if (qaSyntheticAccepted) {
                 identityDocs.forEach((d: any) => {
