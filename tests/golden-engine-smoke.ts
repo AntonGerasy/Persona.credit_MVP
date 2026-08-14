@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { runIncomeEngine } from '../api/extract-document';
+import { deriveReliablePeriod, runIncomeEngine, runObligationsEngine } from '../api/extract-document';
 import { deriveDecisionStatus, deterministicIdentityReliability } from '../src/lib/universalDecision';
 import { calculateTransferScore } from '../src/scoreEngine';
 import { evaluateIdentitySlotCompatibility } from '../api/_lib/documentSlotValidation';
@@ -161,4 +161,69 @@ const ambiguousIdentity = evaluateIdentitySlotCompatibility({
 });
 assert.equal(ambiguousIdentity.decision, 'review');
 
-console.log('Golden engine smoke: 15 universal class guards passed.');
+
+// v35.3.1 — malformed OCR dates cannot stretch a recent statement to years.
+const periodGuard = deriveReliablePeriod([
+  { date: '200-02-14' },
+  { date: '2025-12-07' },
+  { date: '2026-05-31' },
+], 6);
+assert.equal(periodGuard.months, 6);
+
+// v35.3.1 — cancellation/reversal credits in native script are not income.
+const nativeCancellation = run([
+  { date: '2026-05-28', description: 'Скасування. Nayax LLC', counterparty: 'Nayax LLC', amount: 111.03 },
+]);
+assert.equal(nativeCancellation?.income_audit.counted_count, 0);
+assert.equal(nativeCancellation?.income_audit.excluded[0]?.reason, 'refund_or_reversal');
+
+// Transliteration fallback is defensive only; native script remains the preferred transcript.
+const transliteratedCancellation = run([
+  { date: '2026-05-28', description: 'Skasuvannia. Nayax LLC', counterparty: 'Nayax LLC', amount: 111.03 },
+]);
+assert.equal(transliteratedCancellation?.income_audit.excluded[0]?.reason, 'refund_or_reversal');
+
+// v35.3.1 — recurring ordinary merchant spend with a discretionary MCC is not an obligation.
+const merchantObligation = runObligationsEngine([
+  { date: '2026-04-10', description: 'Primo Water', counterparty: 'Primo Water', mcc: '5814', amount: 137.08 },
+  { date: '2026-05-10', description: 'Primo Water', counterparty: 'Primo Water', mcc: '5814', amount: 137.08 },
+], 'Test Applicant', 2);
+assert.equal(merchantObligation?.obligations_audit.counted_count, 0);
+
+// Applicant name in ACH metadata does not override explicit credit-card payment semantics.
+const cardPayment = runObligationsEngine([
+  { date: '2026-04-27', description: 'CAPITAL ONE DES:CRD PMT INDN:Anton Gerasymenko', counterparty: 'Anton Gerasymenko', amount: 232 },
+  { date: '2026-05-27', description: 'CAPITAL ONE DES:CRD PMT INDN:Anton Gerasymenko', counterparty: 'Anton Gerasymenko', amount: 232 },
+], 'Anton Gerasymenko', 2);
+assert.equal(cardPayment?.obligations_audit.counted_count, 2);
+assert.ok(['loan_or_credit', 'recurring_payment'].includes(String(cardPayment?.obligations_audit.counted[0]?.reason || '')));
+
+
+// v35.3.2 — a strong cancellation stays excluded even when the same merchant repeats often.
+const repeatedCancellation = run(Array.from({ length: 6 }, (_, i) => ({
+  date: `2026-05-${String(10 + i).padStart(2, '0')}`,
+  description: 'Скасування. Vending Merchant',
+  counterparty: 'Vending Merchant',
+  amount: 100,
+})));
+assert.equal(repeatedCancellation?.income_audit.review_required_count, 0);
+assert.equal(repeatedCancellation?.income_audit.excluded_count, 6);
+
+// Safe token matching: substrings such as "rent" in "current" and "emi" in "premium"
+// must not manufacture obligations, including when a discretionary MCC is present.
+const substringFalsePositives = runObligationsEngine([
+  { date: '2026-04-10', description: 'PREMIUM OUTLET STORE', counterparty: 'Premium Outlet', mcc: '5999', amount: 90 },
+  { date: '2026-05-10', description: 'CURRENT ACCOUNT PURCHASE', counterparty: 'Current Market', mcc: '5999', amount: 95 },
+  { date: '2026-05-11', description: 'REMITTANCE TO FAMILY', counterparty: 'Family Transfer', mcc: '5999', amount: 100 },
+], 'Test Applicant', 2);
+assert.equal(substringFalsePositives?.obligations_audit.counted_count, 0);
+
+// A plausible-year OCR outlier cannot stretch six occupied statement months to a decade.
+const plausibleYearOutlier = deriveReliablePeriod([
+  { date: '2016-01-10' },
+  { date: '2025-12-07' }, { date: '2026-01-07' }, { date: '2026-02-07' },
+  { date: '2026-03-07' }, { date: '2026-04-07' }, { date: '2026-05-31' },
+], 6);
+assert.equal(plausibleYearOutlier.months, 6);
+
+console.log('Golden engine smoke: 23 universal class guards passed.');

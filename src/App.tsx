@@ -1951,9 +1951,28 @@ const App: React.FC = () => {
             parsedResult.aggregated_strengths = (parsedResult.aggregated_strengths || []).map(lenderSafeText).filter(Boolean);
             parsedResult.aggregated_risks = (parsedResult.aggregated_risks || []).map(lenderSafeText).filter(Boolean);
             if (financialEvidenceIncomplete) {
-                const adverseByOmission = /no documented income|income is self-declared and not document-verified|only one document|no income documents|documents? (?:are|is) missing|income reliability low due to inability to verify/i;
-                parsedResult.aggregated_risks = (parsedResult.aggregated_risks || []).filter((r: string) => !adverseByOmission.test(String(r)));
-                parsedResult.aggregated_uncertainties = (parsedResult.aggregated_uncertainties || []).filter((r: string) => !adverseByOmission.test(String(r)));
+                // A partial transcript is a lower bound, not evidence that the applicant overstated income.
+                // Remove agent prose that re-introduces an adverse discrepancy after the deterministic
+                // reconciliation has explicitly suppressed contradiction.
+                const adverseByPartialRead = /no documented income|income is self-declared and not document-verified|only one document|no income documents|documents? (?:are|is) missing|income reliability low due to inability to verify|documented monthly income[^.]{0,160}(?:lower than|below)[^.]{0,160}declared|(?:-|−)?\d+% discrepancy|needs reconciliation|poses? a risk to[^.]*loan performance|repayment capacity remains unconfirmed/i;
+                parsedResult.aggregated_risks = (parsedResult.aggregated_risks || []).filter((r: string) => !adverseByPartialRead.test(String(r)));
+                parsedResult.aggregated_uncertainties = (parsedResult.aggregated_uncertainties || []).filter((r: string) => !adverseByPartialRead.test(String(r)));
+                // Replace model-written exact-income strengths with the deterministic lower-bound wording.
+                parsedResult.aggregated_strengths = (parsedResult.aggregated_strengths || []).filter((r: string) => !/documented monthly income|verified monthly income/i.test(String(r)));
+                if (hasVerifiedIncome) parsedResult.aggregated_strengths.unshift(`Readable statement data supports at least ~${fmtUsd(verifiedMonthlyUsd)}/month in observed income.`);
+                const limitation = 'Some submitted financial evidence was only partially read. Documented income is presented as a minimum observed amount; the unread remainder is not treated as a contradiction.';
+                if (!(parsedResult.aggregated_risks || []).some((r: string) => /minimum observed amount|partially read/i.test(String(r)))) {
+                    parsedResult.aggregated_risks = [...(parsedResult.aggregated_risks || []), limitation];
+                }
+                // dossier_markdown may have been generated before this deterministic safety filter.
+                // Rebuild only the Considerations line so stale model prose cannot survive in PDF/share.
+                if (parsedResult.dossier_markdown) {
+                    const safeStrengths = (parsedResult.aggregated_strengths || []).slice(0, 3).join('; ');
+                    const safeConsiderations = (parsedResult.aggregated_risks || []).slice(0, 3).join('; ');
+                    parsedResult.dossier_markdown = parsedResult.dossier_markdown
+                        .replace(/\*\*Strengths:\*\*[\s\S]*?(?=\n\n\*\*Considerations:\*\*)/i, `**Strengths:** ${safeStrengths}`)
+                        .replace(/\*\*Considerations:\*\*[\s\S]*$/i, `**Considerations:** ${safeConsiderations}`);
+                }
             }
 
             const humanizeBehavior = (value: string): string => {
@@ -1975,10 +1994,16 @@ const App: React.FC = () => {
                 || 'Behavioral observations are limited to the submitted evidence.';
 
             const obligationDocs = extractedDocuments.filter((d: any) => d.is_usable && Number(d.estimated_monthly_obligations) > 0);
-            const observedObligationsLocal = obligationDocs.length
-                ? Math.round(obligationDocs.reduce((sum: number, d: any) => sum + Number(d.estimated_monthly_obligations || 0), 0) / obligationDocs.length)
+            // Never average raw obligations across currencies (e.g. UAH 4,393 + USD 3).
+            // Prefer the origin/basis currency used for income reconciliation, then keep only that
+            // currency for the local obligations headline. Separate-currency documents remain in audit.
+            const obligationCurrency = String(usableDocCurrency || obligationDocs.find((d: any) => d.currency_code)?.currency_code || '').toUpperCase();
+            const headlineObligationDocs = obligationDocs.filter((d: any) =>
+                !obligationCurrency || String(d.currency_code || '').toUpperCase() === obligationCurrency
+            );
+            const observedObligationsLocal = headlineObligationDocs.length
+                ? Math.round(headlineObligationDocs.reduce((sum: number, d: any) => sum + Number(d.estimated_monthly_obligations || 0), 0) / headlineObligationDocs.length)
                 : 0;
-            const obligationCurrency = obligationDocs.find((d: any) => d.currency_code)?.currency_code || usableDocCurrency || '';
             const detectedLoanPayments = obligationDocs.flatMap((d: any) => d.obligations_audit?.counted || [])
                 .filter((x: any) => x.reason === 'loan_or_credit');
             parsedResult.obligations_summary = {
@@ -2414,7 +2439,7 @@ const App: React.FC = () => {
                         const benchmark = userDeclaredMonthly || (userDeclaredAnnual / 12);
                         if (benchmark > 0) {
                             const diff = Math.abs(extractedMonthly - benchmark) / benchmark;
-                            if (diff > 0.25) { // 25% threshold
+                            if (diff > 0.25 && !financialEvidenceIncomplete) { // partial extraction cannot prove a mismatch
                                 hasIncomeMismatch = true;
                                 updatedDoc.notes = (updatedDoc.notes ? updatedDoc.notes + ' ' : '') + `Income mismatch detected (Extracted: ${extractedMonthly} vs Declared: ${benchmark.toFixed(0)}).`;
                             }
