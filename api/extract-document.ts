@@ -289,9 +289,28 @@ const monthFromWord = (w: string): number | null => {
   return null;
 };
 
-// Parse statement dates: ISO, then day + month NAME (year optional — "21/ABR" gets the
-// placeholder year 2001 so month-bucketing still works), then month name + day, then
-// numeric day-first (top-20 origins are day-first).
+// Numeric transaction dates are interpreted at DOCUMENT level, not by bank/country.
+// An unambiguous date such as 04/27 proves month-first; 27/04 proves day-first.
+// Ambiguous dates then inherit that order so period, income and obligations stay aligned.
+let numericDateOrder: 'day_first' | 'month_first' = 'day_first';
+
+const inferNumericDateOrder = (rawTxs: any[]): 'day_first' | 'month_first' => {
+  let dayFirstEvidence = 0;
+  let monthFirstEvidence = 0;
+  for (const tx of Array.isArray(rawTxs) ? rawTxs : []) {
+    const str = String(tx?.date || '').trim();
+    const m = str.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+    if (!m) continue;
+    const a = Number(m[1]);
+    const b = Number(m[2]);
+    if (a > 12 && b >= 1 && b <= 12) dayFirstEvidence++;
+    else if (b > 12 && a >= 1 && a <= 12) monthFirstEvidence++;
+  }
+  return monthFirstEvidence > dayFirstEvidence ? 'month_first' : 'day_first';
+};
+
+// Parse statement dates: ISO, CJK year-month-day, localized month names, then numeric
+// dates using the document-level order inferred from unambiguous rows.
 const parseTxDate = (s: string): Date | null => {
   const str = String(s || '').trim();
   const mkDate = (yr: number, mo: number, day: number): Date | null => {
@@ -319,7 +338,15 @@ const parseTxDate = (s: string): Date | null => {
     if (mo) return mkDate(fixYear(m[3]), mo, +m[2]);
   }
   m = str.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
-  if (m) return mkDate(fixYear(m[3]), +m[2], +m[1]); // day-first
+  if (m) {
+    const a = +m[1];
+    const b = +m[2];
+    if (a > 12 && b <= 12) return mkDate(fixYear(m[3]), b, a); // day-first proven
+    if (b > 12 && a <= 12) return mkDate(fixYear(m[3]), a, b); // month-first proven
+    return numericDateOrder === 'month_first'
+      ? mkDate(fixYear(m[3]), a, b)
+      : mkDate(fixYear(m[3]), b, a);
+  }
   return null;
 };
 
@@ -353,7 +380,17 @@ export const deriveReliablePeriod = (
     }
     const minIdx = occupiedMonths[lo];
     const maxIdx = occupiedMonths[hi];
-    const calendarMonths = Math.min(36, Math.max(1, maxIdx - minIdx + 1));
+    // Counting occupied calendar labels overstates statements that merely straddle a
+    // month boundary (e.g. 14 Apr–11 May is ~1 month of activity, not 2 months).
+    // Measure the actual dated span inside the trimmed, plausible coverage window.
+    const windowDates = parsed.filter((d) => {
+      const idx = d.getUTCFullYear() * 12 + d.getUTCMonth();
+      return idx >= minIdx && idx <= maxIdx;
+    });
+    const spanDays = windowDates.length > 1
+      ? (Math.max(...windowDates.map((d) => d.getTime())) - Math.min(...windowDates.map((d) => d.getTime()))) / 86400000
+      : 0;
+    const calendarMonths = Math.min(36, Math.max(1, Math.round(spanDays / 30.44)));
     const startYear = Math.floor(minIdx / 12);
     const startMonthNum = (minIdx % 12) + 1;
     const endYear = Math.floor(maxIdx / 12);
@@ -729,7 +766,14 @@ const reconcileNameMatch = (documentName: string, applicantName: string, modelMa
   return modelMatch || 'Cannot determine';
 };
 
-const finalizeExtractionResult = (result: any, applicantName: string, employerName: string, employmentType: string) => {
+export const finalizeExtractionResult = (result: any, applicantName: string, employerName: string, employmentType: string) => {
+  // Infer numeric date order once from this document's own rows. No bank/country rules.
+  const rawDateEvidence = [
+    ...(Array.isArray(result.credit_transactions) ? result.credit_transactions : []),
+    ...(Array.isArray(result.debit_transactions) ? result.debit_transactions : []),
+  ];
+  numericDateOrder = inferNumericDateOrder(rawDateEvidence);
+
   const controlCheck = reconcileStatementControlTotals(result);
   // v35.3.0: mismatch means PARTIAL, never 'no report'. Use the observed transcript as a
   // lower-bound evidence set and suppress contradiction downstream.
@@ -749,8 +793,8 @@ const finalizeExtractionResult = (result: any, applicantName: string, employerNa
     // Use one deterministic, plausible calendar period across the entire document. This also
     // prevents a single OCR year outlier from leaking into the lender-facing period label.
     result.period_covered = reliablePeriod.startMonth === reliablePeriod.endMonth
-      ? `${reliablePeriod.startMonth} (transaction-derived calendar month)`
-      : `${reliablePeriod.startMonth} to ${reliablePeriod.endMonth} (${reliablePeriod.months} calendar months; transaction-derived)`;
+      ? `${reliablePeriod.startMonth} (${reliablePeriod.months} month(s) of activity; transaction-derived)`
+      : `${reliablePeriod.startMonth} to ${reliablePeriod.endMonth} (${reliablePeriod.months} month(s) of activity; transaction-derived)`;
   }
 
   const engineOut = runIncomeEngine(
@@ -784,6 +828,20 @@ const finalizeExtractionResult = (result: any, applicantName: string, employerNa
     result.obligations_audit = { engine: 'llm_fallback', note: 'No debit transcript returned; obligations figure is a model estimate.' };
   }
   delete result.debit_transactions;
+
+  // v35.3.4 — READABLE EVIDENCE MUST REMAIN EVIDENCE.
+  // Model judgement about weak/irregular/non-payroll finances must not discard a bank
+  // statement after deterministic transaction engines successfully produced an audit.
+  // This is deliberately bank-, country-, currency- and applicant-agnostic.
+  const bankDescriptor = normTxt(`${result.document_type || ''} ${result.issuing_institution || ''}`);
+  const isBankStatement = /bank|statement|виписк|выписк|estado de cuenta|extrato|releve|kontoauszug|estratto conto|sao ke|对账单|銀行明細|银行流水/.test(bankDescriptor);
+  const hasDeterministicTranscript =
+    result.income_audit?.engine === 'deterministic' || result.obligations_audit?.engine === 'deterministic';
+  if (isBankStatement && hasDeterministicTranscript
+      && result.processing_failed !== true && result.extraction_completeness !== 'unreadable') {
+    result.is_usable = true;
+    if (result.rejection_reason) result.rejection_reason = '';
+  }
 
   const inflow = Number(result.average_monthly_inflow) || 0;
   let obligations = Number(result.estimated_monthly_obligations) || 0;

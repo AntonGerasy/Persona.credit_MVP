@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { deriveReliablePeriod, runIncomeEngine, runObligationsEngine } from '../api/extract-document';
+import { deriveReliablePeriod, finalizeExtractionResult, runIncomeEngine, runObligationsEngine } from '../api/extract-document';
 import { deriveDecisionStatus, deterministicIdentityReliability } from '../src/lib/universalDecision';
 import { calculateTransferScore } from '../src/scoreEngine';
 import { evaluateIdentitySlotCompatibility } from '../api/_lib/documentSlotValidation';
@@ -226,4 +226,66 @@ const plausibleYearOutlier = deriveReliablePeriod([
 ], 6);
 assert.equal(plausibleYearOutlier.months, 6);
 
-console.log('Golden engine smoke: 23 universal class guards passed.');
+
+
+// v35.3.4 — readable bank evidence cannot be discarded by model is_usable=false.
+// The guard is based on a deterministic audit transcript, not bank/country/currency/amount.
+const readableButModelRejected = finalizeExtractionResult({
+  document_type: 'Bank Statement',
+  issuing_institution: 'Generic International Bank',
+  is_usable: false,
+  rejection_reason: 'Income pattern is irregular',
+  extraction_completeness: 'partial',
+  period_months: 1,
+  credit_transactions: [
+    { date: '2026-04-15', description: 'Incoming transfer', counterparty: 'Private Sender', amount: 1200 },
+  ],
+  debit_transactions: [
+    { date: '2026-04-20', description: 'Groceries', counterparty: 'Local Market', amount: 100 },
+  ],
+}, 'Test Applicant', '', 'Self-Employed / Freelance');
+assert.equal(readableButModelRejected.is_usable, true);
+assert.equal(readableButModelRejected.rejection_reason, '');
+assert.equal(readableButModelRejected.income_audit?.engine, 'deterministic');
+
+// v35.3.4 — US-style numeric dates are inferred from the document itself, not country/bank.
+// A statement spanning Apr 14–May 11 is ~one month of activity even though it crosses
+// two calendar labels; the same divider must drive obligations.
+const monthFirstStatement = finalizeExtractionResult({
+  document_type: 'Account Statement',
+  issuing_institution: 'Generic Institution',
+  is_usable: true,
+  extraction_completeness: 'complete',
+  period_months: 2,
+  credit_transactions: [
+    { date: '04/21/26', description: 'Refund processed', counterparty: 'Tax Authority', amount: 12 },
+  ],
+  debit_transactions: [
+    { date: '04/27/26', description: 'CRD PMT', counterparty: 'Card Account', amount: 243 },
+    { date: '04/28/26', description: 'CARD PAYMENT', counterparty: 'AppleCard', amount: 500 },
+    { date: '04/28/26', description: 'CARD PAYMENT', counterparty: 'Robinhood Card', amount: 275 },
+    { date: '05/01/26', description: 'CARD PAYMENT', counterparty: 'AppleCard', amount: 200 },
+  ],
+}, 'Test Applicant', '', 'Self-Employed / Freelance');
+assert.equal(monthFirstStatement.period_months, 1);
+assert.match(String(monthFirstStatement.period_covered), /^2026-04 to 2026-05 \(1 month\(s\) of activity;/);
+assert.equal(monthFirstStatement.estimated_monthly_obligations, 1218);
+
+// v35.3.4 — day-first documents follow the same inference path. This represents the
+// dominant numeric format across many non-US statements without hardcoding a country.
+const dayFirstStatement = finalizeExtractionResult({
+  document_type: 'Bank Statement',
+  issuing_institution: 'Generic International Bank',
+  is_usable: true,
+  extraction_completeness: 'complete',
+  period_months: 2,
+  credit_transactions: [
+    { date: '27/04/26', description: 'Incoming transfer', counterparty: 'Client A', amount: 1000 },
+    { date: '01/05/26', description: 'Incoming transfer', counterparty: 'Client A', amount: 1000 },
+  ],
+  debit_transactions: [],
+}, 'Test Applicant', '', 'Freelance');
+assert.equal(dayFirstStatement.period_months, 1);
+assert.match(String(dayFirstStatement.period_covered), /^2026-04 to 2026-05 \(1 month\(s\) of activity;/);
+
+console.log('Golden engine smoke: 26 universal class guards passed.');
