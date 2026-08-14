@@ -1693,10 +1693,6 @@ const App: React.FC = () => {
                     incomeStatus = 'partial';
                     incomeEvidenceFactor = Math.max(0.35, Math.min(0.80, ratio));
                 }
-                else if (unresolvedIncomeEvidence) {
-                    incomeStatus = 'partial';
-                    incomeEvidenceFactor = Math.max(0.35, Math.min(0.80, ratio));
-                }
                 else if (ratio >= 0.85) { incomeStatus = 'verified'; incomeEvidenceFactor = 1.0; }      // docs confirm (or exceed) declared
                 else if (declaredCoverageIsPartial) {
                     incomeStatus = 'partial';
@@ -1705,6 +1701,12 @@ const App: React.FC = () => {
                     incomeEvidenceFactor = Math.max(0.35, Math.min(0.80, ratio / Math.max(officialShare, 0.1)));
                 }
                 else if (ratio >= 0.60) { incomeStatus = 'partial'; incomeEvidenceFactor = 0.85; }  // docs somewhat below declared
+                // Only the contradiction verdict is intercepted: an unclassified credit is unresolved
+                // evidence. It must not downgrade a profile the documents otherwise confirm.
+                else if (unresolvedIncomeEvidence) {
+                    incomeStatus = 'partial';
+                    incomeEvidenceFactor = Math.max(0.35, Math.min(0.80, ratio));
+                }
                 else { incomeStatus = 'contradicted'; incomeEvidenceFactor = 0.0; }                  // full-coverage evidence materially conflicts
             } else if (hasVerifiedIncome && !hasDeclaredIncome) {
                 incomeStatus = financialEvidenceIncomplete ? 'partial' : 'verified';
